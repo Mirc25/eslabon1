@@ -1,148 +1,93 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-// No se importa flutter_riverpod aquí, ya que el proveedor se define en otro archivo.
+import 'package:eslabon_flutter/models/notification_model.dart';
 
 class NotificationService {
-  static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  static final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  GoRouter? _router;
 
-  final GoRouter _router; // Instancia de GoRouter, inicializada vía constructor
+  NotificationService();
 
-  NotificationService(this._router); // Constructor ahora toma GoRouter
+  void setRouter(GoRouter router) {
+    _router = router;
+    debugPrint('GoRouter set in NotificationService');
+  }
 
-  // Método de inicialización de instancia
   Future<void> initialize() async {
-    // Solicitar permisos (iOS)
-    await _messaging.requestPermission();
-
-    // Configurar canal para notificaciones locales
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'high_importance_channel',
-      'High Importance Notifications',
-      description: 'This channel is used for important notifications.',
-      importance: Importance.high,
+    NotificationSettings settings = await _firebaseMessaging.requestPermission(
+      alert: true,
+      badge: true,
+      provisional: false,
+      sound: true,
     );
 
-    await _localNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    debugPrint('User granted permission: ${settings.authorizationStatus}');
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(),
-    );
+    String? token = await _firebaseMessaging.getToken();
+    debugPrint('FCM Token: $token');
 
-    await _localNotificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (details) {
-        if (details.payload != null && details.payload!.isNotEmpty) {
-          debugPrint('Payload de notificación local: ${details.payload}');
-        }
-      },
-    );
-
-    // Manejar notificaciones cuando la app está en primer plano
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      showFlutterNotification(message);
-      // Opcionalmente, manejar navegación para mensajes en primer plano si es necesario
-      // handleMessage(message);
+      debugPrint('Got a message whilst in the foreground!');
+      debugPrint('Message data: ${message.data}');
+
+      if (message.notification != null) {
+        debugPrint('Message also contained a notification: ${message.notification!.title}');
+      }
+      // handleMessage(message); // Puedes descomentar si quieres manejar la navegación en foreground
     });
 
-    // FirebaseMessaging.onMessageOpenedApp y getInitialMessage serán manejados en main.dart
-    // para asegurar que el contexto de GoRouter esté disponible vía Riverpod.
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      debugPrint('Message opened app from background: ${message.data}');
+      handleMessage(message);
+    });
+
+    FirebaseMessaging.instance.getInitialMessage().then((message) {
+      if (message != null) {
+        debugPrint('App opened from terminated state: ${message.data}');
+        handleMessage(message);
+      }
+    });
   }
 
-  // Método estático para mostrar notificaciones locales
-  static void showFlutterNotification(RemoteMessage message) {
-    RemoteNotification? notification = message.notification;
-    AndroidNotification? android = message.notification?.android;
-
-    if (notification != null && android != null) {
-      _localNotificationsPlugin.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'high_importance_channel',
-            'High Importance Notifications',
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-          ),
-        ),
-        payload: '',
-      );
-    }
-  }
-
-  /// Maneja la navegación profunda de las notificaciones FCM (estado de segundo plano/terminado).
   void handleMessage(RemoteMessage message) {
+    if (_router == null) {
+      debugPrint('Error: GoRouter not set in NotificationService.');
+      return;
+    }
+
     final data = message.data;
-    final type = data['type'];
+    final notificationType = data['type'];
+    final requestId = data['requestId'];
+    final helperId = data['helperId'];
+    final requesterId = data['requesterId'];
 
-    switch (type) {
+    debugPrint('Handling message type: $notificationType');
+
+    switch (notificationType) {
       case 'new_offer':
-        final requestId = data['requestId'];
-        final helperId = data['helperId'];
+        if (requestId != null) {
+          _router!.go('/request-detail/$requestId');
+        }
+        break;
+      case 'offer_accepted':
         if (requestId != null && helperId != null) {
-          _router.push('/rate-offer/$requestId/$helperId');
+          _router!.go('/rate-offer/$requestId/$helperId');
         }
         break;
       case 'rating_received':
-        final requestId = data['requestId'];
-        if (requestId != null) {
-          _router.push('/rate-helper/$requestId');
+        if (requesterId != null) {
+          _router!.go('/rate-requester/$requesterId');
         }
         break;
-      case 'chat_message':
-        final chatId = data['chatId'];
-        if (chatId != null) {
-          _router.push('/chat/$chatId');
+      case 'request_completed':
+        if (requestId != null) {
+          _router!.go('/rate-helper/$requestId');
         }
         break;
       default:
-        debugPrint('Tipo de notificación no reconocido: $type');
-    }
-  }
-
-  /// Maneja la navegación al tocar una notificación en la lista de la UI.
-  void handleNotificationNavigation({
-    required String type,
-    String? requestId,
-    String? helperId,
-    String? chatId,
-  }) {
-    switch (type) {
-      case 'new_offer':
-        if (requestId != null && helperId != null) {
-          _router.push('/rate-offer/$requestId/$helperId');
-        }
+        _router!.go('/notifications');
         break;
-      case 'rating_received':
-        if (requestId != null) {
-          _router.push('/rate-helper/$requestId');
-        }
-        break;
-      case 'chat_message':
-        if (chatId != null) {
-          _router.push('/chat/$chatId');
-        }
-        break;
-      default:
-        debugPrint('Tipo de notificación de UI no reconocido: $type');
-    }
-  }
-
-  static Future<void> updateFcmToken(String userId) async {
-    final token = await _messaging.getToken();
-    if (token != null) {
-      // Guardar token en Firestore
     }
   }
 }

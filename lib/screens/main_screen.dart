@@ -11,12 +11,13 @@ import 'package:geocoding/geocoding.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
 import 'dart:io' show Platform;
 
-// Importaciones de tus propias pantallas
+// Importaciones de tus propias pantallas (¡CORREGIDAS A eslabon_flutter!)
 import 'package:eslabon_flutter/screens/create_request_screen.dart';
 import 'package:eslabon_flutter/screens/profile_screen.dart';
 import 'package:eslabon_flutter/screens/my_requests_screen.dart';
 import 'package:eslabon_flutter/screens/favorites_screen.dart';
 import 'package:eslabon_flutter/screens/chat_list_screen.dart';
+import 'package:eslabon_flutter/screens/notifications_screen.dart';
 import 'package:eslabon_flutter/screens/history_screen.dart';
 import 'package:eslabon_flutter/screens/search_users_screen.dart';
 import 'package:eslabon_flutter/screens/settings_screen.dart';
@@ -26,20 +27,16 @@ import 'package:eslabon_flutter/screens/request_detail_screen.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:eslabon_flutter/services/notification_service.dart';
-import 'package:eslabon_flutter/providers/notification_service_provider.dart';
-import 'package:eslabon_flutter/router/app_router.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // ✅ CORRECCIÓN: Importar FirebaseMessaging
 
-class MainScreen extends ConsumerStatefulWidget {
+
+class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
   @override
-  ConsumerState<MainScreen> createState() => _MainScreenState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends ConsumerState<MainScreen> {
+class _MainScreenState extends State<MainScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   late final AppServices _appServices;
@@ -47,7 +44,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   User? _currentUser;
 
   String _currentFilterScope = 'Cercano';
-
+  
   double? _userLatitude;
   double? _userLongitude;
   String _userLocality = 'Cargando ubicación...';
@@ -71,28 +68,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       }
     });
     _determineAndSetUserLocation();
-
-    // ✅ CORRECCIÓN: Inicializar NotificationService y manejar mensajes FCM aquí
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final notificationServiceNotifier = ref.read(notificationServiceProvider.notifier);
-      notificationServiceNotifier.setRouter(router); // Pasar la instancia global de GoRouter
-      final notificationService = ref.read(notificationServiceProvider);
-      notificationService.initialize(); // Llamar al método de instancia initialize
-
-      // Cuando se abre la app desde una notificación (estado terminado)
-      FirebaseMessaging.instance.getInitialMessage().then((message) {
-        if (message != null) {
-          notificationService.handleMessage(message);
-        }
-      });
-
-      // Cuando la app ya está abierta y se toca una notificación (estado de segundo plano)
-      FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        if (message != null) {
-          notificationService.handleMessage(message);
-        }
-      });
-    });
   }
 
   @override
@@ -106,7 +81,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: color,
-        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -154,6 +128,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       _showSnackBar('Ubicación actual: $_userLocality', Colors.green);
       print('DEBUG: Ubicación obtenida y actualizada: Lat: $_userLatitude, Lon: $_userLongitude, Localidad: $_userLocality');
       
+      // Asegurar que la UI se reconstruye para reflejar la ubicación
       setState(() {}); 
 
     } catch (e) {
@@ -166,7 +141,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       print('DEBUG: Error al obtener ubicación: $e');
     }
   }
-
+  
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     const R = 6371.0;
 
@@ -213,26 +188,19 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           }
         }
       }
-    }); 
+    });
   }
 
   Future<void> _addComment(String requestId, String commentText) async {
     if (_currentUser == null || commentText.trim().isEmpty) {
-      _showSnackBar('Debes iniciar sesión para comentar.', Colors.red);
+      _showSnackBar('Debes iniciar sesión para comentar y el comentario no puede estar vacío.', Colors.red);
       return;
     }
 
     try {
       await _appServices.addComment(context, requestId, commentText);
-      _showSnackBar('Comentario enviado.', Colors.green);
-    } on FirebaseException catch (e) {
-      print("Error adding comment: $e");
-      _showSnackBar('Error de Firebase al enviar comentario: ${e.message}', Colors.red);
     } catch (e) {
-      print("Unexpected error adding comment: $e");
-      _showSnackBar('Ocurrió un error inesperado al enviar el comentario.', Colors.red);
-    } finally {
-      _commentControllers[requestId]?.clear();
+      _showSnackBar('Error al enviar el comentario.', Colors.red);
     }
   }
 
@@ -414,42 +382,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     );
   }
 
-  // ✅ CORREGIDO: Bloque _showImageFullScreen con la sintaxis correcta.
-  void _showImageFullScreen(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.black,
-          insetPadding: EdgeInsets.zero,
-          child: GestureDetector(
-            onTap: () => Navigator.pop(dialogContext),
-            child: InteractiveViewer(
-              child: SizedBox(
-                width: MediaQuery.of(dialogContext).size.width,
-                height: MediaQuery.of(dialogContext).size.height,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.broken_image, color: Colors.white54, size: 100),
-                        const SizedBox(height: 10),
-                        Text('Error al cargar imagen', style: TextStyle(color: Colors.white54)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildCommentsButtonInCard(String requestId) {
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
@@ -489,18 +421,18 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
 
-  // ✅ CORREGIDO: Método _buildHelpCard de MainScreen
   Widget _buildHelpCard(BuildContext context, Map<String, dynamic> request, String requestId) {
-    final String requesterUserId = request['userId'] as String? ?? '';
-    final String requesterName = request['nombre'] as String? ?? 'Usuario Anónimo'; // Asegurar tipo
-    final bool showWhatsapp = request['showWhatsapp'] as bool? ?? false; // Asegurar tipo
-    final bool showEmail = (request['email'] as String?)?.isNotEmpty == true; // Asegurar tipo
-    final String requestPhone = request['phone'] as String? ?? ''; // Asegurar tipo
-    final String requestEmail = request['email'] as String? ?? ''; // Asegurar tipo
+    final String _cardId = requestId;
+    final String requesterUserId = request['userId'] ?? '';
+    final String requesterName = request['nombre'] ?? 'Usuario Anónimo';
+    final bool showWhatsapp = request['showWhatsapp'] ?? false;
+    final bool showEmail = request['email'] != null && (request['email'] as String).isNotEmpty;
+    final String requestPhone = request['phone'] ?? '';
+    final String requestEmail = request['email'] ?? '';
 
-    final String memberSince = request['memberSince'] as String? ?? 'N/A'; // Asegurar tipo
-    final int helpedCount = request['helpedCount'] as int? ?? 0; // Asegurar tipo
-    final int receivedHelpCount = request['receivedHelpCount'] as int? ?? 0; // Asegurar tipo
+    final String memberSince = request['memberSince'] ?? '05/07/2025';
+    final int helpedCount = request['helpedCount'] as int? ?? 89;
+    final int receivedHelpCount = request['receivedHelpCount'] as int? ?? 23;
 
     final dynamic timestampData = request['timestamp'];
     final Timestamp timestamp = timestampData is Timestamp ? timestampData : Timestamp.now();
@@ -519,8 +451,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     }
 
     Color priorityColor = Colors.grey;
-    // Usar la categoría directamente del request data, ya que _priority no es miembro de MainScreenState.
-    switch (request['prioridad'] as String?) { // Asegurar tipo
+    switch (request['prioridad']) {
       case 'alta':
         priorityColor = Colors.redAccent;
         break;
@@ -530,23 +461,20 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       case 'baja':
         priorityColor = Colors.green;
         break;
-      default:
-        priorityColor = Colors.grey;
-        break;
     }
 
-    List<String> imageUrls = [];
     dynamic rawImages = request['imagenes'];
+    String imageUrlToDisplay = '';
     if (rawImages != null) {
-      if (rawImages is List) {
-        imageUrls = List<String>.from(rawImages.where((item) => item is String));
-      } else if (rawImages is String && rawImages.isNotEmpty) {
-        imageUrls = [rawImages];
+      if (rawImages is List && rawImages.isNotEmpty) {
+        imageUrlToDisplay = rawImages.first.toString();
+      } else if (rawImages is String) {
+        imageUrlToDisplay = rawImages;
       }
     }
     
-    final double? latitude = request['latitude'] as double?; // Asegurar tipo
-    final double? longitude = request['longitude'] as double?; // Asegurar tipo
+    final double? latitude = request['latitude'];
+    final double? longitude = request['longitude'];
 
 
     return Card(
@@ -572,7 +500,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                         children: [
                           CircleAvatar(
                             radius: 20,
-                            backgroundImage: (request['avatar'] as String?) != null && (request['avatar'] as String).startsWith('http')
+                            backgroundImage: (request['avatar'] != null && (request['avatar'] as String).startsWith('http'))
                                 ? NetworkImage(request['avatar'] as String)
                                 : const AssetImage('assets/default_avatar.png') as ImageProvider,
                             backgroundColor: Colors.grey[700],
@@ -583,7 +511,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  requesterName, // Usar la variable local segura
+                                  request['nombre'] ?? 'Anónimo',
                                   style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -591,18 +519,19 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
+                                // MODIFICACIÓN: Reemplazado userRating estático por UserReputationWidget
                                 UserReputationWidget(
                                   userId: requesterUserId,
                                   fromRequesters: false,
                                 ),
                                 Text(
-                                  request['localidad'] as String? ?? 'Desconocida', // Asegurar tipo
+                                  request['localidad'] ?? 'Desconocida',
                                   style: TextStyle(color: Colors.white70, fontSize: 11),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 Text(
-                                  'Categoría: ${request['categoria'] as String? ?? 'N/A'}', // Asegurar tipo
+                                  'Categoría: ${request['categoria'] ?? 'N/A'}',
                                   style: TextStyle(
                                       color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.w600),
                                   maxLines: 1,
@@ -623,11 +552,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                             return;
                           }
 
-                          // ✅ CORREGIDO: Pasar requestData como extra al navegar a RequestDetailScreen
-                          context.push(
-                            '/request_detail/$requestId',
-                            extra: request, // 'request' es el Map<String, dynamic> de la solicitud
-                          );
+                          // MODIFICADO: Usar GoRouter para navegar a request_detail
+                          context.push('/request_detail/$requestId');
+                          // Nota: Si RequestDetailScreen necesita 'requestData', tendrías que cargarlo desde Firestore
+                          // dentro de RequestDetailScreen usando el requestId, o pasarlo via 'extra'.
+                          // Por ahora, solo pasamos el ID como está configurado en tu router.
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
@@ -650,7 +579,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
-                            'Prioridad ${request['prioridad'] as String? ?? 'N/A'}',
+                            'Prioridad ${request['prioridad'] ?? 'N/A'}',
                         style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -677,11 +606,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   width: 120,
                   child: AspectRatio(
                     aspectRatio: 1,
-                    child: imageUrls.isNotEmpty
+                    child: imageUrlToDisplay.isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.network(
-                              imageUrls.first, // Usar la primera imagen de la lista
+                              imageUrlToDisplay,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) => Container(
                                 color: Colors.grey[700],
@@ -704,7 +633,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                            'Descripción: ${request['descripcion'] as String? ?? 'Sin descripción'}', // Asegurar tipo
+                            'Descripción: ${request['descripcion'] ?? 'Sin descripción'}',
                         style: const TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
                         maxLines: 2,
@@ -712,7 +641,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                                'Detalles: ${request['detalle'] as String? ?? 'Sin detalles'}', // Asegurar tipo
+                                'Detalles: ${request['detalle'] ?? 'Sin detalles'}',
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
@@ -768,7 +697,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                         path: requestEmail,
                                         queryParameters: {'subject': 'Ayuda en Eslabón'},
                                       );
-                                      // Usar _showSnackBar para errores de lanzamiento en MainScreen
                                       if (await canLaunchUrl(emailLaunchUri)) {
                                         await launchUrl(emailLaunchUri);
                                       } else {
@@ -786,17 +714,17 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Este usuario es miembro desde el ${memberSince}', // Usar variable local
+                        'Este usuario es miembro desde el ${request['memberSince'] ?? 'N/A'}',
                         style: const TextStyle(color: Colors.white54, fontSize: 10),
                         textAlign: TextAlign.center,
                       ),
                       Text(
-                        'Ayudó a ${helpedCount.toString().padLeft(4, '0')} Personas', // Usar variable local
+                        'Ayudó a ${request['helpedCount']?.toString().padLeft(4, '0') ?? '0000'} Personas',
                         style: const TextStyle(color: Colors.white54, fontSize: 10),
                         textAlign: TextAlign.center,
                       ),
                       Text(
-                        'Recibió Ayuda de ${receivedHelpCount.toString().padLeft(4, '0')} Personas', // Usar variable local
+                        'Recibió Ayuda de ${request['receivedHelpCount']?.toString().padLeft(4, '0') ?? '0000'} Personas',
                         style: const TextStyle(color: Colors.white54, fontSize: 10),
                         textAlign: TextAlign.center,
                       ),
@@ -1053,6 +981,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                               IconButton(
                                 icon: const Icon(Icons.add_circle_outline, color: Colors.white),
                                 onPressed: () {
+                                  // MODIFICADO: Usar GoRouter para navegar a create_request
                                   context.push('/create_request');
                                 },
                               ),
@@ -1091,7 +1020,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               title: const Text('Inicio', style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
-                context.go('/main');
+                context.go('/main'); // Generalmente 'inicio' es la pantalla principal o la que muestra solicitudes
               },
             ),
             ListTile(
@@ -1107,6 +1036,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               title: const Text('Crear Solicitud', style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
+                // MODIFICADO: Usar GoRouter para navegar a create_request
                 context.push('/create_request');
               },
             ),
@@ -1139,6 +1069,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               title: const Text('Notificaciones', style: TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
+                    // Si tienes una ruta específica para notificaciones que no requiere ID, usa esa.
+                    // Si siempre requiere ID, necesitarás pasar uno aquí (o un valor por defecto si aplica).
+                    // Asumiendo que '/notifications' sin ID lleva a la lista general.
                     context.go('/notifications');
                   },
             ),

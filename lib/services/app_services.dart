@@ -44,7 +44,8 @@ class AppServices {
   }
 
   Future<void> launchMap(BuildContext context, double latitude, double longitude) async {
-    final String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude'; // Revisa esta URL
+    // ✅ CORRECCIÓN: URL correcta para Google Maps con coordenadas.
+    final String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
     final Uri uri = Uri.parse(googleMapsUrl);
 
     if (await canLaunchUrl(uri)) {
@@ -78,15 +79,15 @@ class AppServices {
   Future<void> addNotification({
     required BuildContext context,
     required String recipientUserId,
-    required String type, // ✅ Campo 'type' es requerido
-    required String message,
+    required String type,
+    required String body, // ✅ CORRECCIÓN: Cambiado de 'message' a 'body'
     String? requestId,
     String? senderId,
     String? senderName,
     String? senderPhotoUrl,
     String? chatPartnerId,
     String? requestTitle,
-    Map<String, dynamic>? navigationData, // ✅ Campo 'navigationData' es opcional
+    Map<String, dynamic>? navigationData,
   }) async {
     try {
       if (recipientUserId.isEmpty) {
@@ -99,7 +100,7 @@ class AppServices {
           .collection('notifications')
           .add({
         'type': type,
-        'message': message,
+        'body': body, // ✅ CORRECCIÓN: Guardar como 'body'
         'timestamp': FieldValue.serverTimestamp(),
         'read': false,
         if (requestId != null) 'requestId': requestId,
@@ -110,7 +111,7 @@ class AppServices {
         if (requestTitle != null) 'requestTitle': requestTitle,
         if (navigationData != null) 'navigationData': navigationData,
       });
-      print('Notificación "$type" guardada en Firestore para $recipientUserId. Mensaje: $message');
+      print('Notificación "$type" guardada en Firestore para $recipientUserId. Mensaje: $body');
     } catch (e) {
       showSnackBar(context, 'Error al guardar notificación en Firestore.', Colors.red);
       print('Error al guardar notificación "$type" en Firestore: $e');

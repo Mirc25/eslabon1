@@ -1,19 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart'; // Importar GoRouter
-import '../services/notification_service.dart';
+import 'package:go_router/go_router.dart';
+import 'package:eslabon_flutter/services/notification_service.dart';
 
-// ✅ DEFINICIÓN: StateNotifierProvider para NotificationService
-final notificationServiceProvider = StateNotifierProvider<NotificationServiceNotifier, NotificationService>((ref) {
-  // Inicializamos con un GoRouter dummy. El router real se pasará en el método setRouter.
-  return NotificationServiceNotifier(NotificationService(GoRouter(routes: [])));
-});
-
-// Clase Notifier para manejar el estado de NotificationService
 class NotificationServiceNotifier extends StateNotifier<NotificationService> {
-  NotificationServiceNotifier(NotificationService initialService) : super(initialService);
+  NotificationServiceNotifier() : super(NotificationService());
 
-  // Método para actualizar la instancia de NotificationService con el router real
+  NotificationService get notificationService => state;
+
   void setRouter(GoRouter router) {
-    state = NotificationService(router);
+    state.setRouter(router);
   }
 }
+
+final notificationServiceProvider = StateNotifierProvider<NotificationServiceNotifier, NotificationService>(
+  (ref) {
+    return NotificationServiceNotifier();
+  },
+);

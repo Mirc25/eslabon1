@@ -1,58 +1,63 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Para Timestamp
-import '../models/notification_model.dart'; // Asegúrate de que la ruta sea correcta
+import 'package:eslabon_flutter/models/notification_model.dart';
+import 'package:intl/intl.dart';
 
 class NotificationCard extends StatelessWidget {
   final AppNotification notification;
-  final VoidCallback? onTap; // Callback para el onTap
+  final VoidCallback onTap;
 
   const NotificationCard({
     super.key,
     required this.notification,
-    this.onTap, // Inicializar el callback
+    required this.onTap,
   });
-
-  String _formatTimestamp(Timestamp timestamp) {
-    final date = timestamp.toDate();
-    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-  }
 
   @override
   Widget build(BuildContext context) {
+    final formattedTime = DateFormat('MMM d, hh:mm a').format(notification.timestamp.toDate());
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: notification.isRead ? Colors.grey[800] : Colors.blueGrey[700], // Cambia el color si ya fue leída
-      child: ListTile(
-        leading: Icon(
-          _getIconForNotificationType(notification.type), // Función para obtener el ícono
-          color: Colors.white,
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                notification.title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                notification.body, 
+                style: TextStyle(
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Tipo: ${notification.type}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  Text(
+                    formattedTime,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        title: Text(
-          notification.message,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          _formatTimestamp(notification.timestamp),
-          style: const TextStyle(color: Colors.grey),
-        ),
-        onTap: onTap, // Usar el callback onTap
-        trailing: notification.isRead
-            ? null
-            : const Icon(Icons.circle, color: Colors.blue, size: 10), // Indicador de no leída
       ),
     );
-  }
-
-  IconData _getIconForNotificationType(String type) {
-    switch (type) {
-      case 'new_offer':
-        return Icons.handshake;
-      case 'rating_received':
-        return Icons.star;
-      case 'chat_message':
-        return Icons.chat;
-      default:
-        return Icons.notifications;
-    }
   }
 }

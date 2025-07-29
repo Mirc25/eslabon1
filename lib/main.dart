@@ -1,34 +1,24 @@
-import 'package:eslabon_flutter/router/app_router.dart'; // Importar la variable global router
+import 'package:eslabon_flutter/router/app_router.dart';
 import 'package:eslabon_flutter/services/notification_service.dart';
-import 'package:eslabon_flutter/providers/notification_service_provider.dart'; // Importar el proveedor
+import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_core/firebase_core.dart'; // Importar Firebase Core
-import 'package:firebase_messaging/firebase_messaging.dart'; // Importar Firebase Messaging
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
-// Función de nivel superior para mensajes en segundo plano
-// Debe estar fuera de cualquier clase
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Inicializar Firebase en el handler de background si no está ya inicializado
-  await Firebase.initializeApp();
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp();
+  }
   debugPrint("Handling a background message: ${message.messageId}");
-
-  // Para manejar la navegación desde background, es más complejo.
-  // Generalmente se usa un GlobalKey para el Navigator o se reabre la app a una ruta específica.
-  // Por ahora, solo se loguea.
-  // Si necesitas navegar, tendrías que pasar el router de alguna manera,
-  // por ejemplo, usando un GlobalKey para el Navigator.
-  // NotificationService(router).handleMessage(message); // Esto no funcionaría directamente aquí sin un contexto de widget.
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Inicializar Firebase aquí
   await Firebase.initializeApp();
 
-  // Registrar el manejador de mensajes en segundo plano
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(
@@ -46,45 +36,44 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
-  // No necesitamos late final AppRouter _appRouter; ya que usamos la variable global 'router'
-
   @override
   void initState() {
     super.initState();
 
-    // ✅ CORRECCIÓN: Inicializar NotificationService usando Riverpod
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Acceder al notifier del proveedor para actualizar el router
       final notificationServiceNotifier = ref.read(notificationServiceProvider.notifier);
-      notificationServiceNotifier.setRouter(router); // Pasar la instancia global de GoRouter
+      
+      // LA LÍNEA CRÍTICA: Acceder a la instancia global de GoRouter desde AppRouter
+      notificationServiceNotifier.setRouter(AppRouter.router); 
 
-      // Obtener la instancia de NotificationService del proveedor (ya con el router asignado)
-      final notificationService = ref.read(notificationServiceProvider);
-      notificationService.initialize(); // Llamar al método de instancia initialize
+      final NotificationService notificationService = notificationServiceNotifier.notificationService;
+      
+      notificationService.initialize(); 
 
-      // Manejar mensajes cuando la app se abre desde un estado terminado
       FirebaseMessaging.instance.getInitialMessage().then((message) {
         if (message != null) {
+          debugPrint("App opened from terminated state by FCM message: ${message.messageId}");
           notificationService.handleMessage(message);
         }
       });
 
-      // Manejar mensajes cuando la app se abre desde segundo plano
       FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        debugPrint("App opened from background by FCM message: ${message.messageId}");
         notificationService.handleMessage(message);
+      });
+
+      FirebaseMessaging.onMessage.listen((message) {
+        debugPrint("FCM message received in foreground: ${message.messageId}");
       });
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // El usuario se obtiene a través de Firebase Auth, no es necesario aquí para MaterialApp.router
-    // final user = FirebaseAuth.instance.currentUser;
-
     return MaterialApp.router(
       title: 'Eslabón',
       debugShowCheckedModeBanner: false,
-      routerConfig: router, // Usar la instancia global de GoRouter
+      routerConfig: AppRouter.router,
     );
   }
 }
