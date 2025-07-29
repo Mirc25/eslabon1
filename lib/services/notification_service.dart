@@ -61,33 +61,124 @@ class NotificationService {
     final requestId = data['requestId'];
     final helperId = data['helperId'];
     final requesterId = data['requesterId'];
+    final chatPartnerId = data['chatPartnerId']; // ✅ Nuevo: Para chat
+    final chatPartnerName = data['chatPartnerName']; // ✅ Nuevo: Para chat
 
     debugPrint('Handling message type: $notificationType');
 
     switch (notificationType) {
       case 'new_offer':
         if (requestId != null) {
-          _router!.go('/request-detail/$requestId');
+          // Si una notificación de 'new_offer' lleva a la pantalla de detalle,
+          // y la pantalla de detalle necesita el ID del que ofreció ayuda para el chat,
+          // asegúrate de que el 'data' de la notificación lo incluya.
+          _router!.go(
+            '/request-detail/$requestId',
+            extra: {
+              'requesterId': requesterId, // El solicitante es el que recibe la oferta
+              'helperId': helperId, // El ayudador que hizo la oferta
+              'chatPartnerId': chatPartnerId, // El ID del que envió la oferta
+              'chatPartnerName': chatPartnerName, // El nombre del que envió la oferta
+            }
+          );
         }
         break;
-      case 'offer_accepted':
+      case 'offer_accepted': // Notificación al AYUDADOR
+        if (requestId != null && helperId != null && requesterId != null) {
+          // Asumiendo que helperId es el ID del ayudador que la oferta fue aceptada
+          // Y requesterId es el ID del solicitante.
+          // Si queremos que el AYUDADOR califique al SOLICITANTE después de la ayuda,
+          // esto es mejor manejarlo después de que la solicitud esté completada.
+          // Por ahora, te enviará al chat de la solicitud.
+          _router!.go(
+            '/chat/${_getChatId(requesterId, helperId)}', // Generar ChatId
+            extra: {
+              'chatPartnerId': requesterId,
+              'chatPartnerName': data['requesterName'], // Asumiendo que la notif tiene el nombre del solicitante
+            }
+          );
+        }
+        break;
+      case 'rating_received': // Notificación a quien RECIBIÓ la calificación
+        if (requesterId != null) { // Si el ID en la notificación es el requesterId, significa que el requester recibió calificación
+          _router!.go(
+            '/rate-requester/$requestId', // La ruta espera el requestId
+            extra: {
+              'requesterId': requesterId,
+              'requesterName': data['requesterName'], // Asumiendo que la notif tiene el nombre
+            }
+          );
+        }
+        // También puede ser para un helper que recibe calificación
+        if (helperId != null) {
+          _router!.go(
+            '/rate-helper/$requestId',
+            extra: {
+              'helperId': helperId,
+              'helperName': data['helperName'],
+            }
+          );
+        }
+        break;
+      case 'request_completed': // Notificación cuando la solicitud se completa
+        if (requestId != null && (helperId != null || requesterId != null)) {
+          // Si el que recibe la notificacion es el SOLICITANTE (le avisan que se completó)
+          // Y el que debe calificar es el HELPER
+          if (data['targetUserId'] == requesterId) { // Si esta notificación es para el SOLICITANTE
+              _router!.go(
+                  '/rate-helper/$requestId', // Ruta para calificar al ayudante
+                  extra: {
+                    'helperId': helperId, // El ayudante que debe calificar
+                    'helperName': data['helperName'], // El nombre del ayudante
+                    'requestData': data['requestData'], // Pasa los datos de la solicitud
+                  }
+              );
+          }
+          // Si el que recibe la notificacion es el AYUDADOR (le avisan que se completó)
+          // Y el que debe calificar es el SOLICITANTE
+          if (data['targetUserId'] == helperId) { // Si esta notificación es para el AYUDADOR
+              _router!.go(
+                  '/rate-requester/$requestId', // Ruta para calificar al solicitante
+                  extra: {
+                    'requesterId': requesterId, // El solicitante que debe calificar
+                    'requesterName': data['requesterName'], // El nombre del solicitante
+                  }
+              );
+          }
+        }
+        break;
+      case 'requester_rates_helper_prompt': // Solicitante califica al ayudante (notificación específica)
         if (requestId != null && helperId != null) {
-          _router!.go('/rate-offer/$requestId/$helperId');
+          _router!.go(
+            '/rate-helper/$requestId',
+            extra: {
+              'helperId': helperId,
+              'helperName': data['helperName'],
+            }
+          );
         }
         break;
-      case 'rating_received':
-        if (requesterId != null) {
-          _router!.go('/rate-requester/$requesterId');
-        }
-        break;
-      case 'request_completed':
-        if (requestId != null) {
-          _router!.go('/rate-helper/$requestId');
+      case 'helper_rates_requester_prompt': // Ayudador califica al solicitante (notificación específica)
+        if (requestId != null && requesterId != null) {
+          _router!.go(
+            '/rate-requester/$requestId',
+            extra: {
+              'requesterId': requesterId,
+              'requesterName': data['requesterName'],
+            }
+          );
         }
         break;
       default:
-        _router!.go('/notifications');
+        _router!.go('/notifications'); // Si no coincide, va a la bandeja de entrada de notificaciones
         break;
     }
+  }
+
+  // Helper para generar Chat ID consistente (copia de _getChatId de RequestDetailScreen)
+  String _getChatId(String userId1, String userId2) {
+    List<String> ids = [userId1, userId2];
+    ids.sort();
+    return ids.join('-');
   }
 }

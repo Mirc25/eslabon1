@@ -1,34 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:eslabon_flutter/models/notification_model.dart';
+// Eliminada la importación de notification_model.dart ya que no maneja notificaciones directamente aquí
+// import 'package:eslabon_flutter/models/notification_model.dart'; // No necesaria aquí
 
 class FirestoreUtils {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static Future<void> createNotificationDocument(AppNotification notification) async {
-    try {
-      await _firestore
-          .collection('users')
-          .doc(notification.receiverId)
-          .collection('notifications')
-          .add(notification.toFirestore());
-      print('Notification created successfully for ${notification.receiverId}');
-    } catch (e) {
-      print('Error creating notification: $e');
-      rethrow;
-    }
-  }
+  // ✅ ELIMINADO: createNotificationDocument fue eliminado.
+  // Las notificaciones deben ser creadas usando AppServices.addNotification.
 
   static Future<void> saveRating({
-    required String targetUserId, 
-    required String sourceUserId, 
-    required double rating,       
-    required String requestId,    
+    required String targetUserId,
+    required String sourceUserId,
+    required double rating,
+    required String requestId,
     String? comment,
-    String? type, 
+    String? type,
   }) async {
     try {
       final batch = _firestore.batch();
-      final ratingRef = _firestore.collection('ratings').doc(); 
+      final ratingRef = _firestore.collection('ratings').doc();
 
       batch.set(ratingRef, {
         'targetUserId': targetUserId,

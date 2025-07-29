@@ -27,15 +27,17 @@ class NotificationCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                notification.title,
+                // ✅ CORREGIDO: Usar notification.body en lugar de notification.title
+                notification.body,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
               ),
               const SizedBox(height: 4),
+              // Puedes usar notification.requestTitle o notification.type si quieres algo más detallado aquí
               Text(
-                notification.body, 
+                'Solicitud: ${notification.requestTitle ?? 'N/A'}', // ✅ Usar requestTitle para contexto
                 style: TextStyle(
                   color: Colors.grey[700],
                 ),

@@ -1,3 +1,4 @@
+// lib/screens/rate_helper_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,11 +6,15 @@ import 'package:go_router/go_router.dart';
 
 class RateHelperScreen extends StatefulWidget {
   final String requestId;
-  final Map<String, dynamic>? requestData;
+  final String helperId; // ✅ AGREGADO: Id del ayudador
+  final String helperName; // ✅ AGREGADO: Nombre del ayudador
+  final Map<String, dynamic>? requestData; // Ya estaba
 
   const RateHelperScreen({
     super.key,
     required this.requestId,
+    required this.helperId, // ✅ HACER REQUERIDO
+    required this.helperName, // ✅ HACER REQUERIDO
     this.requestData,
   });
 
@@ -19,35 +24,39 @@ class RateHelperScreen extends StatefulWidget {
 
 class _RateHelperScreenState extends State<RateHelperScreen> {
   double _rating = 0.0;
-  String? _helperId;
+  // String? _helperId; // ✅ ELIMINADO: Ahora se obtiene del widget
 
   @override
   void initState() {
     super.initState();
-    _fetchHelperId();
+    // No necesitas _fetchHelperId() si lo pasas al constructor.
+    // _helperId = widget.helperId; // Puedes asignarlo si quieres una variable de estado local, pero no es estrictamente necesario.
   }
 
-  Future<void> _fetchHelperId() async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('requests')
-          .doc(widget.requestId)
-          .get();
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>?;
-        setState(() {
-          _helperId = data?['helperId'];
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching helperId: $e');
-    }
-  }
+  // ✅ Puedes eliminar _fetchHelperId si ya no lo necesitas o adaptarlo.
+  // Future<void> _fetchHelperId() async {
+  //   try {
+  //     final doc = await FirebaseFirestore.instance
+  //         .collection('requests')
+  //         .doc(widget.requestId)
+  //         .get();
+  //     if (doc.exists) {
+  //       final data = doc.data() as Map<String, dynamic>?;
+  //       setState(() {
+  //         _helperId = data?['helperId'];
+  //       });
+  //     }
+  //   } catch (e) {
+  //     debugPrint('Error fetching helperId: $e');
+  //   }
+  // }
+
 
   Future<void> _submitRating() async {
-    if (_helperId == null || _rating == 0.0) {
+    // Usar widget.helperId directamente
+    if (widget.helperId == null || _rating == 0.0) { // ✅ Usar widget.helperId
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecciona una calificación.')),
+        const SnackBar(content: Text('Por favor, selecciona una calificación y asegúrate de tener el ID del ayudante.')),
       );
       return;
     }
@@ -66,22 +75,19 @@ class _RateHelperScreenState extends State<RateHelperScreen> {
       // Guardar la calificación
       await firestore.collection('ratings').add({
         'requestId': widget.requestId,
-        'helperId': _helperId,
+        'helperId': widget.helperId, // ✅ Usar widget.helperId
         'raterId': userId,
         'rating': _rating,
         'timestamp': FieldValue.serverTimestamp(),
       });
 
       // Actualizar el promedio de calificación y el contador del ayudante
-      final helperRef = firestore.collection('users').doc(_helperId);
+      final helperRef = firestore.collection('users').doc(widget.helperId); // ✅ Usar widget.helperId
       await firestore.runTransaction((transaction) async {
         final helperSnapshot = await transaction.get(helperRef);
         final data = helperSnapshot.data() as Map<String, dynamic>?;
 
         final currentRatings = data?['ratings'] as List<dynamic>? ?? [];
-        // No necesitamos currentAverageRating aquí si calculamos el nuevo promedio
-        // final currentAverageRating = data?['averageRating'] as double? ?? 0.0;
-
         final List<double> allRatings = [];
         for (var r in currentRatings) {
           if (r is num) {
@@ -97,23 +103,23 @@ class _RateHelperScreenState extends State<RateHelperScreen> {
         transaction.update(helperRef, {
           'averageRating': newAverage,
           'ratingsCount': FieldValue.increment(1),
-          'ratings': FieldValue.arrayUnion([_rating]), // Añade la nueva calificación al array
+          'ratings': FieldValue.arrayUnion([_rating]),
         });
       });
 
       // Enviar notificación al ayudante de que ha recibido una calificación
       await firestore.collection('notifications').add({
-        'userId': _helperId, // El ayudador es el receptor de esta notificación
-        'senderId': userId, // El que califica es el remitente
+        'userId': widget.helperId, // ✅ Usar widget.helperId
+        'senderId': userId,
         'type': 'rating_received',
         'requestId': widget.requestId,
-        'message': '¡Has recibido una nueva calificación de ayuda!',
+        'message': '¡Has recibido una nueva calificación de ayuda de ${FirebaseAuth.instance.currentUser?.displayName ?? 'un usuario'}!', // Puedes hacer esto más descriptivo
         'isRead': false,
         'timestamp': FieldValue.serverTimestamp(),
         'data': {
           'requestId': widget.requestId,
-          'requesterId': userId, // El ID de quien calificó
-          'requestData': widget.requestData, // Datos de la solicitud, stringified en la Cloud Function
+          'raterId': userId,
+          'requestData': widget.requestData,
         }
       });
 
@@ -121,7 +127,7 @@ class _RateHelperScreenState extends State<RateHelperScreen> {
         const SnackBar(content: Text('Calificación enviada con éxito.')),
       );
 
-      context.go('/main'); // Redirige a la pantalla principal después de calificar
+      context.go('/main');
     } catch (e) {
       debugPrint('Error al enviar calificación: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,7 +144,7 @@ class _RateHelperScreenState extends State<RateHelperScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            context.pop(); // Permite volver atrás
+            context.pop();
           },
         ),
       ),
@@ -146,6 +152,7 @@ class _RateHelperScreenState extends State<RateHelperScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Text('Califica a ${widget.helperName} por su ayuda en la solicitud:'), // ✅ Usar widget.helperName
             Text('Solicitud ID: ${widget.requestId}'),
             if (widget.requestData != null)
               Text('Descripción: ${widget.requestData!['descripcion'] ?? 'N/A'}'),
@@ -168,13 +175,8 @@ class _RateHelperScreenState extends State<RateHelperScreen> {
               onPressed: _submitRating,
               child: const Text('Enviar Calificación'),
             ),
-            if (_helperId == null)
-              const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: CircularProgressIndicator(),
-              ),
-            if (_helperId != null)
-              Text('ID del ayudador: $_helperId'),
+            // ✅ ELIMINADO el indicador de _helperId == null
+            // Ya que _helperId ahora es requerido en el constructor
           ],
         ),
       ),

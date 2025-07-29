@@ -1,15 +1,20 @@
+// lib/screens/rate_requester_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:eslabon_flutter/utils/firestore_utils.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Para obtener el usuario actual
+import 'package:eslabon_flutter/utils/firestore_utils.dart'; // Asegúrate de que esta ruta sea correcta
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RateRequesterScreen extends ConsumerStatefulWidget {
-  final String? requesterId; 
+  final String requesterId; // ✅ HACER REQUERIDO
+  final String requesterName; // ✅ AGREGADO: Nombre del solicitante
+  final String requestId; // ✅ AGREGADO: ID de la solicitud
 
   const RateRequesterScreen({
     super.key,
-    required this.requesterId, 
+    required this.requesterId,
+    required this.requesterName, // ✅ HACER REQUERIDO
+    required this.requestId, // ✅ HACER REQUERIDO
   });
 
   @override
@@ -17,18 +22,17 @@ class RateRequesterScreen extends ConsumerStatefulWidget {
 }
 
 class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
-  double _currentRating = 3.0; 
+  double _currentRating = 3.0;
 
   @override
   Widget build(BuildContext context) {
-    if (widget.requesterId == null) {
+    if (widget.requesterId == null || widget.requestId == null) { // ✅ Verificar también requestId
       return Scaffold(
         appBar: AppBar(title: const Text('Error')),
-        body: const Center(child: Text('ID de solicitante no proporcionado.')),
+        body: const Center(child: Text('ID de solicitante o solicitud no proporcionado.')), // ✅ Mensaje actualizado
       );
     }
 
-    // Obtener el ID del usuario actual (el que califica)
     final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
     if (currentUserId == null) {
@@ -47,7 +51,7 @@ class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Califica al solicitante (ID: ${widget.requesterId})',
+                'Califica a ${widget.requesterName} (ID Solicitud: ${widget.requestId})', // ✅ Usar nombre y ID de solicitud
                 style: const TextStyle(fontSize: 18),
                 textAlign: TextAlign.center,
               ),
@@ -71,15 +75,15 @@ class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
                   try {
                     await FirestoreUtils.saveRating(
                       targetUserId: widget.requesterId!,
-                      sourceUserId: currentUserId, // El usuario actual es quien califica
+                      sourceUserId: currentUserId,
                       rating: _currentRating,
-                      requestId: 'some_request_id', // <-- IMPORTANTE: Reemplaza con el ID REAL de la solicitud
+                      requestId: widget.requestId, // ✅ Usar widget.requestId
                       type: 'requester_rating',
                     );
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Calificación guardada con éxito')),
                     );
-                    context.go('/'); 
+                    context.go('/');
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Error al guardar la calificación: $e')),

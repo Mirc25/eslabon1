@@ -45,8 +45,8 @@ class AppServices {
 
   Future<void> launchMap(BuildContext context, double latitude, double longitude) async {
     // ✅ CORRECCIÓN: URL correcta para Google Maps con coordenadas.
-    final String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
-    final Uri uri = Uri.parse(googleMapsUrl);
+    final String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude'; //
+    final Uri uri = Uri.parse(googleMapsUrl); //
 
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -59,7 +59,7 @@ class AppServices {
   Future<void> launchWhatsapp(BuildContext context, String phone) async {
     String formattedPhone = phone;
     if (!phone.startsWith('+')) {
-      if (!phone.startsWith('54')) { 
+      if (!phone.startsWith('54')) {
           formattedPhone = '549$phone';
       }
       formattedPhone = '+$formattedPhone';
@@ -80,7 +80,7 @@ class AppServices {
     required BuildContext context,
     required String recipientUserId,
     required String type,
-    required String body, // ✅ CORRECCIÓN: Cambiado de 'message' a 'body'
+    required String body,
     String? requestId,
     String? senderId,
     String? senderName,
@@ -100,7 +100,7 @@ class AppServices {
           .collection('notifications')
           .add({
         'type': type,
-        'body': body, // ✅ CORRECCIÓN: Guardar como 'body'
+        'body': body,
         'timestamp': FieldValue.serverTimestamp(),
         'read': false,
         if (requestId != null) 'requestId': requestId,

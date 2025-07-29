@@ -1,5 +1,6 @@
 import 'package:eslabon_flutter/screens/notifications_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ AÑADIDO: NECESARIO para PlatformException
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
@@ -11,13 +12,13 @@ import 'package:geocoding/geocoding.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
 import 'dart:io' show Platform;
 
-// Importaciones de tus propias pantallas (¡CORREGIDAS A eslabon_flutter!)
+// Importaciones de tus propias pantallas
 import 'package:eslabon_flutter/screens/create_request_screen.dart';
 import 'package:eslabon_flutter/screens/profile_screen.dart';
 import 'package:eslabon_flutter/screens/my_requests_screen.dart';
 import 'package:eslabon_flutter/screens/favorites_screen.dart';
 import 'package:eslabon_flutter/screens/chat_list_screen.dart';
-import 'package:eslabon_flutter/screens/notifications_screen.dart';
+// import 'package:eslabon_flutter/screens/notifications_screen.dart'; // Ya importado al inicio
 import 'package:eslabon_flutter/screens/history_screen.dart';
 import 'package:eslabon_flutter/screens/search_users_screen.dart';
 import 'package:eslabon_flutter/screens/settings_screen.dart';
@@ -27,16 +28,21 @@ import 'package:eslabon_flutter/screens/request_detail_screen.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ AÑADIDO: NECESARIO para ConsumerStatefulWidget
+import 'package:eslabon_flutter/services/notification_service.dart'; // ✅ AÑADIDO: NECESARIO para NotificationService
+import 'package:eslabon_flutter/providers/notification_service_provider.dart'; // ✅ AÑADIDO: NECESARIO para notificationServiceProvider
+import 'package:eslabon_flutter/router/app_router.dart'; // ✅ AÑADIDO: NECESARIO para AppRouter.router
+import 'package:firebase_messaging/firebase_messaging.dart'; // ✅ AÑADIDO: NECESARIO para RemoteMessage
 
 
-class MainScreen extends StatefulWidget {
+class MainScreen extends ConsumerStatefulWidget { // ✅ CORREGIDO: Extiende ConsumerStatefulWidget
   const MainScreen({super.key});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  ConsumerState<MainScreen> createState() => _MainScreenState(); // ✅ CORREGIDO: Retorna ConsumerState
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Extiende ConsumerState
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   late final AppServices _appServices;
@@ -68,6 +74,26 @@ class _MainScreenState extends State<MainScreen> {
       }
     });
     _determineAndSetUserLocation();
+
+    // ✅ AÑADIDO: LÓGICA DE NOTIFICACIONES CON RIVERPOD
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final notificationServiceNotifier = ref.read(notificationServiceProvider.notifier);
+      notificationServiceNotifier.setRouter(AppRouter.router); 
+      final notificationService = notificationServiceNotifier.notificationService; 
+      notificationService.initialize(); 
+
+      FirebaseMessaging.instance.getInitialMessage().then((message) {
+        if (message != null) {
+          notificationService.handleMessage(message);
+        }
+      });
+
+      FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        if (message != null) {
+          notificationService.handleMessage(message);
+        }
+      });
+    });
   }
 
   @override
@@ -81,6 +107,7 @@ class _MainScreenState extends State<MainScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: color,
+        duration: const Duration(seconds: 3), // ✅ AÑADIDO: Duración explícita
       ),
     );
   }
@@ -91,7 +118,7 @@ class _MainScreenState extends State<MainScreen> {
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      _showSnackBar('Los servicios de ubicación están deshabilitados.', Colors.orange);
+      _showSnackBar('Los servicios de ubicación están deshabilitados. Actívalos para filtros cercanos.', Colors.orange);
       print('DEBUG: Los servicios de ubicación están deshabilitados.');
       return;
     }
@@ -100,20 +127,20 @@ class _MainScreenState extends State<MainScreen> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        _showSnackBar('Permisos de ubicación denegados.', Colors.red);
+        _showSnackBar('Permisos de ubicación denegados. No se pueden usar filtros cercanos.', Colors.red);
         print('DEBUG: Permisos de ubicación denegados.');
         return;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      _showSnackBar('Permisos de ubicación permanentemente denegados. Habilítalos manualmente.', Colors.red);
+      _showSnackBar('Permisos de ubicación permanentemente denegados. Habilítalos manualmente en la configuración de tu dispositivo.', Colors.red);
       print('DEBUG: Permisos de ubicación permanentemente denegados.');
       return;
     }
 
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 10));
       List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
 
       String localityName = 'Desconocida';
@@ -128,9 +155,17 @@ class _MainScreenState extends State<MainScreen> {
       _showSnackBar('Ubicación actual: $_userLocality', Colors.green);
       print('DEBUG: Ubicación obtenida y actualizada: Lat: $_userLatitude, Lon: $_userLongitude, Localidad: $_userLocality');
       
-      // Asegurar que la UI se reconstruye para reflejar la ubicación
-      setState(() {}); 
+      // ✅ Eliminada llamada redundante a setState(), ya se hace arriba.
+      // setState(() {}); 
 
+    } on PlatformException catch (e) { // ✅ CORREGIDO: Manejo de PlatformException
+      _showSnackBar('Error de plataforma al obtener ubicación: ${e.message}.', Colors.red);
+      print('DEBUG: Error de plataforma al obtener ubicación: $e');
+      setState(() {
+        _userLocality = 'Error de ubicación';
+        _userLatitude = null;
+        _userLongitude = null;
+      });
     } catch (e) {
       _showSnackBar('No se pudo obtener tu ubicación actual para filtros cercanos.', Colors.red);
       setState(() {
@@ -162,7 +197,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _checkAndNotifyNearbyRequest(List<QueryDocumentSnapshot> allRequests) {
+    // ✅ CORRECCIÓN: Si no hay ubicación, permite que se muestren las de San Juan para el filtro "Cercano"
     if (_userLatitude == null || _userLongitude == null) {
+      // Si el filtro actual es "Cercano" y no hay ubicación, no notificar por distancia
       print('DEBUG NOTIFY: No se puede chequear notificaciones cercanas sin ubicación del usuario.');
       return;
     }
@@ -199,8 +236,15 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       await _appServices.addComment(context, requestId, commentText);
+      _showSnackBar('Comentario enviado.', Colors.green); // ✅ AÑADIDO: SnackBar de éxito
+    } on FirebaseException catch (e) {
+      print("Error adding comment: $e");
+      _showSnackBar('Error de Firebase al enviar comentario: ${e.message}', Colors.red);
     } catch (e) {
-      _showSnackBar('Error al enviar el comentario.', Colors.red);
+      print("Unexpected error adding comment: $e");
+      _showSnackBar('Ocurrió un error inesperado al enviar el comentario.', Colors.red);
+    } finally {
+      _commentControllers[requestId]?.clear();
     }
   }
 
@@ -209,6 +253,7 @@ class _MainScreenState extends State<MainScreen> {
       _commentControllers[requestId] = TextEditingController();
     }
     final TextEditingController commentController = _commentControllers[requestId]!;
+    final User? currentUser = _auth.currentUser; // Obtener usuario actual para el modal
 
     showModalBottomSheet(
       context: context,
@@ -552,8 +597,8 @@ class _MainScreenState extends State<MainScreen> {
                             return;
                           }
 
-                          // MODIFICADO: Usar GoRouter para navegar a request_detail
-                          context.push('/request_detail/$requestId');
+                          // ✅ CORRECCIÓN DE LA RUTA: Cambiar _detail a -detail
+                          context.push('/request-detail/$requestId');
                           // Nota: Si RequestDetailScreen necesita 'requestData', tendrías que cargarlo desde Firestore
                           // dentro de RequestDetailScreen usando el requestId, o pasarlo via 'extra'.
                           // Por ahora, solo pasamos el ID como está configurado en tu router.
