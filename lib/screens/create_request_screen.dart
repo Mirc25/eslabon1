@@ -10,6 +10,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:go_router/go_router.dart'; // <<< Importa GoRouter aquí
 
 // Importa tu CustomBackground
 import 'package:eslabon_flutter/widgets/custom_background.dart';
@@ -341,7 +342,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         String fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource is XFile ? imageSource.name : (imageSource as File).path.split('/').last}';
         UploadTask uploadTask;
 
-        if (kIsWeb && imageSource is XFile) {
+        if (kIsWeb) {
           Uint8List bytes = await imageSource.readAsBytes();
           uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
         } else if (imageSource is File) {
@@ -364,7 +365,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           contentType = videoSource.mimeType ?? 'video/mp4';
         }
 
-        if (kIsWeb && videoSource is XFile) {
+        if (kIsWeb) {
           Uint8List bytes = await videoSource.readAsBytes();
           uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: contentType));
         } else if (videoSource is File) {
@@ -417,7 +418,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
       print('DEBUG CREATE: Solicitud guardada en Firestore con Lat: $_requestLatitude, Lon: $_requestLongitude');
       _showSnackBar('¡Solicitud creada con éxito!', Colors.green);
-      Navigator.pop(context); // Vuelve a la pantalla principal
+      context.pop(); // <<< CAMBIO AQUÍ: Usar context.pop() de GoRouter
     } on FirebaseException catch (e) {
       debugPrint("DEBUG CREATE: Firebase Exception al crear solicitud: ${e.code} - ${e.message}");
       _showSnackBar('Error de Firebase: ${e.message}', Colors.red);
@@ -840,7 +841,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                       // --- Botón de Publicar Solicitud ---
                       Center(
                         child: ElevatedButton(
-                          onPressed: _createRequest,
+                          onPressed: _isLoading ? null : _createRequest,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.amber,
                             foregroundColor: Colors.black,

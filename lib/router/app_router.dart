@@ -22,7 +22,7 @@ class AppRouter {
         },
       ),
       GoRoute(
-        path: '/create-request',
+        path: '/create-request', // Ruta definida con GUION MEDIO
         builder: (BuildContext context, GoRouterState state) {
           return const CreateRequestScreen();
         },

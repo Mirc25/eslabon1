@@ -1,6 +1,8 @@
+// lib/screens/main_screen.dart
+
 import 'package:eslabon_flutter/screens/notifications_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ AÑADIDO: NECESARIO para PlatformException
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
@@ -18,7 +20,6 @@ import 'package:eslabon_flutter/screens/profile_screen.dart';
 import 'package:eslabon_flutter/screens/my_requests_screen.dart';
 import 'package:eslabon_flutter/screens/favorites_screen.dart';
 import 'package:eslabon_flutter/screens/chat_list_screen.dart';
-// import 'package:eslabon_flutter/screens/notifications_screen.dart'; // Ya importado al inicio
 import 'package:eslabon_flutter/screens/history_screen.dart';
 import 'package:eslabon_flutter/screens/search_users_screen.dart';
 import 'package:eslabon_flutter/screens/settings_screen.dart';
@@ -28,21 +29,21 @@ import 'package:eslabon_flutter/screens/request_detail_screen.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ AÑADIDO: NECESARIO para ConsumerStatefulWidget
-import 'package:eslabon_flutter/services/notification_service.dart'; // ✅ AÑADIDO: NECESARIO para NotificationService
-import 'package:eslabon_flutter/providers/notification_service_provider.dart'; // ✅ AÑADIDO: NECESARIO para notificationServiceProvider
-import 'package:eslabon_flutter/router/app_router.dart'; // ✅ AÑADIDO: NECESARIO para AppRouter.router
-import 'package:firebase_messaging/firebase_messaging.dart'; // ✅ AÑADIDO: NECESARIO para RemoteMessage
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:eslabon_flutter/services/notification_service.dart';
+import 'package:eslabon_flutter/providers/notification_service_provider.dart';
+import 'package:eslabon_flutter/router/app_router.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 
-class MainScreen extends ConsumerStatefulWidget { // ✅ CORREGIDO: Extiende ConsumerStatefulWidget
+class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
 
   @override
-  ConsumerState<MainScreen> createState() => _MainScreenState(); // ✅ CORREGIDO: Retorna ConsumerState
+  ConsumerState<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Extiende ConsumerState
+class _MainScreenState extends ConsumerState<MainScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   late final AppServices _appServices;
@@ -50,7 +51,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
   User? _currentUser;
 
   String _currentFilterScope = 'Cercano';
-  
+
   double? _userLatitude;
   double? _userLongitude;
   String _userLocality = 'Cargando ubicación...';
@@ -78,9 +79,9 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
     // ✅ AÑADIDO: LÓGICA DE NOTIFICACIONES CON RIVERPOD
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notificationServiceNotifier = ref.read(notificationServiceProvider.notifier);
-      notificationServiceNotifier.setRouter(AppRouter.router); 
-      final notificationService = notificationServiceNotifier.notificationService; 
-      notificationService.initialize(); 
+      notificationServiceNotifier.setRouter(AppRouter.router);
+      final notificationService = notificationServiceNotifier.notificationService;
+      notificationService.initialize();
 
       FirebaseMessaging.instance.getInitialMessage().then((message) {
         if (message != null) {
@@ -107,7 +108,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
       SnackBar(
         content: Text(message),
         backgroundColor: color,
-        duration: const Duration(seconds: 3), // ✅ AÑADIDO: Duración explícita
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -154,11 +155,8 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
       });
       _showSnackBar('Ubicación actual: $_userLocality', Colors.green);
       print('DEBUG: Ubicación obtenida y actualizada: Lat: $_userLatitude, Lon: $_userLongitude, Localidad: $_userLocality');
-      
-      // ✅ Eliminada llamada redundante a setState(), ya se hace arriba.
-      // setState(() {}); 
 
-    } on PlatformException catch (e) { // ✅ CORREGIDO: Manejo de PlatformException
+    } on PlatformException catch (e) {
       _showSnackBar('Error de plataforma al obtener ubicación: ${e.message}.', Colors.red);
       print('DEBUG: Error de plataforma al obtener ubicación: $e');
       setState(() {
@@ -176,14 +174,14 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
       print('DEBUG: Error al obtener ubicación: $e');
     }
   }
-  
+
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     const R = 6371.0;
 
     var latDistance = _degreesToRadians(lat2 - lat1);
     var lonDistance = _degreesToRadians(lon2 - lon1);
 
-    var a = sin(latDistance / 2) * sin(latDistance / 2) + 
+    var a = sin(latDistance / 2) * sin(latDistance / 2) +
             cos(_degreesToRadians(lat1)) * cos(_degreesToRadians(lat2)) *
                 sin(lonDistance / 2) * sin(lonDistance / 2);
     var c = 2 * atan2(sqrt(a), sqrt(1 - a));
@@ -197,9 +195,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
   }
 
   void _checkAndNotifyNearbyRequest(List<QueryDocumentSnapshot> allRequests) {
-    // ✅ CORRECCIÓN: Si no hay ubicación, permite que se muestren las de San Juan para el filtro "Cercano"
     if (_userLatitude == null || _userLongitude == null) {
-      // Si el filtro actual es "Cercano" y no hay ubicación, no notificar por distancia
       print('DEBUG NOTIFY: No se puede chequear notificaciones cercanas sin ubicación del usuario.');
       return;
     }
@@ -236,7 +232,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
 
     try {
       await _appServices.addComment(context, requestId, commentText);
-      _showSnackBar('Comentario enviado.', Colors.green); // ✅ AÑADIDO: SnackBar de éxito
+      _showSnackBar('Comentario enviado.', Colors.green);
     } on FirebaseException catch (e) {
       print("Error adding comment: $e");
       _showSnackBar('Error de Firebase al enviar comentario: ${e.message}', Colors.red);
@@ -253,7 +249,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
       _commentControllers[requestId] = TextEditingController();
     }
     final TextEditingController commentController = _commentControllers[requestId]!;
-    final User? currentUser = _auth.currentUser; // Obtener usuario actual para el modal
+    final User? currentUser = _auth.currentUser;
 
     showModalBottomSheet(
       context: context,
@@ -441,9 +437,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
         if (commentSnapshot.connectionState == ConnectionState.waiting) {
           return const Row(children: [Icon(Icons.comment, color: Colors.grey, size: 18), SizedBox(width: 4), Text('...', style: TextStyle(fontSize: 10, color: Colors.grey))]);
         }
-
         final int commentsCount = commentSnapshot.data!.docs.length;
-
         return GestureDetector(
           onTap: () => _showCommentsModal(requestId),
           child: Padding(
@@ -464,8 +458,6 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
       },
     );
   }
-
-
   Widget _buildHelpCard(BuildContext context, Map<String, dynamic> request, String requestId) {
     final String _cardId = requestId;
     final String requesterUserId = request['userId'] ?? '';
@@ -517,7 +509,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
         imageUrlToDisplay = rawImages;
       }
     }
-    
+
     final double? latitude = request['latitude'];
     final double? longitude = request['longitude'];
 
@@ -597,11 +589,11 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                             return;
                           }
 
-                          // ✅ CORRECCIÓN DE LA RUTA: Cambiar _detail a -detail
-                          context.push('/request-detail/$requestId');
-                          // Nota: Si RequestDetailScreen necesita 'requestData', tendrías que cargarlo desde Firestore
-                          // dentro de RequestDetailScreen usando el requestId, o pasarlo via 'extra'.
-                          // Por ahora, solo pasamos el ID como está configurado en tu router.
+                          // ✅ CORREGIDO: Pasar 'request' completo como 'extra'
+                          context.push(
+                            '/request-detail/$requestId',
+                            extra: request, // <<< ¡ESTO ES LO QUE FALTABA Y SE HA AGREGADO!
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
@@ -692,7 +684,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
-                      
+
                       // Row: Contact icons on the left, Comments on the right
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -710,7 +702,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
                                     icon: const Icon(Icons.location_on, color: Colors.blue),
-                                    onPressed: () => _appServices.launchMap(context, latitude, longitude), 
+                                    onPressed: () => _appServices.launchMap(context, latitude, longitude),
                                     tooltip: 'Ver mapa',
                                   ),
                                 ),
@@ -779,7 +771,6 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
               ],
             ),
             const SizedBox(height: 8),
-
             Center(
               child: Container(
                 width: MediaQuery.of(context).size.width * 0.8,
@@ -800,7 +791,6 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
       ),
     );
   }
-
   Future<void> _showFilterDialog(BuildContext context) async {
     String _dialogSelectedFilterScope = _currentFilterScope;
     double _dialogProximityRadiusKm = _proximityRadiusKm;
@@ -836,7 +826,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                         setState(() {
                           _dialogSelectedFilterScope = value!;
                           if (value == 'Cercano' && (_userLatitude == null || _userLongitude == null)) {
-                            _determineAndSetUserLocation(); 
+                            _determineAndSetUserLocation();
                           }
                         });
                         print('DEBUG DIALOG: Filtro seleccionado en diálogo: $_dialogSelectedFilterScope');
@@ -864,7 +854,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                         ),
                         if (_userLatitude == null || _userLongitude == null)
                           TextButton.icon(
-                            onPressed: _determineAndSetUserLocation, 
+                            onPressed: _determineAndSetUserLocation,
                             icon: const Icon(Icons.refresh, color: Colors.blueAccent),
                             label: const Text('Reintentar ubicación', style: TextStyle(color: Colors.blueAccent)),
                           ),
@@ -920,13 +910,13 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                 TextButton(
                   child: const Text('Cancelar', style: TextStyle(color: Colors.white70)),
                   onPressed: () {
-                    Navigator.of(dialogContext).pop(); 
+                    Navigator.of(dialogContext).pop();
                   },
                 ),
                 TextButton(
                   child: const Text('Aplicar', style: TextStyle(color: Colors.amber)),
                   onPressed: () {
-                    Navigator.of(dialogContext).pop({ 
+                    Navigator.of(dialogContext).pop({
                       'filterScope': _dialogSelectedFilterScope,
                       'proximityRadius': _dialogProximityRadiusKm,
                     });
@@ -940,7 +930,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
     );
 
     if (result != null) {
-      setState(() { 
+      setState(() {
         _currentFilterScope = result['filterScope'];
         _proximityRadiusKm = result['proximityRadius'];
       });
@@ -971,8 +961,8 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
         ),
         backgroundColor: Colors.grey[900],
         iconTheme: const IconThemeData(color: Colors.white),
-        toolbarHeight: 120, 
-        
+        toolbarHeight: 120,
+
         flexibleSpace: SafeArea(
           child: Stack(
             children: [
@@ -1004,7 +994,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                               ),
                             ),
                           ),
-                          
+
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -1026,8 +1016,8 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                               IconButton(
                                 icon: const Icon(Icons.add_circle_outline, color: Colors.white),
                                 onPressed: () {
-                                  // MODIFICADO: Usar GoRouter para navegar a create_request
-                                  context.push('/create_request');
+                                  // ✅ CORREGIDO: Usar GoRouter para navegar a create-request (con guion medio)
+                                  context.push('/create-request'); //
                                 },
                               ),
                             ],
@@ -1065,7 +1055,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
               title: const Text('Inicio', style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
-                context.go('/main'); // Generalmente 'inicio' es la pantalla principal o la que muestra solicitudes
+                context.go('/main');
               },
             ),
             ListTile(
@@ -1081,8 +1071,8 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
               title: const Text('Crear Solicitud', style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
-                // MODIFICADO: Usar GoRouter para navegar a create_request
-                context.push('/create_request');
+                // ✅ CORREGIDO: Usar GoRouter para navegar a create-request (con guion medio)
+                context.push('/create-request');
               },
             ),
             ListTile(
@@ -1095,7 +1085,7 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
             ),
             ListTile(
               leading: Icon(Icons.favorite_border, color: Colors.white70),
-              title: const Text('Mis Favoritos', style: TextStyle(color: Colors.white)),
+              title: const Text('Mis Favoritos', style: TextStyle(color: Colors.white70)),
               onTap: () {
                     Navigator.pop(context);
                     context.go('/favorites');
@@ -1114,9 +1104,6 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
               title: const Text('Notificaciones', style: TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
-                    // Si tienes una ruta específica para notificaciones que no requiere ID, usa esa.
-                    // Si siempre requiere ID, necesitarás pasar uno aquí (o un valor por defecto si aplica).
-                    // Asumiendo que '/notifications' sin ID lleva a la lista general.
                     context.go('/notifications');
                   },
             ),
@@ -1187,7 +1174,6 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
       body: Column(
         children: [
           const SizedBox(height: 0),
-
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _firestore.collection('solicitudes-de-ayuda')
@@ -1267,10 +1253,10 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                     print('DEBUG FILTER: Filtro: Cercano, Pasa: $passesFilter');
                   } else if (_currentFilterScope == 'Provincial') {
                     const String userProvincia = 'San Juan';
-                    passesFilter = (requestProvincia == userProvincia); 
+                    passesFilter = (requestProvincia == userProvincia);
                     print('DEBUG FILTER: Request ID: $requestId (Desc: "$requestDescription", Loc: "$requestLocalidad") - Filtro: Provincial, Request Provincia: "$requestProvincia", Pasa: $passesFilter');
                   } else if (_currentFilterScope == 'Nacional') {
-                    passesFilter = (requestCountry == 'Argentina'); 
+                    passesFilter = (requestCountry == 'Argentina');
                     print('DEBUG FILTER: Filtro: Nacional, Request País: "$requestCountry", Pasa: $passesFilter');
                   } else if (_currentFilterScope == 'Internacional') {
                     passesFilter = true;
@@ -1279,8 +1265,6 @@ class _MainScreenState extends ConsumerState<MainScreen> { // ✅ CORREGIDO: Ext
                   print('DEBUG FILTER: Solicitud ID: $requestId (Desc: "$requestDescription") - Resultado final del filtro: $passesFilter');
                   return passesFilter;
                 }).toList();
-
-                print('DEBUG STREAM: Total de solicitudes filtradas a mostrar: ${filteredHelpRequestDocs.length}');
 
 
                 if (filteredHelpRequestDocs.isEmpty) {
