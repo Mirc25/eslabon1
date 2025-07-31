@@ -8,7 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Mantener si usas FaIcon
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
@@ -19,8 +19,9 @@ import 'package:eslabon_flutter/screens/create_request_screen.dart';
 import 'package:eslabon_flutter/screens/profile_screen.dart';
 import 'package:eslabon_flutter/screens/my_requests_screen.dart';
 import 'package:eslabon_flutter/screens/favorites_screen.dart';
-import 'package:eslabon_flutter/screens/chat_list_screen.dart';
-import 'package:eslabon_flutter/screens/history_screen.dart';
+import 'package:eslabon_flutter/screens/chat_list_screen.dart'; // Ruta a la lista de chats
+import 'package:eslabon_flutter/screens/help_history_screen.dart'; // Importa HelpHistoryScreen
+import 'package:eslabon_flutter/screens/ranking_screen.dart'; // Importa RankingScreen
 import 'package:eslabon_flutter/screens/search_users_screen.dart';
 import 'package:eslabon_flutter/screens/settings_screen.dart';
 import 'package:eslabon_flutter/screens/faq_screen.dart';
@@ -33,7 +34,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:eslabon_flutter/services/notification_service.dart';
 import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 import 'package:eslabon_flutter/router/app_router.dart';
+import 'package:eslabon_flutter/providers/app_router_provider.dart'; // Importa el provider de AppRouter
 import 'package:firebase_messaging/firebase_messaging.dart';
+
+// Importa CustomBackground y CustomAppBar
+import '../widgets/custom_background.dart';
+import '../widgets/custom_app_bar.dart';
 
 
 class MainScreen extends ConsumerStatefulWidget {
@@ -76,10 +82,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     });
     _determineAndSetUserLocation();
 
-    // ✅ AÑADIDO: LÓGICA DE NOTIFICACIONES CON RIVERPOD
+    // ✅ CORREGIDO: LÓGICA DE NOTIFICACIONES CON RIVERPOD
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notificationServiceNotifier = ref.read(notificationServiceProvider.notifier);
-      notificationServiceNotifier.setRouter(AppRouter.router);
+      // Se pasa la instancia de GoRouter desde el provider
+      // ref.read(appRouterProvider) directamente retorna la instancia de GoRouter (AppRouter)
+      notificationServiceNotifier.setRouter(ref.read(appRouterProvider));
       final notificationService = notificationServiceNotifier.notificationService;
       notificationService.initialize();
 
@@ -556,7 +564,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                // MODIFICACIÓN: Reemplazado userRating estático por UserReputationWidget
                                 UserReputationWidget(
                                   userId: requesterUserId,
                                   fromRequesters: false,
@@ -589,10 +596,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                             return;
                           }
 
-                          // ✅ CORREGIDO: Pasar 'request' completo como 'extra'
-                          context.push(
-                            '/request-detail/$requestId',
-                            extra: request, // <<< ¡ESTO ES LO QUE FALTABA Y SE HA AGREGADO!
+                          // ✅ CORREGIDO: Navegar a RequestDetailScreen pasando requestData por extra
+                          context.go(
+                            '/request_detail/$requestId', // Usa la ruta correcta con guion bajo
+                            extra: request, // Pasa el Map requestData completo
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -606,7 +613,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     ],
                   ),
                 ),
-                Column( // Priority and time (top right)
+                Column( // Prioridad y tiempo (arriba a la derecha)
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
@@ -634,11 +641,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             const Divider(height: 16, thickness: 0.5, color: Colors.grey),
             const SizedBox(height: 4),
 
-            // Request content (Image, Description, Detail)
+            // Contenido de la solicitud (Imagen, Descripción, Detalle)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Request image (left)
+                // Imagen de la solicitud (izquierda)
                 SizedBox(
                   width: 120,
                   child: AspectRatio(
@@ -665,7 +672,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Expanded( // Rest of content (description, details, icons, member info)
+                Expanded( // Resto del contenido (descripción, detalles, íconos, info de miembro)
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -685,12 +692,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                       ),
                       const SizedBox(height: 8),
 
-                      // Row: Contact icons on the left, Comments on the right
+                      // Fila: Íconos de contacto a la izquierda, Comentarios a la derecha
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Contact icons (left)
+                          // Íconos de contacto (izquierda)
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -702,7 +709,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
                                     icon: const Icon(Icons.location_on, color: Colors.blue),
-                                    onPressed: () => _appServices.launchMap(context, latitude, longitude),
+                                    onPressed: () {
+                                      // Usar la función de lanzamiento de mapas correcta de AppServices
+                                      _appServices.launchGoogleMaps(context, latitude, longitude);
+                                    },
                                     tooltip: 'Ver mapa',
                                   ),
                                 ),
@@ -713,8 +723,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                     iconSize: 24,
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
-                                    icon: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green),
-                                    onPressed: () async {
+                                    // ✅ CORREGIDO: Usar Icons.message como alternativa universal
+                                    icon: const Icon(Icons.message, color: Colors.green),
+                                    onPressed: () {
                                       _appServices.launchWhatsapp(context, requestPhone);
                                     },
                                     tooltip: 'WhatsApp',
@@ -745,7 +756,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                 ),
                             ],
                           ),
-                          // Comments section (right)
+                          // Sección de comentarios (derecha)
                           _buildCommentsButtonInCard(requestId),
                         ],
                       ),
@@ -945,369 +956,352 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     print('DEBUG BUILD: Pantalla principal reconstruida. Filtro actual: $_currentFilterScope');
     print('DEBUG BUILD: Ubicación de usuario: Lat: $_userLatitude, Lon: $_userLongitude, Localidad: $_userLocality, Radio: ${_proximityRadiusKm.toStringAsFixed(1)}km');
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        leading: Builder(
-          builder: (BuildContext context) {
-            return IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
-              tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
-            );
-          },
-        ),
-        backgroundColor: Colors.grey[900],
-        iconTheme: const IconThemeData(color: Colors.white),
-        toolbarHeight: 120,
-
-        flexibleSpace: SafeArea(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: Image.asset(
-                          'assets/logo.png',
-                          height: 50,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16.0, bottom: 8.0, left: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 30.0),
-                              child: const Text(
-                                'Cadena de Favores Solidaria',
-                                style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                          ),
-
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextButton(
-                                onPressed: () => _showFilterDialog(context),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.filter_list, color: Colors.white),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _currentFilterScope == 'Cercano'
-                                        ? '${_proximityRadiusKm.toStringAsFixed(1)}km'
-                                        : _currentFilterScope,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-                                onPressed: () {
-                                  // ✅ CORREGIDO: Usar GoRouter para navegar a create-request (con guion medio)
-                                  context.push('/create-request'); //
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    return CustomBackground( // Envuelve con CustomBackground
+      showLogo: true, // Mostrar el logo
+      showAds: true, // Mostrar publicidad (si la lógica de tu CustomBackground la tiene)
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Fondo transparente para CustomBackground
+        appBar: CustomAppBar( // Usa CustomAppBar
+          title: 'Eslabón', // Título para la AppBar
+          leading: Builder( // Botón de menú
+            builder: (BuildContext context) {
+              return IconButton(
+                icon: const Icon(Icons.menu, color: Colors.white),
+                onPressed: () {
+                  Scaffold.of(context).openDrawer();
+                },
+                tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+              );
+            },
           ),
-        ),
-      ),
-      drawer: Drawer(
-        backgroundColor: Colors.grey[900],
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            UserAccountsDrawerHeader(
-              accountName: Text(_currentUser?.displayName ?? 'Usuario', style: const TextStyle(color: Colors.white)),
-              accountEmail: Text(_currentUser?.email ?? 'email@example.com', style: TextStyle(color: Colors.white70)),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.grey[700],
-                backgroundImage: _currentUser?.photoURL != null && _currentUser!.photoURL!.startsWith('http')
-                    ? NetworkImage(_currentUser!.photoURL!)
-                    : const AssetImage('assets/default_avatar.png') as ImageProvider,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
+          actions: [ // Botones de acción en la AppBar
+            TextButton(
+              onPressed: () => _showFilterDialog(context),
+              child: Row(
+                children: [
+                  const Icon(Icons.filter_list, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    _currentFilterScope == 'Cercano'
+                      ? '${_proximityRadiusKm.toStringAsFixed(1)}km'
+                      : _currentFilterScope,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                  ),
+                ],
               ),
             ),
-            ListTile(
-              leading: Icon(Icons.home, color: Colors.white70),
-              title: const Text('Inicio', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                context.go('/main');
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.person, color: Colors.white70),
-              title: const Text('Mi Perfil', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                context.go('/profile');
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.add_box, color: Colors.white70),
-              title: const Text('Crear Solicitud', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // ✅ CORREGIDO: Usar GoRouter para navegar a create-request (con guion medio)
-                context.push('/create-request');
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.list_alt, color: Colors.white70),
-              title: const Text('Mis Solicitudes', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/my_requests');
-                  },
-            ),
-            ListTile(
-              leading: Icon(Icons.favorite_border, color: Colors.white70),
-              title: const Text('Mis Favoritos', style: TextStyle(color: Colors.white70)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/favorites');
-                  },
-            ),
-            ListTile(
-              leading: Icon(Icons.chat_bubble_outline, color: Colors.white70),
-              title: const Text('Mensajes', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/messages');
-                  },
-            ),
-            ListTile(
-              leading: Icon(Icons.notifications_none, color: Colors.white70),
-              title: const Text('Notificaciones', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/notifications');
-                  },
-            ),
-            ListTile(
-              leading: Icon(Icons.history, color: Colors.white70),
-              title: const Text('Historial de Ayudas', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/history');
-                  },
-            ),
-            ListTile(
-              leading: Icon(Icons.search, color: Colors.white70),
-              title: const Text('Buscar Usuarios', style: TextStyle(color: Colors.white70)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/search_users');
-                  },
-            ),
-            const Divider(color: Colors.white12),
-            ListTile(
-              leading: Icon(Icons.settings, color: Colors.white70),
-              title: const Text('Configuración', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/settings');
-                  },
-            ),
-            ListTile(
-              leading: Icon(Icons.help_outline, color: Colors.white70),
-              title: const Text('Ayuda y FAQ', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                context.go('/faq');
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.report_problem_outlined, color: Colors.white70),
-              title: const Text('Reportar un Problema', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                    Navigator.pop(context);
-                    context.go('/report_problem');
-                  },
-            ),
-            ListTile(
-              leading: Icon(Icons.info, color: Colors.white70),
-              title: const Text('Acerca de', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Acerca de Eslabón')),
-                );
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.logout, color: Colors.white70),
-              title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.white)),
-              onTap: () async {
-                await _auth.signOut();
-                if (mounted) {
-                  context.go('/login');
-                }
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+              onPressed: () {
+                context.push('/create_request'); // Navega a la pantalla de crear solicitud
               },
             ),
           ],
         ),
-      ),
-      body: Column(
-        children: [
-          const SizedBox(height: 0),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore.collection('solicitudes-de-ayuda')
-                  .orderBy('timestamp', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                print('DEBUG STREAM: Estado de conexión: ${snapshot.connectionState}');
-                print('DEBUG STREAM: ¿Tiene error?: ${snapshot.hasError}');
-                if (snapshot.hasError) {
-                  print('DEBUG STREAM ERROR: Error al cargar datos: ${snapshot.error}');
-                  return Center(child: Text('Error al cargar datos: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
-                }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  print('DEBUG STREAM: Conexión esperando datos...');
-                  return const Center(child: CircularProgressIndicator(color: Colors.amber));
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  print('DEBUG STREAM: Snapshot NO tiene datos o docs está vacío.');
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'No hay solicitudes de ayuda disponibles para el filtro: $_currentFilterScope' +
-                          (_currentFilterScope == 'Cercano' && _userLocality != 'No disponible'
-                            ? ' dentro de ${_proximityRadiusKm.toStringAsFixed(1)} km de $_userLocality.'
-                            : '.'),
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () {
-                            _showFilterDialog(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.amber,
-                                foregroundColor: Colors.black,
-                          ),
-                          child: const Text('Cambiar Filtro'),
-                        ),
-                      ],
-                    ),
+        drawer: Drawer(
+          backgroundColor: Colors.grey[900],
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: <Widget>[
+              UserAccountsDrawerHeader(
+                accountName: Text(_currentUser?.displayName ?? 'Usuario', style: const TextStyle(color: Colors.white)),
+                accountEmail: Text(_currentUser?.email ?? 'email@example.com', style: TextStyle(color: Colors.white70)),
+                currentAccountPicture: CircleAvatar(
+                  backgroundColor: Colors.grey[700],
+                  backgroundImage: _currentUser?.photoURL != null && _currentUser!.photoURL!.startsWith('http')
+                      ? NetworkImage(_currentUser!.photoURL!)
+                      : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor, // Color primario para el encabezado del Drawer
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.home, color: Colors.white70),
+                title: const Text('Inicio', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/'); // Ruta a la pantalla principal (raíz)
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person, color: Colors.white70),
+                title: const Text('Mi Perfil', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/profile');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_box, color: Colors.white70),
+                title: const Text('Crear Solicitud', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/create_request');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.list_alt, color: Colors.white70),
+                title: const Text('Mis Solicitudes', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/my_requests');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.favorite_border, color: Colors.white70),
+                title: const Text('Mis Favoritos', style: TextStyle(color: Colors.white70)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/favorites');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.chat_bubble_outline, color: Colors.white70),
+                title: const Text('Mensajes', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/chat_list'); // Navega a la lista de chats
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_none, color: Colors.white70),
+                title: const Text('Notificaciones', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/notifications');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history, color: Colors.white70),
+                title: const Text('Historial de Ayudas', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/help_history'); // Ruta corregida a /help_history
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.leaderboard, color: Colors.white70),
+                title: const Text('Ranking de Usuarios', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/ranking'); // Ruta al RankingScreen
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.search, color: Colors.white70),
+                title: const Text('Buscar Usuarios', style: TextStyle(color: Colors.white70)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/search_users');
+                },
+              ),
+              const Divider(color: Colors.white12),
+              ListTile(
+                leading: const Icon(Icons.settings, color: Colors.white70),
+                title: const Text('Configuración', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/settings');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_outline, color: Colors.white70),
+                title: const Text('Ayuda y FAQ', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/faq');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.report_problem_outlined, color: Colors.white70),
+                title: const Text('Reportar un Problema', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/report_problem');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info, color: Colors.white70),
+                title: const Text('Acerca de', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Acerca de Eslabón')),
                   );
-                }
-
-                final List<QueryDocumentSnapshot> allHelpRequestDocs = snapshot.data!.docs;
-                print('DEBUG STREAM: Total de solicitudes cargadas de Firestore (antes de filtrar): ${allHelpRequestDocs.length}');
-
-                _checkAndNotifyNearbyRequest(allHelpRequestDocs);
-
-
-                final List<QueryDocumentSnapshot> filteredHelpRequestDocs = allHelpRequestDocs.where((doc) {
-                  final request = doc.data() as Map<String, dynamic>;
-                  final String requestProvincia = request['provincia'] ?? '';
-                  final String requestCountry = request['country'] ?? '';
-                  final double? requestLat = request['latitude'];
-                  final double? requestLon = request['longitude'];
-                  final String requestId = doc.id;
-                  final String requestDescription = request['descripcion'] ?? 'N/A';
-                  final String requestLocalidad = request['localidad'] ?? 'N/A';
-
-                  bool isNearbyLocal = false;
-                  if (_userLatitude != null && _userLongitude != null && requestLat != null && requestLon != null) {
-                    final distance = _calculateDistance(_userLatitude!, _userLongitude!, requestLat, requestLon);
-                    isNearbyLocal = distance <= _proximityRadiusKm;
-                    print('DEBUG FILTER: Request ID: $requestId (Desc: "$requestDescription", Loc: "$requestLocalidad") - UserLoc: (${_userLatitude?.toStringAsFixed(4)}, ${_userLongitude?.toStringAsFixed(4)}), ReqLoc: (${requestLat.toStringAsFixed(4)}, ${requestLon.toStringAsFixed(4)}) - Distancia: ${distance.toStringAsFixed(2)} km, ¿Está Cerca (${_proximityRadiusKm.toStringAsFixed(1)} km)? $isNearbyLocal');
-                  } else {
-                    print('DEBUG FILTER: Request ID: $requestId (Desc: "$requestDescription", Loc: "$requestLocalidad") - Ubicación de usuario ($_userLatitude, $_userLongitude) o solicitud ($requestLat, $requestLon) nula para filtro "Cercano". Pasa: false');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.white70),
+                title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  await _auth.signOut();
+                  if (mounted) {
+                    context.go('/login');
                   }
-
-                  bool passesFilter = false;
-                  if (_currentFilterScope == 'Cercano') {
-                    passesFilter = isNearbyLocal;
-                    print('DEBUG FILTER: Filtro: Cercano, Pasa: $passesFilter');
-                  } else if (_currentFilterScope == 'Provincial') {
-                    const String userProvincia = 'San Juan';
-                    passesFilter = (requestProvincia == userProvincia);
-                    print('DEBUG FILTER: Request ID: $requestId (Desc: "$requestDescription", Loc: "$requestLocalidad") - Filtro: Provincial, Request Provincia: "$requestProvincia", Pasa: $passesFilter');
-                  } else if (_currentFilterScope == 'Nacional') {
-                    passesFilter = (requestCountry == 'Argentina');
-                    print('DEBUG FILTER: Filtro: Nacional, Request País: "$requestCountry", Pasa: $passesFilter');
-                  } else if (_currentFilterScope == 'Internacional') {
-                    passesFilter = true;
-                    print('DEBUG FILTER: Filtro: Internacional, Pasa: $passesFilter');
-                  }
-                  print('DEBUG FILTER: Solicitud ID: $requestId (Desc: "$requestDescription") - Resultado final del filtro: $passesFilter');
-                  return passesFilter;
-                }).toList();
-
-
-                if (filteredHelpRequestDocs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'No hay solicitudes de ayuda disponibles para el filtro: $_currentFilterScope' +
-                          (_currentFilterScope == 'Cercano' && _userLocality != 'No disponible'
-                            ? ' dentro de ${_proximityRadiusKm.toStringAsFixed(1)} km de $_userLocality.'
-                            : '.'),
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () {
-                            _showFilterDialog(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.amber,
-                                foregroundColor: Colors.black,
-                          ),
-                          child: const Text('Cambiar Filtro'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  itemCount: filteredHelpRequestDocs.length,
-                  itemBuilder: (context, index) {
-                    final doc = filteredHelpRequestDocs[index];
-                    print('DEBUG STREAM: Mostrando publicación: ID: ${doc.id}, Descripción: ${doc.data() is Map ? (doc.data() as Map)['descripcion'] ?? 'N/A' : 'N/A'}');
-                    return _buildHelpCard(context, doc.data() as Map<String, dynamic>, doc.id);
-                  },
-                );
-              },
-            ),
+                },
+              ),
+            ],
           ),
-        ],
+        ),
+        body: Column(
+          children: [
+            const SizedBox(height: 0),
+            // Título de la sección de solicitudes
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Solicitudes activas cerca de ti',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestore.collection('solicitudes-de-ayuda')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  print('DEBUG STREAM: Estado de conexión: ${snapshot.connectionState}');
+                  print('DEBUG STREAM: ¿Tiene error?: ${snapshot.hasError}');
+                  if (snapshot.hasError) {
+                    print('DEBUG STREAM ERROR: Error al cargar datos: ${snapshot.error}');
+                    return Center(child: Text('Error al cargar datos: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    print('DEBUG STREAM: Conexión esperando datos...');
+                    return const Center(child: CircularProgressIndicator(color: Colors.amber));
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    print('DEBUG STREAM: Snapshot NO tiene datos o docs está vacío.');
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'No hay solicitudes de ayuda disponibles para el filtro: $_currentFilterScope' +
+                            (_currentFilterScope == 'Cercano' && _userLocality != 'No disponible'
+                              ? ' dentro de ${_proximityRadiusKm.toStringAsFixed(1)} km de $_userLocality.'
+                              : '.'),
+                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 10),
+                          ElevatedButton(
+                            onPressed: () {
+                              _showFilterDialog(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber,
+                                  foregroundColor: Colors.black,
+                            ),
+                            child: const Text('Cambiar Filtro'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final List<QueryDocumentSnapshot> allHelpRequestDocs = snapshot.data!.docs;
+                  print('DEBUG STREAM: Total de solicitudes cargadas de Firestore (antes de filtrar): ${allHelpRequestDocs.length}');
+
+                  _checkAndNotifyNearbyRequest(allHelpRequestDocs);
+
+
+                  final List<QueryDocumentSnapshot> filteredHelpRequestDocs = allHelpRequestDocs.where((doc) {
+                    final request = doc.data() as Map<String, dynamic>;
+                    final String requestProvincia = request['provincia'] ?? '';
+                    final String requestCountry = request['country'] ?? '';
+                    final double? requestLat = request['latitude'];
+                    final double? requestLon = request['longitude'];
+                    final String requestId = doc.id;
+                    final String requestDescription = request['descripcion'] ?? 'N/A';
+                    final String requestLocalidad = request['localidad'] ?? 'N/A';
+
+                    bool isNearbyLocal = false;
+                    if (_userLatitude != null && _userLongitude != null && requestLat != null && requestLon != null) {
+                      final distance = _calculateDistance(_userLatitude!, _userLongitude!, requestLat, requestLon);
+                      isNearbyLocal = distance <= _proximityRadiusKm;
+                      print('DEBUG FILTER: Request ID: $requestId (Desc: "$requestDescription", Loc: "$requestLocalidad") - UserLoc: (${_userLatitude?.toStringAsFixed(4)}, ${_userLongitude?.toStringAsFixed(4)}), ReqLoc: (${requestLat.toStringAsFixed(4)}, ${requestLon.toStringAsFixed(4)}) - Distancia: ${distance.toStringAsFixed(2)} km, ¿Está Cerca (${_proximityRadiusKm.toStringAsFixed(1)} km)? $isNearbyLocal');
+                    } else {
+                      print('DEBUG FILTER: Request ID: $requestId (Desc: "$requestDescription", Loc: "$requestLocalidad") - Ubicación de usuario ($_userLatitude, $_userLongitude) o solicitud ($requestLat, $requestLon) nula para filtro "Cercano". Pasa: false');
+                    }
+
+                    bool passesFilter = false;
+                    if (_currentFilterScope == 'Cercano') {
+                      passesFilter = isNearbyLocal;
+                      print('DEBUG FILTER: Filtro: Cercano, Pasa: $passesFilter');
+                    } else if (_currentFilterScope == 'Provincial') {
+                      const String userProvincia = 'San Juan';
+                      passesFilter = (requestProvincia == userProvincia);
+                      print('DEBUG FILTER: Request ID: $requestId (Desc: "$requestDescription", Loc: "$requestLocalidad") - Filtro: Provincial, Request Provincia: "$requestProvincia", Pasa: $passesFilter');
+                    } else if (_currentFilterScope == 'Nacional') {
+                      passesFilter = (requestCountry == 'Argentina');
+                      print('DEBUG FILTER: Filtro: Nacional, Request País: "$requestCountry", Pasa: $passesFilter');
+                    } else if (_currentFilterScope == 'Internacional') {
+                      passesFilter = true;
+                      print('DEBUG FILTER: Filtro: Internacional, Pasa: $passesFilter');
+                    }
+                    print('DEBUG FILTER: Solicitud ID: $requestId (Desc: "$requestDescription") - Resultado final del filtro: $passesFilter');
+                    return passesFilter;
+                  }).toList();
+
+
+                  if (filteredHelpRequestDocs.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'No hay solicitudes de ayuda disponibles para el filtro: $_currentFilterScope' +
+                            (_currentFilterScope == 'Cercano' && _userLocality != 'No disponible'
+                              ? ' dentro de ${_proximityRadiusKm.toStringAsFixed(1)} km de $_userLocality.'
+                              : '.'),
+                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 10),
+                          ElevatedButton(
+                            onPressed: () {
+                              _showFilterDialog(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber,
+                                  foregroundColor: Colors.black,
+                            ),
+                            child: const Text('Cambiar Filtro'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: filteredHelpRequestDocs.length,
+                    itemBuilder: (context, index) {
+                      final doc = filteredHelpRequestDocs[index];
+                      print('DEBUG STREAM: Mostrando publicación: ID: ${doc.id}, Descripción: ${doc.data() is Map ? (doc.data() as Map)['descripcion'] ?? 'N/A' : 'N/A'}');
+                      return _buildHelpCard(context, doc.data() as Map<String, dynamic>, doc.id);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            context.push('/create_request'); // Navega a la pantalla de crear solicitud
+          },
+          child: const Icon(Icons.add),
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+          foregroundColor: Colors.white,
+        ),
       ),
     );
   }
