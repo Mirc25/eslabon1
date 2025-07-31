@@ -1,184 +1,133 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
+// lib/services/notification_service.dart
 import 'package:go_router/go_router.dart';
-import 'package:eslabon_flutter/models/notification_model.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 class NotificationService {
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  GoRouter? _router;
+  final GoRouter _router;
 
-  NotificationService();
-
-  void setRouter(GoRouter router) {
-    _router = router;
-    debugPrint('GoRouter set in NotificationService');
+  NotificationService({required GoRouter appRouter}) : _router = appRouter {
+    _initFirebaseMessaging();
   }
 
-  Future<void> initialize() async {
-    NotificationSettings settings = await _firebaseMessaging.requestPermission(
-      alert: true,
-      badge: true,
-      provisional: false,
-      sound: true,
-    );
-
-    debugPrint('User granted permission: ${settings.authorizationStatus}');
-
-    String? token = await _firebaseMessaging.getToken();
-    debugPrint('FCM Token: $token');
-
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Got a message whilst in the foreground!');
-      debugPrint('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        debugPrint('Message also contained a notification: ${message.notification!.title}');
-      }
-      // handleMessage(message); // Puedes descomentar si quieres manejar la navegación en foreground
-    });
-
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('Message opened app from background: ${message.data}');
-      handleMessage(message);
-    });
-
+  void _initFirebaseMessaging() {
     FirebaseMessaging.instance.getInitialMessage().then((message) {
       if (message != null) {
-        debugPrint('App opened from terminated state: ${message.data}');
-        handleMessage(message);
+        _handleMessage(message);
       }
+    });
+
+    FirebaseMessaging.onMessage.listen((message) {
+      _handleMessage(message);
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _handleMessage(message);
     });
   }
 
-  void handleMessage(RemoteMessage message) {
+  void _handleMessage(RemoteMessage message) {
+    print("Received message: ${message.notification?.title}");
+    print("Message data: ${message.data}");
+
+    if (message.data.isNotEmpty) {
+      handleNotificationNavigation(message.data);
+    }
+  }
+
+  // ✅ ACTUALIZADO: Implementación de la lógica switch para navegación
+  void handleNotificationNavigation(Map<String, dynamic> notificationData) {
+    final String? notificationType = notificationData['type']; // ✅ Leer 'type' directamente
+    final String? requestId = notificationData['requestId'];
+    final String? helperId = notificationData['helperId'];
+    final String? helperName = notificationData['helperName'];
+    final Map<String, dynamic>? requestData = notificationData['requestData'] as Map<String, dynamic>?;
+    final String? notificationId = notificationData['notificationId']; // Para marcar como leída
+
+    debugPrint('--- INICIO DEBUG NAVEGACIÓN ---');
+    debugPrint('Datos de notificación recibidos:');
+    debugPrint('  notificationType: $notificationType');
+    debugPrint('  requestId: $requestId');
+    debugPrint('  helperId: $helperId');
+    debugPrint('  helperName: $helperName');
+    debugPrint('  requestData: $requestData');
+    debugPrint('  notificationId: $notificationId');
+    debugPrint('  _router está disponible: ${_router != null}');
+
     if (_router == null) {
-      debugPrint('Error: GoRouter not set in NotificationService.');
+      debugPrint('  DEBUG NAVIGATION ERROR: GoRouter no está disponible.');
       return;
     }
 
-    final data = message.data;
-    final notificationType = data['type'];
-    final requestId = data['requestId'];
-    final helperId = data['helperId'];
-    final requesterId = data['requesterId'];
-    final chatPartnerId = data['chatPartnerId']; // ✅ Nuevo: Para chat
-    final chatPartnerName = data['chatPartnerName']; // ✅ Nuevo: Para chat
-
-    debugPrint('Handling message type: $notificationType');
+    // Marcar la notificación como leída en Firestore
+    if (notificationId != null) {
+      FirebaseFirestore.instance.collection('notifications').doc(notificationId).update({'read': true});
+      debugPrint('  Notificación $notificationId marcada como leída.');
+    }
 
     switch (notificationType) {
-      case 'new_offer':
-        if (requestId != null) {
-          // Si una notificación de 'new_offer' lleva a la pantalla de detalle,
-          // y la pantalla de detalle necesita el ID del que ofreció ayuda para el chat,
-          // asegúrate de que el 'data' de la notificación lo incluya.
-          _router!.go(
-            '/request-detail/$requestId',
-            extra: {
-              'requesterId': requesterId, // El solicitante es el que recibe la oferta
-              'helperId': helperId, // El ayudador que hizo la oferta
-              'chatPartnerId': chatPartnerId, // El ID del que envió la oferta
-              'chatPartnerName': chatPartnerName, // El nombre del que envió la oferta
-            }
-          );
-        }
-        break;
-      case 'offer_accepted': // Notificación al AYUDADOR
-        if (requestId != null && helperId != null && requesterId != null) {
-          // Asumiendo que helperId es el ID del ayudador que la oferta fue aceptada
-          // Y requesterId es el ID del solicitante.
-          // Si queremos que el AYUDADOR califique al SOLICITANTE después de la ayuda,
-          // esto es mejor manejarlo después de que la solicitud esté completada.
-          // Por ahora, te enviará al chat de la solicitud.
-          _router!.go(
-            '/chat/${_getChatId(requesterId, helperId)}', // Generar ChatId
-            extra: {
-              'chatPartnerId': requesterId,
-              'chatPartnerName': data['requesterName'], // Asumiendo que la notif tiene el nombre del solicitante
-            }
-          );
-        }
-        break;
-      case 'rating_received': // Notificación a quien RECIBIÓ la calificación
-        if (requesterId != null) { // Si el ID en la notificación es el requesterId, significa que el requester recibió calificación
-          _router!.go(
-            '/rate-requester/$requestId', // La ruta espera el requestId
-            extra: {
-              'requesterId': requesterId,
-              'requesterName': data['requesterName'], // Asumiendo que la notif tiene el nombre
-            }
-          );
-        }
-        // También puede ser para un helper que recibe calificación
-        if (helperId != null) {
-          _router!.go(
-            '/rate-helper/$requestId',
-            extra: {
-              'helperId': helperId,
-              'helperName': data['helperName'],
-            }
-          );
-        }
-        break;
-      case 'request_completed': // Notificación cuando la solicitud se completa
-        if (requestId != null && (helperId != null || requesterId != null)) {
-          // Si el que recibe la notificacion es el SOLICITANTE (le avisan que se completó)
-          // Y el que debe calificar es el HELPER
-          if (data['targetUserId'] == requesterId) { // Si esta notificación es para el SOLICITANTE
-              _router!.go(
-                  '/rate-helper/$requestId', // Ruta para calificar al ayudante
-                  extra: {
-                    'helperId': helperId, // El ayudante que debe calificar
-                    'helperName': data['helperName'], // El nombre del ayudante
-                    'requestData': data['requestData'], // Pasa los datos de la solicitud
-                  }
-              );
-          }
-          // Si el que recibe la notificacion es el AYUDADOR (le avisan que se completó)
-          // Y el que debe calificar es el SOLICITANTE
-          if (data['targetUserId'] == helperId) { // Si esta notificación es para el AYUDADOR
-              _router!.go(
-                  '/rate-requester/$requestId', // Ruta para calificar al solicitante
-                  extra: {
-                    'requesterId': requesterId, // El solicitante que debe calificar
-                    'requesterName': data['requesterName'], // El nombre del solicitante
-                  }
-              );
-          }
-        }
-        break;
-      case 'requester_rates_helper_prompt': // Solicitante califica al ayudante (notificación específica)
+      case 'offer_received':
         if (requestId != null && helperId != null) {
-          _router!.go(
-            '/rate-helper/$requestId',
+          debugPrint('  Redirigiendo a calificar ayudador: $requestId / $helperId');
+          _router.go(
+            '/rate-offer/$requestId/$helperId', // ✅ USADO: /rate-offer/:requestId/:helperId
             extra: {
               'helperId': helperId,
-              'helperName': data['helperName'],
-            }
+              'helperName': helperName,
+              'requestData': requestData,
+            },
           );
+        } else {
+          debugPrint('  DEBUG NAVIGATION ERROR: Datos incompletos para "offer_received" (requestId o helperId faltantes).');
         }
         break;
-      case 'helper_rates_requester_prompt': // Ayudador califica al solicitante (notificación específica)
+      case 'helper_rated': // Cuando el ayudador es calificado por el solicitante
+        final String? requesterId = notificationData['requesterId'];
+        final String? requesterName = notificationData['requesterName'];
         if (requestId != null && requesterId != null) {
-          _router!.go(
-            '/rate-requester/$requestId',
+          debugPrint('  Redirigiendo a calificar solicitante: $requestId / $requesterId');
+          _router.go(
+            '/rate-requester/$requestId', // ✅ USADO: /rate-requester/:requestId
             extra: {
               'requesterId': requesterId,
-              'requesterName': data['requesterName'],
-            }
+              'requesterName': requesterName,
+            },
           );
+        } else {
+          debugPrint('  DEBUG NAVIGATION ERROR: Datos incompletos para "helper_rated" (requestId o requesterId faltantes).');
+        }
+        break;
+      case 'new_request':
+        if (requestId != null) {
+          debugPrint('  Redirigiendo a detalles de nueva solicitud: $requestId');
+          _router.go(
+            '/request_detail/$requestId', // ✅ USADO: /request_detail/:requestId
+            extra: requestData, // Pasa los datos de la solicitud si están disponibles
+          );
+        } else {
+          debugPrint('  DEBUG NAVIGATION ERROR: ID de solicitud faltante para "new_request".');
+        }
+        break;
+      case 'chat_message':
+        final String? chatPartnerId = notificationData['chatPartnerId'];
+        final String? chatPartnerName = notificationData['chatPartnerName'];
+        if (chatPartnerId != null && chatPartnerName != null) {
+          debugPrint('  Redirigiendo a chat con: $chatPartnerName ($chatPartnerId)');
+          _router.go(
+            '/chat/$chatPartnerId',
+            extra: {'chatPartnerName': chatPartnerName},
+          );
+        } else {
+          debugPrint('  DEBUG NAVIGATION ERROR: Datos de chat incompletos.');
         }
         break;
       default:
-        _router!.go('/notifications'); // Si no coincide, va a la bandeja de entrada de notificaciones
+        debugPrint('  Tipo de notificación desconocido o sin lógica de navegación específica: $notificationType');
+        // Opcional: Redirigir a una pantalla por defecto o mostrar un mensaje
+        _router.go('/main'); // Redirige a la pantalla principal por defecto
         break;
     }
-  }
-
-  // Helper para generar Chat ID consistente (copia de _getChatId de RequestDetailScreen)
-  String _getChatId(String userId1, String userId2) {
-    List<String> ids = [userId1, userId2];
-    ids.sort();
-    return ids.join('-');
+    debugPrint('--- FIN DEBUG NAVEGACIÓN ---');
   }
 }

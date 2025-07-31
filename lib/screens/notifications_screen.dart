@@ -1,94 +1,99 @@
+// lib/screens/notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:eslabon_flutter/models/notification_model.dart';
-import 'package:eslabon_flutter/widgets/notification_card.dart';
-import 'package:eslabon_flutter/providers/notification_service_provider.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:eslabon_flutter/widgets/custom_app_bar.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
+import 'package:eslabon_flutter/widgets/notification_card.dart';
+import 'package:eslabon_flutter/providers/user_provider.dart';
+import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final User? currentUser = ref.watch(userProvider).value;
 
     if (currentUser == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Notificaciones')),
-        body: const Center(child: Text('Inicia sesión para ver tus notificaciones.')),
+        body: const Center(
+          child: Text('Debes iniciar sesión para ver tus notificaciones.', style: TextStyle(color: Colors.white)),
+        ),
       );
     }
 
     final String userId = currentUser.uid;
 
-    return Scaffold(
-      body: CustomBackground(
-        child: Column(
-          children: [
-            AppBar(
-              title: const Text('Tus Notificaciones', style: TextStyle(color: Colors.white)),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-            ),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(userId)
-                    .collection('notifications')
-                    .orderBy('timestamp', descending: true)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+    return CustomBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: CustomAppBar(
+          title: 'Mis Notificaciones',
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('notifications')
+              .where('recipientId', isEqualTo: userId)
+              .orderBy('timestamp', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            debugPrint('DEBUG NOTIFICATIONS: ConnectionState: ${snapshot.connectionState}');
+            debugPrint('DEBUG NOTIFICATIONS: HasError: ${snapshot.hasError}');
 
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
+            if (snapshot.hasError) {
+              debugPrint('DEBUG NOTIFICATIONS ERROR: ${snapshot.error}');
+              return Center(child: Text('Error al cargar notificaciones: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+            }
 
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text('No tienes notificaciones.'));
-                  }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: Colors.amber));
+            }
 
-                  final notifications = snapshot.data!.docs.map((doc) {
-                    return AppNotification.fromFirestore(doc);
-                  }).toList();
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              debugPrint('DEBUG NOTIFICATIONS: No hay notificaciones para el usuario: $userId');
+              return const Center(
+                child: Text(
+                  'No tienes notificaciones en este momento.',
+                  style: TextStyle(color: Colors.white54, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              );
+            }
 
-                  return ListView.builder(
-                    itemCount: notifications.length,
-                    itemBuilder: (context, index) {
-                      final notification = notifications[index];
-                      return NotificationCard(
-                        notification: notification,
-                        onTap: () {
-                          // ✅ CORRECCIÓN: Pasar los datos necesarios al handleMessage
-                          // handleMessage necesita un RemoteMessage completo, por lo que creamos uno
-                          ref.read(notificationServiceProvider.notifier).notificationService.handleMessage(
-                            RemoteMessage(
-                              data: {
-                                'type': notification.type,
-                                'requestId': notification.requestId,
-                                'helperId': notification.helperId, // Asegúrate de que el helperId esté en la notificación
-                                'requesterId': notification.requesterId, // Asegúrate de que el requesterId esté en la notificación
-                                // Otros datos si son necesarios para la navegación profunda
-                                'chatPartnerId': notification.chatPartnerId,
-                                'chatPartnerName': notification.senderName, // O el nombre del chat partner
-                              },
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+            final notifications = snapshot.data!.docs;
+            debugPrint('DEBUG NOTIFICATIONS: Total de notificaciones cargadas: ${notifications.length}');
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(8.0),
+              itemCount: notifications.length,
+              itemBuilder: (context, index) {
+                final doc = notifications[index];
+                final notificationData = doc.data() as Map<String, dynamic>;
+                final String notificationId = doc.id;
+
+                return NotificationCard(
+                  notificationId: notificationId,
+                  notificationData: notificationData,
+                  onTap: () {
+                    // ✅ CORREGIDO: Eliminada la llamada a setRouter, ya no es necesaria.
+                    // ref.read(notificationServiceProvider.notifier).setRouter(GoRouter.of(context));
+                    // Añadir el ID de la notificación a los datos para que el servicio la marque como leída
+                    notificationData['notificationId'] = notificationId;
+                    ref.read(notificationServiceProvider.notifier).handleNotificationNavigation(notificationData);
+                  },
+                );
+              },
+            );
+          },
         ),
       ),
     );

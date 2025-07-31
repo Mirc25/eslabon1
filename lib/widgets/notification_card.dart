@@ -1,60 +1,111 @@
+// lib/widgets/notification_card.dart
 import 'package:flutter/material.dart';
-import 'package:eslabon_flutter/models/notification_model.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Para actualizar el estado de lectura
 
 class NotificationCard extends StatelessWidget {
-  final AppNotification notification;
+  final String notificationId; // ✅ AÑADIDO: ID del documento de la notificación
+  final Map<String, dynamic> notificationData;
   final VoidCallback onTap;
 
   const NotificationCard({
-    super.key,
-    required this.notification,
+    Key? key,
+    required this.notificationId, // ✅ REQUERIDO
+    required this.notificationData,
     required this.onTap,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final formattedTime = DateFormat('MMM d, hh:mm a').format(notification.timestamp.toDate());
+    final String type = notificationData['type'] ?? 'general';
+    final String title = notificationData['title'] ?? 'Nueva Notificación';
+    final String body = notificationData['body'] ?? 'No hay contenido para esta notificación.';
+    final Timestamp? timestamp = notificationData['timestamp'] as Timestamp?;
+    final bool read = notificationData['read'] ?? false;
+
+    String formattedTime = '';
+    if (timestamp != null) {
+      final DateTime date = timestamp.toDate();
+      formattedTime = DateFormat('dd/MM HH:mm').format(date);
+    }
+
+    IconData icon;
+    Color iconColor;
+    switch (type) {
+      case 'offer_received':
+        icon = Icons.handshake;
+        iconColor = Colors.green;
+        break;
+      case 'helper_rated':
+        icon = Icons.star;
+        iconColor = Colors.amber;
+        break;
+      case 'requester_rated':
+        icon = Icons.star_half;
+        iconColor = Colors.orange;
+        break;
+      case 'chat_message':
+        icon = Icons.chat_bubble;
+        iconColor = Colors.blue;
+        break;
+      default:
+        icon = Icons.info;
+        iconColor = Colors.grey;
+    }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      color: read ? Colors.grey[850] : Colors.grey[700], // Color diferente si no ha sido leída
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          // Marcar como leída al tocar
+          FirebaseFirestore.instance.collection('notifications').doc(notificationId).update({'read': true});
+          onTap(); // Ejecutar la acción de navegación
+        },
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                // ✅ CORREGIDO: Usar notification.body en lugar de notification.title
-                notification.body,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+              Icon(icon, color: iconColor, size: 30),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: read ? Colors.white70 : Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      body,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: read ? Colors.white54 : Colors.white70,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: Text(
+                        formattedTime,
+                        style: TextStyle(fontSize: 10, color: read ? Colors.grey : Colors.white54),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 4),
-              // Puedes usar notification.requestTitle o notification.type si quieres algo más detallado aquí
-              Text(
-                'Solicitud: ${notification.requestTitle ?? 'N/A'}', // ✅ Usar requestTitle para contexto
-                style: TextStyle(
-                  color: Colors.grey[700],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Tipo: ${notification.type}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  Text(
-                    formattedTime,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
               ),
             ],
           ),

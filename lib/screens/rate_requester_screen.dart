@@ -1,16 +1,16 @@
 // lib/screens/rate_requester_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/custom_background.dart';
-import '../widgets/custom_app_bar.dart';
-import '../services/app_services.dart'; // Importa AppServices
+import 'package:eslabon_flutter/services/app_services.dart';
+import 'package:eslabon_flutter/utils/firestore_utils.dart';
+import 'package:eslabon_flutter/widgets/custom_background.dart';
+import 'package:eslabon_flutter/widgets/custom_app_bar.dart';
 
-class RateRequesterScreen extends ConsumerStatefulWidget {
-  final String requestId;
+class RateRequesterScreen extends StatefulWidget {
+  final String requestId; // ✅ Ahora recibe solo el requestId
 
   const RateRequesterScreen({
     Key? key,
@@ -18,101 +18,129 @@ class RateRequesterScreen extends ConsumerStatefulWidget {
   }) : super(key: key);
 
   @override
-  ConsumerState<RateRequesterScreen> createState() => _RateRequesterScreenState();
+  State<RateRequesterScreen> createState() => _RateRequesterScreenState();
 }
 
-class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
+class _RateRequesterScreenState extends State<RateRequesterScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  double _currentRating = 3.0;
+  double _currentRating = 0.0;
+  String? _requesterName;
+  String? _requesterId;
+  String? _requestTitle;
+  bool _hasRated = false;
 
   @override
   void initState() {
     super.initState();
-    _checkIfAlreadyRated();
+    _loadRequesterData();
   }
 
-  Future<void> _checkIfAlreadyRated() async {
-    final User? currentUser = _auth.currentUser;
-    if (currentUser == null) return;
-
-    final requestDoc = await _firestore.collection('requests').doc(widget.requestId).get();
-    if (!requestDoc.exists || requestDoc.data() == null) return;
-    final requesterId = requestDoc.data()!['userId'];
-
-    if (requesterId == null) return;
-
-    final QuerySnapshot existingRatings = await _firestore
-        .collection('ratings')
-        .where('requestId', isEqualTo: widget.requestId)
-        .where('raterUserId', isEqualTo: currentUser.uid)
-        .where('ratedUserId', isEqualTo: requesterId)
-        .where('type', isEqualTo: 'requester_rating')
-        .limit(1)
-        .get();
-
-    if (existingRatings.docs.isNotEmpty) {
-      print('Ya has calificado a este solicitante para esta solicitud.');
-    }
-  }
-
-  Future<void> _submitRating(
-      Map<String, dynamic> requesterData, Map<String, dynamic> requestData) async {
-    final User? currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red); // Usa el método estático
-      return;
-    }
-
-    final String requesterId = requestData['userId'];
-    if (requesterId == null) {
-      AppServices.showSnackBar(context, 'Error: No se pudo identificar al solicitante.', Colors.red); // Usa el método estático
-      return;
-    }
-
-    if (currentUser.uid == requesterId) {
-       AppServices.showSnackBar(context, 'No puedes calificar tu propia solicitud aquí.', Colors.red); // Usa el método estático
-      return;
-    }
-
-    String raterUserName = currentUser.displayName ?? 'Usuario';
-    if (currentUser.displayName == null || currentUser.displayName!.isEmpty) {
-      try {
-        final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
-        if (userDoc.exists && userDoc.data() != null) {
-          raterUserName = userDoc.data()!['name'] ?? 'Usuario';
-        }
-      } catch (e) {
-        print('Error fetching rater name: $e');
+  Future<void> _loadRequesterData() async {
+    try {
+      final requestDoc = await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).get();
+      if (requestDoc.exists) {
+        final data = requestDoc.data() as Map<String, dynamic>;
+        setState(() {
+          _requesterName = data['nombre'] ?? 'Solicitante Desconocido';
+          _requesterId = data['userId'];
+          _requestTitle = data['titulo'] ?? data['descripcion'] ?? 'Solicitud de ayuda';
+        });
+      } else {
+        AppServices.showSnackBar(context, 'Error: Solicitud no encontrada.', Colors.red);
+        return;
       }
+
+      final User? currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red);
+        return;
+      }
+
+      if (_requesterId == null) {
+        AppServices.showSnackBar(context, 'Error: No se pudo identificar al solicitante.', Colors.red);
+        return;
+      }
+
+      // ✅ CORREGIDO: Si el usuario actual es el solicitante, no debería calificar aquí.
+      // Esta pantalla es para que el AYUDADOR califique al SOLICITANTE.
+      if (currentUser.uid == _requesterId) {
+        AppServices.showSnackBar(context, 'No puedes calificar tu propia solicitud aquí. Esta pantalla es para que califiques al solicitante.', Colors.red);
+        // Puedes redirigir a /main o a una pantalla de error/información
+        // context.go('/main');
+        return;
+      }
+
+      final QuerySnapshot existingRatings = await _firestore
+          .collection('ratings')
+          .where('requestId', isEqualTo: widget.requestId)
+          .where('raterUserId', isEqualTo: currentUser.uid) // El ayudador es el que califica
+          .where('ratedUserId', isEqualTo: _requesterId) // El solicitante es el calificado
+          .where('type', isEqualTo: 'requester_rating')
+          .limit(1)
+          .get();
+
+      if (existingRatings.docs.isNotEmpty) {
+        setState(() {
+          _hasRated = true;
+        });
+        AppServices.showSnackBar(context, 'Ya has calificado a este solicitante para esta ayuda.', Colors.orange);
+      }
+
+    } catch (e) {
+      print("Error loading requester data: $e");
+      AppServices.showSnackBar(context, 'Error al cargar datos del solicitante: $e', Colors.red);
+    }
+  }
+
+  // ✅ ACTUALIZADO: _submitRating para enviar calificación y notificar al solicitante
+  Future<void> _submitRating() async {
+    if (_currentRating == 0.0) {
+      AppServices.showSnackBar(context, 'Por favor, selecciona una calificación.', Colors.orange);
+      return;
+    }
+    if (_requesterId == null || _auth.currentUser == null) {
+      AppServices.showSnackBar(context, 'Error: Datos de usuario o solicitante faltantes.', Colors.red);
+      return;
+    }
+    if (_hasRated) {
+      AppServices.showSnackBar(context, 'Ya has calificado a este solicitante.', Colors.orange);
+      return;
     }
 
     try {
-      await _firestore.collection('ratings').add({
-        'requestId': widget.requestId,
-        'ratedUserId': requesterId,
-        'raterUserId': currentUser.uid,
-        'rating': _currentRating,
-        'timestamp': FieldValue.serverTimestamp(),
-        'type': 'requester_rating',
-        'raterUserName': raterUserName,
-        'ratedUserName': requesterData['name'] ?? 'Solicitante',
+      // 1. Guardar la calificación del ayudador al solicitante
+      await FirestoreUtils.saveRating(
+        targetUserId: _requesterId!, // El solicitante es el calificado
+        sourceUserId: _auth.currentUser!.uid, // El ayudador es el que califica
+        rating: _currentRating,
+        requestId: widget.requestId,
+        comment: '', // Puedes añadir un campo de comentario si lo deseas
+        type: 'requester_rating', // Tipo de calificación
+      );
+      setState(() {
+        _hasRated = true;
       });
+      AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green);
 
-      AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green); // Usa el método estático
+      // ✅ ELIMINADO: La llamada a notifyRequesterOfRating (ahora notifyHelperAfterRequesterRates)
+      // ya no va aquí, porque esta pantalla es para que el AYUDADOR califique al SOLICITANTE.
+      // La notificación al AYUDADOR la envía el SOLICITANTE desde RateHelperScreen.
+      // La notificación al SOLICITANTE de que fue calificado por el AYUDADOR es opcional y no se había pedido explícitamente aquí.
+      // Si se desea, se podría añadir una llamada a addNotification aquí para notificar al solicitante.
+      // Pero el ciclo principal se cierra con la notificación de RateHelperScreen.
 
-      context.go('/');
+      context.go('/main'); // Redirigir al main después de calificar
     } catch (e) {
-      AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red); // Usa el método estático
-      print('Error al enviar calificación: $e');
+      print("Error submitting rating: $e");
+      AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return CustomBackground(
-      showLogo: true,
-      showAds: false,
+      showAds: false, // Puedes ajustar si quieres ads en esta pantalla
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
@@ -122,136 +150,68 @@ class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
             onPressed: () => context.pop(),
           ),
         ),
-        body: FutureBuilder<List<DocumentSnapshot>>(
-          future: Future.wait([
-            _firestore.collection('requests').doc(widget.requestId).get(),
-          ]),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
-            if (!snapshot.hasData || !snapshot.data![0].exists || snapshot.data![0].data() == null) {
-              return const Center(child: Text('Solicitud no encontrada o datos incompletos.'));
-            }
-
-            final requestData = snapshot.data![0].data() as Map<String, dynamic>;
-            final String requesterId = requestData['userId'];
-
-            if (requesterId == null) {
-              return const Center(child: Text('Error: No se pudo obtener el ID del solicitante.'));
-            }
-
-            return FutureBuilder<DocumentSnapshot>(
-              future: _firestore.collection('users').doc(requesterId).get(),
-              builder: (context, userSnapshot) {
-                if (userSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (userSnapshot.hasError) {
-                  return Center(child: Text('Error al cargar datos del solicitante: ${userSnapshot.error}'));
-                }
-                if (!userSnapshot.hasData || !userSnapshot.data!.exists || userSnapshot.data!.data() == null) {
-                  return const Center(child: Text('Datos del solicitante no encontrados.'));
-                }
-
-                final requesterData = userSnapshot.data!.data() as Map<String, dynamic>;
-
-                final String requesterName = requesterData['name'] ?? 'Solicitante Desconocido';
-                final String? requesterPhotoUrl = requesterData['photoUrl'];
-                final String requestDescription = requestData['description'] ?? 'Sin descripción.';
-
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 20),
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundImage: requesterPhotoUrl != null && requesterPhotoUrl.isNotEmpty
-                            ? NetworkImage(requesterPhotoUrl)
-                            : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        requesterName,
-                        style: const TextStyle(
-                            fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.85),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Detalles de la Solicitud:',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              requestDescription,
-                              style: const TextStyle(fontSize: 16),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      const Text(
-                        'Califica al solicitante:',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(5, (index) {
-                          return IconButton(
-                            icon: Icon(
-                              index < _currentRating.floor() ? Icons.star : Icons.star_border,
-                              color: Colors.amber,
-                              size: 40,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _currentRating = (index + 1).toDouble();
-                              });
-                            },
-                          );
-                        }),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Tu calificación: ${_currentRating.round()}/5',
-                        style: const TextStyle(fontSize: 16, color: Colors.white70),
-                      ),
-                      const SizedBox(height: 32),
-                      ElevatedButton(
-                        onPressed: () => _submitRating(requesterData, requestData),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.secondary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                        ),
-                        child: const Text('Enviar Calificación'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
+        body: _requesterName == null
+            ? const Center(child: CircularProgressIndicator(color: Colors.amber))
+            : SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 20),
+              CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.grey[700],
+                child: const Icon(Icons.person, size: 60, color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _requesterName!,
+                style: const TextStyle(
+                    fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Califica al solicitante por la ayuda recibida:',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) {
+                  return IconButton(
+                    icon: Icon(
+                      index < _currentRating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 40,
+                    ),
+                    onPressed: _hasRated ? null : () {
+                      setState(() {
+                        _currentRating = (index + 1).toDouble();
+                      });
+                    },
+                  );
+                }),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tu calificación: ${_currentRating.round()}/5',
+                style: const TextStyle(fontSize: 16, color: Colors.white70),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: _hasRated ? null : _submitRating,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _hasRated ? Colors.grey : Theme.of(context).colorScheme.secondary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+                child: Text(_hasRated ? 'Calificado' : 'Enviar Calificación'),
+              ),
+            ],
+          ),
         ),
       ),
     );

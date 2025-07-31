@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart'; // Importa image_picker
-import 'package:firebase_storage/firebase_storage.dart'; // Para subir imágenes a Firebase Storage
-import 'dart:convert'; // Para json.decode
-import 'package:flutter/services.dart'; // Para rootBundle
-import 'package:go_router/go_router.dart'; // ¡Importante: Asegúrate de que esta importación esté aquí!
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 // Asegúrate de que esta clase Country sea la misma que en register_screen.dart
 class Country {
@@ -37,7 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance; // Instancia de Firebase Storage
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   User? currentUser;
   DocumentSnapshot? userData;
@@ -328,8 +328,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
-            // CAMBIO CRÍTICO: Usa context.pop() para que GoRouter maneje el regreso.
-            context.pop(); 
+            context.pop();
           },
         ),
       ),
@@ -344,7 +343,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Center(
                 child: GestureDetector(
-                  onTap: _pickImage, // Permite al usuario seleccionar una imagen al tocar
+                  onTap: _pickImage,
                   child: Stack(
                     children: [
                       CircleAvatar(

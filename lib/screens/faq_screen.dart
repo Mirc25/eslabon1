@@ -1,18 +1,18 @@
 // lib/screens/faq_screen.dart
 import 'package:flutter/material.dart';
-import '../widgets/custom_background.dart'; // Importa tu widget de fondo
-import '../widgets/custom_app_bar.dart';   // Importa tu AppBar personalizada
+import '../widgets/custom_background.dart';
+import '../widgets/custom_app_bar.dart';
 
-class FaqScreen extends StatelessWidget {
-  const FaqScreen({Key? key}) : super(key: key);
+class FAQScreen extends StatelessWidget {
+  const FAQScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return CustomBackground(
-      showLogo: true, // Puedes decidir si mostrar el logo aquí
-      showAds: false, // Puedes decidir si mostrar publicidad aquí
+      // ✅ CORREGIDO: showLogo, logoHeight, logoTopPadding ELIMINADOS
+      showAds: false, // Puedes ajustar esto si quieres ads en esta pantalla
       child: Scaffold(
-        backgroundColor: Colors.transparent, // Permite que el fondo sea visible
+        backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
           title: 'Preguntas Frecuentes',
           leading: IconButton(
@@ -45,7 +45,6 @@ class FaqScreen extends StatelessWidget {
                 question: '¿Mis datos de ubicación son públicos?',
                 answer: 'Tu ubicación solo se comparte con los usuarios que interactúan directamente con tus solicitudes o a quienes ofreces ayuda, para facilitar la coordinación.',
               ),
-              // Añade más preguntas y respuestas según sea necesario
             ],
           ),
         ),
