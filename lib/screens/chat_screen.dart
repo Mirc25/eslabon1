@@ -1,61 +1,93 @@
 // lib/screens/chat_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Importar Firestore
-import 'package:firebase_auth/firebase_auth.dart';     // Importar Firebase Auth
-import 'package:intl/intl.dart';                      // Para formatear la fecha/hora de los mensajes
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 
-class ChatScreen extends StatefulWidget {
-  final String chatId; // El ID de la CONVERSACIÓN (requerido)
-  final String? chatPartnerId; // ID del compañero de chat (opcional, pero útil)
-  final String? chatPartnerName; // Nombre del compañero de chat (opcional, pero útil)
+// Importa tu widget de fondo personalizado
+import '../widgets/custom_background.dart';
+// Importa tu CustomAppBar si la usas
+import '../widgets/custom_app_bar.dart';
+
+class ChatScreen extends ConsumerStatefulWidget {
+  final String requestId; // ID del pedido asociado al chat
+  // otherUserId: ID del otro usuario (el solicitante o el ayudador, según quién sea el actual).
+  // No lo recibimos directamente aquí, lo determinaremos dentro de la pantalla
+  // para mayor robustez, buscando los participantes del chat.
 
   const ChatScreen({
     Key? key,
-    required this.chatId, 
-    this.chatPartnerId, 
-    this.chatPartnerName, 
+    required this.requestId,
   }) : super(key: key);
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  User? _currentUser; // El usuario actual logueado
-  String _displayChatPartnerName = 'Cargando...'; // Nombre para mostrar en el AppBar
-  
-  final ScrollController _scrollController = ScrollController(); // Para scroll automático al nuevo mensaje
+
+  String _otherUserName = 'Cargando...';
+  String? _otherUserPhotoUrl;
+  String? _otherUserId; // Almacena el ID del otro usuario una vez determinado
+
+  User? get currentUser => _auth.currentUser; // Obtener el usuario actual
 
   @override
   void initState() {
     super.initState();
-    _currentUser = _auth.currentUser; // Obtener el usuario actual al iniciar
-    _displayChatPartnerName = widget.chatPartnerName ?? 'Usuario'; // Usar el nombre pasado, si no 'Usuario'
-    print('DEBUG: Abriendo chat con ID: ${widget.chatId} con ${widget.chatPartnerName ?? "N/A"} (ID: ${widget.chatPartnerId ?? "N/A"})');
-
-    // Si el nombre del compañero no viene en la navegación y tenemos su ID, intentamos cargarlo.
-    if (widget.chatPartnerName == null && widget.chatPartnerId != null) {
-      _loadChatPartnerName(widget.chatPartnerId!);
-    }
-
-    // Escuchar mensajes entrantes para hacer scroll al final
+    _fetchChatParticipantsAndOtherUserDetails();
+    // Desplazarse al final de la lista de mensajes cuando se construye la pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollController.addListener(_scrollListener);
+      _scrollToBottom();
     });
   }
 
-  // Listener para hacer scroll al final cuando se añaden nuevos mensajes
-  void _scrollListener() {
-    // Si el scroll está cerca del final, hacemos scroll automático
-    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
-      _scrollToBottom();
+  // Función para obtener los participantes del chat y los detalles del otro usuario
+  Future<void> _fetchChatParticipantsAndOtherUserDetails() async {
+    if (currentUser == null) {
+      // Manejar el caso de usuario no autenticado
+      _otherUserName = 'Error de autenticación';
+      if (mounted) setState(() {});
+      return;
+    }
+
+    try {
+      final chatDoc = await _firestore.collection('chats').doc(widget.requestId).get();
+      if (chatDoc.exists && chatDoc.data() != null) {
+        final List<dynamic> participants = chatDoc.data()!['participants'] ?? [];
+        _otherUserId = participants.firstWhere(
+          (id) => id != currentUser!.uid,
+          orElse: () => null,
+        );
+
+        if (_otherUserId != null) {
+          final otherUserDoc = await _firestore.collection('users').doc(_otherUserId).get();
+          if (otherUserDoc.exists && otherUserDoc.data() != null) {
+            _otherUserName = otherUserDoc.data()!['name'] ?? 'Usuario';
+            _otherUserPhotoUrl = otherUserDoc.data()!['photoUrl'];
+          } else {
+            _otherUserName = 'Usuario Desconocido';
+          }
+        } else {
+          _otherUserName = 'Error: No se encontró otro participante';
+        }
+      } else {
+        _otherUserName = 'Chat no encontrado';
+      }
+    } catch (e) {
+      _otherUserName = 'Error al cargar chat';
+      print('Error fetching chat participants: $e');
+    } finally {
+      if (mounted) setState(() {});
     }
   }
 
+  // Desplaza el ListView al final para mostrar los mensajes más recientes
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -66,206 +98,171 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _loadChatPartnerName(String partnerId) async {
-    try {
-      final userDoc = await _firestore.collection('users').doc(partnerId).get();
-      if (userDoc.exists && mounted) {
-        setState(() {
-          _displayChatPartnerName = userDoc.data()?['nombre'] ?? 'Usuario'; // Asumiendo que el campo es 'nombre'
-        });
-      }
-    } catch (e) {
-      print("Error loading chat partner name: $e");
-      if (mounted) {
-        setState(() {
-          _displayChatPartnerName = 'Error';
-        });
-      }
-    }
-  }
-
+  // Envía un mensaje al chat
   Future<void> _sendMessage() async {
-    final String messageText = _messageController.text.trim();
-    if (messageText.isEmpty) {
-      return; // No enviar mensajes vacíos
-    }
-
-    if (_currentUser == null) {
-      print('ERROR: Usuario no autenticado para enviar mensaje.');
-      // Opcional: mostrar un SnackBar o diálogo al usuario
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debes iniciar sesión para enviar mensajes.'), backgroundColor: Colors.red),
-      );
+    if (_messageController.text.trim().isEmpty || currentUser == null || _otherUserId == null) {
       return;
     }
 
-    try {
-      // Guardar el mensaje en la subcolección 'messages' del chat
-      await _firestore
-          .collection('chats') // Colección principal de chats
-          .doc(widget.chatId)  // Documento del chat específico
-          .collection('messages') // Subcolección de mensajes
-          .add({
-        'senderId': _currentUser!.uid,
-        'senderName': _currentUser!.displayName ?? 'Anónimo', // Nombre del remitente
-        'text': messageText,
-        'timestamp': FieldValue.serverTimestamp(), // Marca de tiempo del servidor
-        // Puedes añadir más campos como 'senderAvatarUrl', 'type' (text/image), etc.
-      });
+    final String messageText = _messageController.text.trim();
+    _messageController.clear(); // Limpiar el campo de texto inmediatamente
 
-      _messageController.clear(); // Limpiar el campo de texto después de enviar
-      _scrollToBottom(); // Hacer scroll al último mensaje
-    } on FirebaseException catch (e) {
-      print('Firebase Error al enviar mensaje: ${e.code} - ${e.message}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al enviar mensaje: ${e.message}'), backgroundColor: Colors.red),
-      );
+    try {
+      // Agregar el mensaje a la subcolección 'messages'
+      await _firestore
+          .collection('chats')
+          .doc(widget.requestId) // Usamos requestId como chatId
+          .collection('messages')
+          .add({
+        'senderId': currentUser!.uid,
+        'senderName': currentUser!.displayName ?? 'Usuario', // O desde tu UserModel
+        'message': messageText,
+        'timestamp': FieldValue.serverTimestamp(),
+        'read': false, // Marca el mensaje como no leído por el receptor
+      });
+      // La Cloud Function sendChatMessageNotification se encargará de enviar la notificación.
     } catch (e) {
-      print('Error inesperado al enviar mensaje: $e');
+      print('Error al enviar mensaje: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al enviar mensaje: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error al enviar mensaje: $e')),
       );
     }
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.removeListener(_scrollListener);
-    _scrollController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Chat con ${_displayChatPartnerName}'),
-        backgroundColor: Colors.grey[900],
-        iconTheme: const IconThemeData(color: Colors.white), // Color para el ícono de retroceso
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            // StreamBuilder para escuchar los mensajes en tiempo real
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('chats')
-                  .doc(widget.chatId)
-                  .collection('messages')
-                  .orderBy('timestamp', descending: true) // Ordenar por fecha/hora
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
-                }
+    if (currentUser == null) {
+      return const Scaffold(
+        body: Center(child: Text('Error: Usuario no autenticado.')),
+      );
+    }
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Colors.amber));
-                }
+    return CustomBackground(
+      showLogo: false, // No mostrar el logo en el chat para no estorbar
+      showAds: false, // No mostrar publicidad en el chat
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: CustomAppBar(
+          title: _otherUserName, // Muestra el nombre del otro usuario
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.pop(), // Vuelve a la pantalla anterior
+          ),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestore
+                    .collection('chats')
+                    .doc(widget.requestId)
+                    .collection('messages')
+                    .orderBy('timestamp', descending: false) // Ordena para ver los más antiguos arriba
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('Envía tu primer mensaje.'));
+                  }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No hay mensajes aún. ¡Sé el primero en enviar uno!',
-                      style: TextStyle(color: Colors.white70, fontSize: 16),
-                      textAlign: TextAlign.center,
-                    ),
-                  );
-                }
+                  final messages = snapshot.data!.docs;
 
-                // Si hay mensajes, construir la lista
-                final List<QueryDocumentSnapshot> messageDocs = snapshot.data!.docs.reversed.toList(); // Invertir para mostrar los más nuevos abajo
+                  // Asegura que el scroll se mantenga abajo con nuevos mensajes
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToBottom();
+                  });
 
-                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom()); // Asegurar scroll al fondo al cargar mensajes
+                  return ListView.builder(
+                    controller: _scrollController,
+                    itemCount: messages.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 10.0),
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      final data = message.data() as Map<String, dynamic>;
+                      final bool isMe = data['senderId'] == currentUser!.uid;
 
-                return ListView.builder(
-                  controller: _scrollController, // Asignar el controlador de scroll
-                  padding: const EdgeInsets.all(8.0),
-                  itemCount: messageDocs.length,
-                  itemBuilder: (context, index) {
-                    final message = messageDocs[index].data() as Map<String, dynamic>;
-                    final String senderId = message['senderId'] as String? ?? '';
-                    final String messageText = message['text'] as String? ?? '';
-                    final Timestamp? timestamp = message['timestamp'] as Timestamp?;
-                    
-                    final bool isMe = senderId == _currentUser?.uid; // Verificar si el mensaje es del usuario actual
-
-                    String formattedTime = '';
-                    if (timestamp != null) {
-                      final DateTime messageTime = timestamp.toDate();
-                      formattedTime = DateFormat('HH:mm').format(messageTime); // Formato de hora
-                    }
-
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft, // Alinear mensajes
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-                        padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
-                        decoration: BoxDecoration(
-                          color: isMe ? Colors.blueAccent : Colors.grey[700], // Colores de burbuja
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(12),
-                            topRight: Radius.circular(12),
-                            bottomLeft: isMe ? Radius.circular(12) : Radius.circular(0),
-                            bottomRight: isMe ? Radius.circular(0) : Radius.circular(12),
+                      return Align(
+                        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4.0),
+                          padding: const EdgeInsets.all(12.0),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75, // Limita el ancho de la burbuja
+                          ),
+                          decoration: BoxDecoration(
+                            color: isMe ? Colors.blue[100] : Colors.grey[300],
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(15),
+                              topRight: const Radius.circular(15),
+                              bottomLeft: isMe ? const Radius.circular(15) : Radius.zero,
+                              bottomRight: isMe ? Radius.zero : const Radius.circular(15),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                data['senderName'],
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                              Text(
+                                data['message'],
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              if (data['timestamp'] != null)
+                                Text(
+                                  (data['timestamp'] as Timestamp).toDate().toLocal().toString().substring(11, 16), // Formato HH:MM
+                                  style: const TextStyle(fontSize: 10, color: Colors.black54),
+                                ),
+                            ],
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              messageText,
-                              style: const TextStyle(color: Colors.white, fontSize: 15.0),
-                            ),
-                            const SizedBox(height: 5.0),
-                            Text(
-                              formattedTime,
-                              style: TextStyle(color: Colors.white70, fontSize: 10.0),
-                            ),
-                          ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            // Área de entrada de texto
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(
+                        hintText: 'Escribe un mensaje...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(25.0),
+                          borderSide: BorderSide.none, // Sin borde visible
                         ),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.9), // Fondo del TextField
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          // Campo de texto para escribir mensaje
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Escribe un mensaje...',
-                      filled: true,
-                      fillColor: Colors.grey[800],
-                      hintStyle: TextStyle(color: Colors.white54),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      onSubmitted: (_) => _sendMessage(), // Permite enviar con Enter
+                      textCapitalization: TextCapitalization.sentences, // Capitaliza la primera letra
                     ),
-                    style: const TextStyle(color: Colors.white),
-                    maxLines: null, // Permite múltiples líneas
-                    keyboardType: TextInputType.multiline,
                   ),
-                ),
-                const SizedBox(width: 8),
-                FloatingActionButton(
-                  onPressed: _sendMessage, // Llama a la función de enviar mensaje
-                  child: const Icon(Icons.send, color: Colors.black),
-                  backgroundColor: Colors.amber,
-                ),
-              ],
+                  const SizedBox(width: 8.0),
+                  FloatingActionButton(
+                    onPressed: _sendMessage,
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    mini: true, // Hace el botón más pequeño
+                    child: const Icon(Icons.send),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
