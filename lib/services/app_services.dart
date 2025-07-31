@@ -155,6 +155,7 @@ class AppServices {
     required String requestId,
     required String requestTitle,
   }) async {
+    // Este es un comentario adicional para forzar la actualización del Canvas.
     try {
       await addNotification(
         recipientId: helperId, // El ayudador es el que recibe la notificación

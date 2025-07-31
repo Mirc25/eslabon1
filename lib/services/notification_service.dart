@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert'; // ✅ AÑADIDO: Import para jsonDecode
 
 class NotificationService {
   final GoRouter _router;
@@ -36,14 +37,26 @@ class NotificationService {
     }
   }
 
-  // ✅ ACTUALIZADO: Implementación de la lógica switch para navegación
   void handleNotificationNavigation(Map<String, dynamic> notificationData) {
-    final String? notificationType = notificationData['type']; // ✅ Leer 'type' directamente
+    // ✅ CORREGIDO: Extraer y decodificar requestData
+    final String? notificationType = notificationData['type'];
+    final String? notificationId = notificationData['notificationId'];
     final String? requestId = notificationData['requestId'];
     final String? helperId = notificationData['helperId'];
     final String? helperName = notificationData['helperName'];
-    final Map<String, dynamic>? requestData = notificationData['requestData'] as Map<String, dynamic>?;
-    final String? notificationId = notificationData['notificationId']; // Para marcar como leída
+    final String? requesterId = notificationData['requesterId'];
+    final String? requesterName = notificationData['requesterName'];
+    final String? ratingString = notificationData['rating']; // Viene como string
+    final double? rating = ratingString != null ? double.tryParse(ratingString) : null;
+
+    Map<String, dynamic> requestData = {};
+    if (notificationData['requestData'] != null && notificationData['requestData']!.isNotEmpty) {
+      try {
+        requestData = jsonDecode(notificationData['requestData']!) as Map<String, dynamic>;
+      } catch (e) {
+        print('Error al decodificar requestData: $e');
+      }
+    }
 
     debugPrint('--- INICIO DEBUG NAVEGACIÓN ---');
     debugPrint('Datos de notificación recibidos:');
@@ -51,7 +64,7 @@ class NotificationService {
     debugPrint('  requestId: $requestId');
     debugPrint('  helperId: $helperId');
     debugPrint('  helperName: $helperName');
-    debugPrint('  requestData: $requestData');
+    debugPrint('  requestData (decodificado): $requestData'); // ✅ DEBUG: Mostrar requestData decodificado
     debugPrint('  notificationId: $notificationId');
     debugPrint('  _router está disponible: ${_router != null}');
 
@@ -71,11 +84,11 @@ class NotificationService {
         if (requestId != null && helperId != null) {
           debugPrint('  Redirigiendo a calificar ayudador: $requestId / $helperId');
           _router.go(
-            '/rate-offer/$requestId/$helperId', // ✅ USADO: /rate-offer/:requestId/:helperId
+            '/rate-helper/$requestId', // ✅ USADO: /rate-helper/:requestId
             extra: {
               'helperId': helperId,
               'helperName': helperName,
-              'requestData': requestData,
+              'requestData': requestData, // ✅ PASADO: requestData como Map
             },
           );
         } else {
@@ -83,27 +96,26 @@ class NotificationService {
         }
         break;
       case 'helper_rated': // Cuando el ayudador es calificado por el solicitante
-        final String? requesterId = notificationData['requesterId'];
-        final String? requesterName = notificationData['requesterName'];
-        if (requestId != null && requesterId != null) {
+        if (requestId != null && requesterId != null && requesterName != null) {
           debugPrint('  Redirigiendo a calificar solicitante: $requestId / $requesterId');
           _router.go(
             '/rate-requester/$requestId', // ✅ USADO: /rate-requester/:requestId
             extra: {
               'requesterId': requesterId,
               'requesterName': requesterName,
+              'requestId': requestId, // Asegurarse de pasar el requestId
             },
           );
         } else {
-          debugPrint('  DEBUG NAVIGATION ERROR: Datos incompletos para "helper_rated" (requestId o requesterId faltantes).');
+          debugPrint('  DEBUG NAVIGATION ERROR: Datos incompletos para "helper_rated" (requestId, requesterId o requesterName faltantes).');
         }
         break;
       case 'new_request':
         if (requestId != null) {
           debugPrint('  Redirigiendo a detalles de nueva solicitud: $requestId');
           _router.go(
-            '/request_detail/$requestId', // ✅ USADO: /request_detail/:requestId
-            extra: requestData, // Pasa los datos de la solicitud si están disponibles
+            '/request_detail/$requestId',
+            extra: requestData, // ✅ PASADO: requestData como Map
           );
         } else {
           debugPrint('  DEBUG NAVIGATION ERROR: ID de solicitud faltante para "new_request".');
@@ -124,8 +136,7 @@ class NotificationService {
         break;
       default:
         debugPrint('  Tipo de notificación desconocido o sin lógica de navegación específica: $notificationType');
-        // Opcional: Redirigir a una pantalla por defecto o mostrar un mensaje
-        _router.go('/main'); // Redirige a la pantalla principal por defecto
+        _router.go('/main');
         break;
     }
     debugPrint('--- FIN DEBUG NAVEGACIÓN ---');
