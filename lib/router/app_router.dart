@@ -1,109 +1,101 @@
 // lib/router/app_router.dart
-
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:eslabon_flutter/screens/main_screen.dart';
-import 'package:eslabon_flutter/screens/create_request_screen.dart';
-import 'package:eslabon_flutter/screens/request_detail_screen.dart';
-import 'package:eslabon_flutter/screens/notifications_screen.dart';
-import 'package:eslabon_flutter/screens/chat_screen.dart';
-import 'package:eslabon_flutter/screens/rate_helper_screen.dart';
-import 'package:eslabon_flutter/screens/rate_requester_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart'; // Necesario para IconButton en leading
 
-class AppRouter {
-  static GoRouter get router => _router;
+// Importa todas tus pantallas relevantes
+import '../screens/auth_gate.dart';
+import '../screens/main_screen.dart';
+import '../screens/request_detail_screen.dart';
+import '../screens/rate_offer_screen.dart'; // Ya existe, no rate_helper_screen
+import '../screens/rate_requester_screen.dart';
+import '../screens/notifications_screen.dart';
+import '../screens/chat_screen.dart';
+import '../screens/login_screen.dart';
+import '../screens/register_screen.dart';
+import '../screens/help_history_screen.dart'; // Agregada del paso anterior
+import '../screens/ranking_screen.dart'; // Agregada del paso anterior
+// ... importa otras pantallas si son parte de tus rutas
 
-  static final GoRouter _router = GoRouter(
-    routes: <RouteBase>[
+final goRouterProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    initialLocation: '/auth_gate', // La primera ruta al iniciar la app
+    routes: [
+      GoRoute(
+        path: '/auth_gate',
+        builder: (context, state) => const AuthGate(),
+      ),
       GoRoute(
         path: '/',
-        builder: (BuildContext context, GoRouterState state) {
-          return const MainScreen();
-        },
+        builder: (context, state) => const MainScreen(),
+      ),
+      // Rutas de autenticación
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
-        path: '/create-request', // Ruta definida con GUION MEDIO
-        builder: (BuildContext context, GoRouterState state) {
-          return const CreateRequestScreen();
-        },
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
       ),
+      // Detalle de Solicitud
       GoRoute(
-        path: '/request-detail/:id',
-        builder: (BuildContext context, GoRouterState state) {
-          final requestId = state.pathParameters['id'];
-          final Map<String, dynamic>? requestData = state.extra as Map<String, dynamic>?;
-          return RequestDetailScreen(
-            requestId: requestId!,
-            requestData: requestData,
-          );
+        path: '/request_detail/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId']!;
+          // request_detail_screen.dart SÓLO acepta requestId
+          return RequestDetailScreen(requestId: requestId);
         },
       ),
+      // Pantalla de Calificar Oferta (Ayudador)
+      GoRoute(
+        path: '/rate_offer/:requestId/:helperId', // Ambas IDs como path parameters
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId']!;
+          final helperId = state.pathParameters['helperId']!;
+          // rate_offer_screen.dart espera requestId y helperId
+          return RateOfferScreen(requestId: requestId, helperId: helperId);
+        },
+      ),
+      // Pantalla de Calificar Solicitante
+      GoRoute(
+        path: '/rate_requester/:requestId', // requestId como path parameter
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId']!;
+          // rate_requester_screen.dart solo espera requestId. Si necesitas userId,
+          // lo puedes extraer de la requestData dentro de la pantalla, o pasarlo como query parameter si es necesario.
+          // Por ejemplo: context.go('/rate_requester/$requestId?userId=$otherUserId')
+          // Y en RateRequesterScreen: final String? userId = state.uri.queryParameters['userId'];
+          return RateRequesterScreen(requestId: requestId);
+        },
+      ),
+      // Pantalla de Notificaciones
       GoRoute(
         path: '/notifications',
-        builder: (BuildContext context, GoRouterState state) {
-          return const NotificationsScreen();
-        },
+        builder: (context, state) => const NotificationsScreen(),
       ),
+      // Pantalla de Chat
       GoRoute(
-        path: '/chat/:chatIdParam',
-        builder: (BuildContext context, GoRouterState state) {
-          final chatId = state.pathParameters['chatIdParam'];
-          final Map<String, dynamic>? extraData = state.extra as Map<String, dynamic>?;
-          return ChatScreen(
-            chatId: chatId!,
-            chatPartnerId: extraData?['chatPartnerId'],
-            chatPartnerName: extraData?['chatPartnerName'],
-          );
+        path: '/chat/:requestId', // El ChatScreen usa requestId como chatId
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId']!;
+          // ChatScreen espera requestId
+          return ChatScreen(requestId: requestId);
         },
       ),
+      // Historial de Ayuda
       GoRoute(
-        path: '/rate-helper/:requestId',
-        builder: (BuildContext context, GoRouterState state) {
-          final requestId = state.pathParameters['requestId'];
-          final Map<String, dynamic>? extraData = state.extra as Map<String, dynamic>?;
-
-          final String? helperId = extraData?['helperId'];
-          final String? helperName = extraData?['helperName'];
-          final Map<String, dynamic>? requestData = extraData?['requestData'];
-
-          if (requestId == null || helperId == null || helperName == null) {
-            return Scaffold(
-              appBar: AppBar(title: const Text('Error')),
-              body: const Center(child: Text('Datos incompletos para calificar al ayudante.')),
-            );
-          }
-
-          return RateHelperScreen(
-            requestId: requestId,
-            helperId: helperId,
-            helperName: helperName,
-            requestData: requestData,
-          );
-        },
+        path: '/help_history',
+        builder: (context, state) => const HelpHistoryScreen(),
       ),
+      // Ranking de Usuarios
       GoRoute(
-        path: '/rate-requester/:requestId',
-        builder: (BuildContext context, GoRouterState state) {
-          final requestId = state.pathParameters['requestId'];
-          final Map<String, dynamic>? extraData = state.extra as Map<String, dynamic>?;
-
-          final String? requesterId = extraData?['requesterId'];
-          final String? requesterName = extraData?['requesterName'];
-
-          if (requestId == null || requesterId == null || requesterName == null) {
-            return Scaffold(
-              appBar: AppBar(title: const Text('Error')),
-              body: const Center(child: Text('Datos incompletos para calificar al solicitante.')),
-            );
-          }
-
-          return RateRequesterScreen(
-            requestId: requestId,
-            requesterId: requesterId,
-            requesterName: requesterName,
-          );
-        },
+        path: '/ranking',
+        builder: (context, state) => const RankingScreen(),
       ),
+      // ... agrega el resto de tus rutas aquí
     ],
+    // Puedes agregar un errorBuilder para rutas no encontradas
+    errorBuilder: (context, state) => const MainScreen(), // Redirige a la pantalla principal en caso de error
   );
-}
+});

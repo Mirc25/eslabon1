@@ -5,14 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
+// Si quieres el ícono real de WhatsApp, debes agregar la dependencia font_awesome_flutter
+// import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 // Importa tu widget de fondo personalizado
 import '../widgets/custom_background.dart';
 // Importa tu CustomAppBar si la usas
 import '../widgets/custom_app_bar.dart';
-
-// Asume que tienes un modelo de Request si lo usas, si no, se manejará como Map<String, dynamic>
-// import '../models/request_model.dart';
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -123,7 +122,13 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       showAds: true,  // Muestra la publicidad (si está implementada en CustomBackground)
       child: Scaffold(
         backgroundColor: Colors.transparent, // Permite que el fondo personalizado sea visible
-        appBar: const CustomAppBar(title: 'Detalle de Solicitud'),
+        appBar: CustomAppBar(
+          title: 'Detalle de Solicitud',
+          leading: IconButton( // Botón de regreso explícito
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+        ),
         body: StreamBuilder<DocumentSnapshot>(
           stream: _firestore.collection('requests').doc(widget.requestId).snapshots(),
           builder: (context, snapshot) {
@@ -139,14 +144,10 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
             final requestData = snapshot.data!.data() as Map<String, dynamic>;
 
-            // Puedes usar un modelo de Request si lo tienes definido
-            // final Request request = Request.fromMap(requestData);
-
-            // Obtener datos del solicitante (asumiendo que están en el documento de solicitud o se pueden buscar)
             final String requesterName = requestData['name'] ?? 'Usuario Desconocido';
             final String description = requestData['description'] ?? 'Sin descripción.';
             final String? requesterEmail = requestData['email'];
-            final String? requesterPhone = requestData['phone']; // Asume que el número de teléfono está aquí
+            final String? requesterPhone = requestData['phone'];
             final double? latitude = requestData['latitude'];
             final double? longitude = requestData['longitude'];
             final String? imageUrl = requestData['imageUrl']; // URL de la foto del solicitante
@@ -215,10 +216,11 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       if (requesterPhone != null && requesterPhone.isNotEmpty)
                         ElevatedButton.icon(
                           onPressed: () => _launchWhatsApp(requesterPhone),
-                          icon: const Icon(Icons.whatsapp),
+                          // Usar Icons.message o FaIcon si font_awesome_flutter está agregado
+                          icon: const Icon(Icons.message),
                           label: const Text('WhatsApp'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green, // Color de WhatsApp
+                            backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -230,7 +232,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                           icon: const Icon(Icons.email),
                           label: const Text('Correo'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent, // Color de Email
+                            backgroundColor: Colors.redAccent,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -244,7 +246,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     child: ElevatedButton(
                       onPressed: () => _offerHelp(requestData),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor, // Usa el color primario de tu tema
+                        backgroundColor: Theme.of(context).primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                         textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -253,7 +255,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       child: const Text('Ofrecer Ayuda'),
                     ),
                   ),
-                  const SizedBox(height: 20), // Espacio para la publicidad si está abajo
+                  const SizedBox(height: 20),
                 ],
               ),
             );

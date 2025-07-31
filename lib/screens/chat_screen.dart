@@ -7,14 +7,11 @@ import 'package:go_router/go_router.dart';
 
 // Importa tu widget de fondo personalizado
 import '../widgets/custom_background.dart';
-// Importa tu CustomAppBar si la usas
+// Importa tu CustomAppBar
 import '../widgets/custom_app_bar.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String requestId; // ID del pedido asociado al chat
-  // otherUserId: ID del otro usuario (el solicitante o el ayudador, según quién sea el actual).
-  // No lo recibimos directamente aquí, lo determinaremos dentro de la pantalla
-  // para mayor robustez, buscando los participantes del chat.
 
   const ChatScreen({
     Key? key,
@@ -32,7 +29,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String _otherUserName = 'Cargando...';
-  String? _otherUserPhotoUrl;
+  String? _otherUserPhotoUrl; // No usado directamente en el UI actual, pero útil
   String? _otherUserId; // Almacena el ID del otro usuario una vez determinado
 
   User? get currentUser => _auth.currentUser; // Obtener el usuario actual
@@ -50,7 +47,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Función para obtener los participantes del chat y los detalles del otro usuario
   Future<void> _fetchChatParticipantsAndOtherUserDetails() async {
     if (currentUser == null) {
-      // Manejar el caso de usuario no autenticado
       _otherUserName = 'Error de autenticación';
       if (mounted) setState(() {});
       return;
@@ -105,22 +101,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final String messageText = _messageController.text.trim();
-    _messageController.clear(); // Limpiar el campo de texto inmediatamente
+    _messageController.clear();
 
     try {
-      // Agregar el mensaje a la subcolección 'messages'
+      String senderName = currentUser!.displayName ?? 'Usuario';
+      if (currentUser!.displayName == null || currentUser!.displayName!.isEmpty) {
+        try {
+          final userDoc = await _firestore.collection('users').doc(currentUser!.uid).get();
+          if (userDoc.exists && userDoc.data() != null) {
+            senderName = userDoc.data()!['name'] ?? 'Usuario';
+          }
+        } catch (e) {
+          print('Error fetching sender name: $e');
+        }
+      }
+
       await _firestore
           .collection('chats')
-          .doc(widget.requestId) // Usamos requestId como chatId
+          .doc(widget.requestId)
           .collection('messages')
           .add({
         'senderId': currentUser!.uid,
-        'senderName': currentUser!.displayName ?? 'Usuario', // O desde tu UserModel
+        'senderName': senderName,
         'message': messageText,
         'timestamp': FieldValue.serverTimestamp(),
-        'read': false, // Marca el mensaje como no leído por el receptor
+        'read': false,
       });
-      // La Cloud Function sendChatMessageNotification se encargará de enviar la notificación.
     } catch (e) {
       print('Error al enviar mensaje: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,15 +144,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     return CustomBackground(
-      showLogo: false, // No mostrar el logo en el chat para no estorbar
+      showLogo: false, // No mostrar el logo en el chat
       showAds: false, // No mostrar publicidad en el chat
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.transparent, // Permite que el fondo personalizado sea visible
         appBar: CustomAppBar(
-          title: _otherUserName, // Muestra el nombre del otro usuario
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(), // Vuelve a la pantalla anterior
+          title: _otherUserName,
+          leading: IconButton( // Botón de regreso explícito
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.pop(),
           ),
         ),
         body: Column(
@@ -157,7 +163,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     .collection('chats')
                     .doc(widget.requestId)
                     .collection('messages')
-                    .orderBy('timestamp', descending: false) // Ordena para ver los más antiguos arriba
+                    .orderBy('timestamp', descending: false)
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -167,12 +173,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text('Envía tu primer mensaje.'));
+                    return const Center(
+                      child: Text(
+                        'Envía tu primer mensaje.',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    );
                   }
 
                   final messages = snapshot.data!.docs;
 
-                  // Asegura que el scroll se mantenga abajo con nuevos mensajes
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     _scrollToBottom();
                   });
@@ -192,10 +202,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           margin: const EdgeInsets.symmetric(vertical: 4.0),
                           padding: const EdgeInsets.all(12.0),
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75, // Limita el ancho de la burbuja
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           decoration: BoxDecoration(
-                            color: isMe ? Colors.blue[100] : Colors.grey[300],
+                            // Colores de burbuja con transparencia para ver el fondo
+                            color: isMe
+                                ? Theme.of(context).primaryColor.withOpacity(0.7)
+                                : Colors.grey.shade300.withOpacity(0.7),
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(15),
                               topRight: const Radius.circular(15),
@@ -208,16 +221,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             children: [
                               Text(
                                 data['senderName'],
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: isMe ? Colors.white : Colors.black87,
+                                ),
                               ),
                               Text(
                                 data['message'],
-                                style: const TextStyle(fontSize: 16),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: isMe ? Colors.white : Colors.black87,
+                                ),
                               ),
                               if (data['timestamp'] != null)
                                 Text(
-                                  (data['timestamp'] as Timestamp).toDate().toLocal().toString().substring(11, 16), // Formato HH:MM
-                                  style: const TextStyle(fontSize: 10, color: Colors.black54),
+                                  (data['timestamp'] as Timestamp).toDate().toLocal().toString().substring(11, 16),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isMe ? Colors.white70 : Colors.black54,
+                                  ),
                                 ),
                             ],
                           ),
@@ -238,16 +261,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       controller: _messageController,
                       decoration: InputDecoration(
                         hintText: 'Escribe un mensaje...',
+                        hintStyle: TextStyle(color: Colors.grey[700]),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(25.0),
-                          borderSide: BorderSide.none, // Sin borde visible
+                          borderSide: BorderSide.none,
                         ),
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.9), // Fondo del TextField
+                        fillColor: Colors.white.withOpacity(0.9),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
                       ),
-                      onSubmitted: (_) => _sendMessage(), // Permite enviar con Enter
-                      textCapitalization: TextCapitalization.sentences, // Capitaliza la primera letra
+                      onSubmitted: (_) => _sendMessage(),
+                      textCapitalization: TextCapitalization.sentences,
+                      style: const TextStyle(color: Colors.black87),
                     ),
                   ),
                   const SizedBox(width: 8.0),
@@ -255,7 +280,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     onPressed: _sendMessage,
                     backgroundColor: Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
-                    mini: true, // Hace el botón más pequeño
+                    mini: true,
                     child: const Icon(Icons.send),
                   ),
                 ],
