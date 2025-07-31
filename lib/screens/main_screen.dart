@@ -8,7 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Mantener si usas FaIcon
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
@@ -19,9 +19,9 @@ import 'package:eslabon_flutter/screens/create_request_screen.dart';
 import 'package:eslabon_flutter/screens/profile_screen.dart';
 import 'package:eslabon_flutter/screens/my_requests_screen.dart';
 import 'package:eslabon_flutter/screens/favorites_screen.dart';
-import 'package:eslabon_flutter/screens/chat_list_screen.dart'; // Ruta a la lista de chats
-import 'package:eslabon_flutter/screens/help_history_screen.dart'; // Importa HelpHistoryScreen
-import 'package:eslabon_flutter/screens/ranking_screen.dart'; // Importa RankingScreen
+import 'package:eslabon_flutter/screens/chat_list_screen.dart';
+import 'package:eslabon_flutter/screens/help_history_screen.dart';
+import 'package:eslabon_flutter/screens/ranking_screen.dart';
 import 'package:eslabon_flutter/screens/search_users_screen.dart';
 import 'package:eslabon_flutter/screens/settings_screen.dart';
 import 'package:eslabon_flutter/screens/faq_screen.dart';
@@ -34,10 +34,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:eslabon_flutter/services/notification_service.dart';
 import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 import 'package:eslabon_flutter/router/app_router.dart';
-import 'package:eslabon_flutter/providers/app_router_provider.dart'; // Importa el provider de AppRouter
+import 'package:eslabon_flutter/providers/app_router_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
-// Importa CustomBackground y CustomAppBar
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 
@@ -82,11 +81,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     });
     _determineAndSetUserLocation();
 
-    // ✅ CORREGIDO: LÓGICA DE NOTIFICACIONES CON RIVERPOD
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notificationServiceNotifier = ref.read(notificationServiceProvider.notifier);
-      // Se pasa la instancia de GoRouter desde el provider
-      // ref.read(appRouterProvider) directamente retorna la instancia de GoRouter (AppRouter)
       notificationServiceNotifier.setRouter(ref.read(appRouterProvider));
       final notificationService = notificationServiceNotifier.notificationService;
       notificationService.initialize();
@@ -112,13 +108,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
   void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    AppServices.showSnackBar(context, message, color); // Usa el método estático
   }
 
   Future<void> _determineAndSetUserLocation() async {
@@ -234,19 +224,19 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   Future<void> _addComment(String requestId, String commentText) async {
     if (_currentUser == null || commentText.trim().isEmpty) {
-      _showSnackBar('Debes iniciar sesión para comentar y el comentario no puede estar vacío.', Colors.red);
+      AppServices.showSnackBar(context, 'Debes iniciar sesión para comentar y el comentario no puede estar vacío.', Colors.red);
       return;
     }
 
     try {
       await _appServices.addComment(context, requestId, commentText);
-      _showSnackBar('Comentario enviado.', Colors.green);
+      AppServices.showSnackBar(context, 'Comentario enviado.', Colors.green);
     } on FirebaseException catch (e) {
       print("Error adding comment: $e");
-      _showSnackBar('Error de Firebase al enviar comentario: ${e.message}', Colors.red);
+      AppServices.showSnackBar(context, 'Error de Firebase al enviar comentario: ${e.message}', Colors.red);
     } catch (e) {
       print("Unexpected error adding comment: $e");
-      _showSnackBar('Ocurrió un error inesperado al enviar el comentario.', Colors.red);
+      AppServices.showSnackBar(context, 'Ocurrió un error inesperado al enviar el comentario.', Colors.red);
     } finally {
       _commentControllers[requestId]?.clear();
     }
@@ -592,14 +582,13 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                         onPressed: () {
                           final currentUser = FirebaseAuth.instance.currentUser;
                           if (currentUser == null) {
-                            _showSnackBar('Debes iniciar sesión para ofrecer ayuda.', Colors.red);
+                            AppServices.showSnackBar(context, 'Debes iniciar sesión para ofrecer ayuda.', Colors.red);
                             return;
                           }
 
-                          // ✅ CORREGIDO: Navegar a RequestDetailScreen pasando requestData por extra
                           context.go(
-                            '/request_detail/$requestId', // Usa la ruta correcta con guion bajo
-                            extra: request, // Pasa el Map requestData completo
+                            '/request_detail/$requestId',
+                            extra: request,
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -710,7 +699,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                     constraints: const BoxConstraints(),
                                     icon: const Icon(Icons.location_on, color: Colors.blue),
                                     onPressed: () {
-                                      // Usar la función de lanzamiento de mapas correcta de AppServices
                                       _appServices.launchGoogleMaps(context, latitude, longitude);
                                     },
                                     tooltip: 'Ver mapa',
@@ -723,7 +711,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                     iconSize: 24,
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
-                                    // ✅ CORREGIDO: Usar Icons.message como alternativa universal
                                     icon: const Icon(Icons.message, color: Colors.green),
                                     onPressed: () {
                                       _appServices.launchWhatsapp(context, requestPhone);
@@ -748,7 +735,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                       if (await canLaunchUrl(emailLaunchUri)) {
                                         await launchUrl(emailLaunchUri);
                                       } else {
-                                        _showSnackBar('No se pudo abrir el correo.', Colors.red);
+                                        AppServices.showSnackBar(context, 'No se pudo abrir el correo.', Colors.red);
                                       }
                                     },
                                     tooltip: 'Email',
@@ -1077,7 +1064,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 title: const Text('Historial de Ayudas', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
-                  context.go('/help_history'); // Ruta corregida a /help_history
+                  context.go('/help_history');
                 },
               ),
               ListTile(
@@ -1085,7 +1072,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 title: const Text('Ranking de Usuarios', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
-                  context.go('/ranking'); // Ruta al RankingScreen
+                  context.go('/ranking');
                 },
               ),
               ListTile(
@@ -1147,7 +1134,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         body: Column(
           children: [
             const SizedBox(height: 0),
-            // Título de la sección de solicitudes
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
@@ -1296,7 +1282,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
-            context.push('/create_request'); // Navega a la pantalla de crear solicitud
+            context.push('/create_request');
           },
           child: const Icon(Icons.add),
           backgroundColor: Theme.of(context).colorScheme.secondary,

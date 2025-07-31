@@ -5,13 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
-// Importa tu widget de fondo personalizado
 import '../widgets/custom_background.dart';
-// Importa tu CustomAppBar
 import '../widgets/custom_app_bar.dart';
+import '../services/app_services.dart'; // Importa AppServices
 
 class ChatScreen extends ConsumerStatefulWidget {
-  final String requestId; // ID del pedido asociado al chat
+  final String requestId;
 
   const ChatScreen({
     Key? key,
@@ -29,22 +28,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String _otherUserName = 'Cargando...';
-  String? _otherUserPhotoUrl; // No usado directamente en el UI actual, pero útil
-  String? _otherUserId; // Almacena el ID del otro usuario una vez determinado
+  String? _otherUserPhotoUrl;
+  String? _otherUserId;
 
-  User? get currentUser => _auth.currentUser; // Obtener el usuario actual
+  User? get currentUser => _auth.currentUser;
 
   @override
   void initState() {
     super.initState();
     _fetchChatParticipantsAndOtherUserDetails();
-    // Desplazarse al final de la lista de mensajes cuando se construye la pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
     });
   }
 
-  // Función para obtener los participantes del chat y los detalles del otro usuario
   Future<void> _fetchChatParticipantsAndOtherUserDetails() async {
     if (currentUser == null) {
       _otherUserName = 'Error de autenticación';
@@ -83,7 +80,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  // Desplaza el ListView al final para mostrar los mensajes más recientes
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -94,7 +90,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  // Envía un mensaje al chat
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty || currentUser == null || _otherUserId == null) {
       return;
@@ -129,9 +124,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     } catch (e) {
       print('Error al enviar mensaje: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al enviar mensaje: $e')),
-      );
+      AppServices.showSnackBar(context, 'Error al enviar mensaje: $e', Colors.red); // Usa el método estático
     }
   }
 
@@ -144,13 +137,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     return CustomBackground(
-      showLogo: false, // No mostrar el logo en el chat
-      showAds: false, // No mostrar publicidad en el chat
+      showLogo: false,
+      showAds: false,
       child: Scaffold(
-        backgroundColor: Colors.transparent, // Permite que el fondo personalizado sea visible
+        backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
           title: _otherUserName,
-          leading: IconButton( // Botón de regreso explícito
+          leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => context.pop(),
           ),
@@ -205,7 +198,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           decoration: BoxDecoration(
-                            // Colores de burbuja con transparencia para ver el fondo
                             color: isMe
                                 ? Theme.of(context).primaryColor.withOpacity(0.7)
                                 : Colors.grey.shade300.withOpacity(0.7),
@@ -251,7 +243,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 },
               ),
             ),
-            // Área de entrada de texto
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Row(

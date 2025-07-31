@@ -5,18 +5,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
-// Si quieres el ícono real de WhatsApp, debes agregar la dependencia font_awesome_flutter
-// import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// Importa tu widget de fondo personalizado
 import '../widgets/custom_background.dart';
-// Importa tu CustomAppBar si la usas
 import '../widgets/custom_app_bar.dart';
+import '../services/app_services.dart';
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
+  final Map<String, dynamic>? requestData; // Datos de la solicitud pasados por extra (opcional)
 
-  const RequestDetailScreen({Key? key, required this.requestId}) : super(key: key);
+  const RequestDetailScreen({Key? key, required this.requestId, this.requestData}) : super(key: key);
 
   @override
   ConsumerState<RequestDetailScreen> createState() => _RequestDetailScreenState();
@@ -25,31 +23,42 @@ class RequestDetailScreen extends ConsumerStatefulWidget {
 class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final AppServices _appServices;
 
-  // Función para manejar el botón "Ofrecer Ayuda"
-  Future<void> _offerHelp(Map<String, dynamic> requestData) async {
+  @override
+  void initState() {
+    super.initState();
+    _appServices = AppServices(_firestore, _auth);
+  }
+
+  // ✅ CORREGIDO: Aceptar requestData como nullable
+  Future<void> _offerHelp(Map<String, dynamic>? requestData) async {
     final User? currentUser = _auth.currentUser;
 
     if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debes iniciar sesión para ofrecer ayuda.')),
-      );
+      AppServices.showSnackBar(context, 'Debes iniciar sesión para ofrecer ayuda.', Colors.red);
+      return;
+    }
+    // ✅ CORREGIDO: Comprobar si requestData es nulo antes de acceder a sus campos
+    if (requestData == null) {
+      AppServices.showSnackBar(context, 'Error: Datos de la solicitud no disponibles.', Colors.red);
       return;
     }
 
-    final String requesterId = requestData['userId']; // ID del solicitante
-    final String requesterEmail = requestData['email']; // Email del solicitante
-    final String requesterName = requestData['name']; // Nombre del solicitante
+    final String requesterId = requestData['userId'];
+    final String requesterEmail = requestData['email'];
+    final String requesterName = requestData['name'];
 
-    // Evitar que el usuario se ofrezca ayuda a sí mismo
+    if (requesterId == null || requesterEmail == null || requesterName == null) {
+      AppServices.showSnackBar(context, 'Error: Datos del solicitante incompletos en la solicitud.', Colors.red);
+      return;
+    }
+
     if (currentUser.uid == requesterId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No puedes ofrecer ayuda a tu propia solicitud.')),
-      );
+      AppServices.showSnackBar(context, 'No puedes ofrecer ayuda a tu propia solicitud.', Colors.red);
       return;
     }
 
-    // Obtener el nombre del ayudador (usuario actual)
     String helperName = currentUser.displayName ?? 'Usuario Anónimo';
     if (currentUser.displayName == null || currentUser.displayName!.isEmpty) {
       try {
@@ -63,86 +72,78 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
 
     try {
-      // Crear un documento en la colección 'offers'
       await _firestore.collection('offers').add({
         'requestId': widget.requestId,
         'requesterId': requesterId,
         'requesterName': requesterName,
         'helperId': currentUser.uid,
         'helperName': helperName,
-        'status': 'pending', // 'pending', 'accepted', 'rejected'
+        'status': 'pending',
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('¡Oferta de ayuda enviada con éxito!')),
-      );
+      AppServices.showSnackBar(context, '¡Oferta de ayuda enviada con éxito!', Colors.green);
 
-      // La notificación push 'new_offer' será disparada por la Cloud Function
-      // cuando se cree este documento en 'offers'.
-
-      // Opcional: Redirigir o actualizar la UI después de ofrecer ayuda
-      // context.pop(); // Volver a la pantalla anterior
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al enviar la oferta de ayuda: $e')),
-      );
+      AppServices.showSnackBar(context, 'Error al enviar la oferta de ayuda: $e', Colors.red);
       print('Error al enviar la oferta de ayuda: $e');
     }
   }
 
-  // Función para lanzar WhatsApp
   Future<void> _launchWhatsApp(String phoneNumber) async {
     final Uri whatsappUri = Uri.parse('whatsapp://send?phone=$phoneNumber');
     if (await canLaunchUrl(whatsappUri)) {
       await launchUrl(whatsappUri);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo abrir WhatsApp.')),
-      );
+      AppServices.showSnackBar(context, 'No se pudo abrir WhatsApp.', Colors.red);
     }
   }
 
-  // Función para lanzar Email
   Future<void> _launchEmail(String email) async {
     final Uri emailUri = Uri.parse('mailto:$email');
     if (await canLaunchUrl(emailUri)) {
       await launchUrl(emailUri);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo abrir la aplicación de correo.')),
-      );
+      AppServices.showSnackBar(context, 'No se pudo abrir la aplicación de correo.', Colors.red);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return CustomBackground(
-      showLogo: true, // Muestra el logo centrado
-      showAds: true,  // Muestra la publicidad (si está implementada en CustomBackground)
+      showLogo: true,
+      showAds: true,
       child: Scaffold(
-        backgroundColor: Colors.transparent, // Permite que el fondo personalizado sea visible
+        backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
           title: 'Detalle de Solicitud',
-          leading: IconButton( // Botón de regreso explícito
+          leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => context.pop(),
           ),
         ),
-        body: StreamBuilder<DocumentSnapshot>(
-          stream: _firestore.collection('requests').doc(widget.requestId).snapshots(),
+        body: FutureBuilder<DocumentSnapshot>(
+          future: widget.requestData != null
+              ? Future.value(null)
+              : _firestore.collection('requests').doc(widget.requestId).get(),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            Map<String, dynamic>? requestData;
+
+            if (widget.requestData != null) {
+              requestData = widget.requestData;
+            } else if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
+            } else if (snapshot.hasError) {
               return Center(child: Text('Error: ${snapshot.error}'));
-            }
-            if (!snapshot.hasData || !snapshot.data!.exists) {
+            } else if (!snapshot.hasData || !snapshot.data!.exists) {
               return const Center(child: Text('Solicitud no encontrada.'));
+            } else {
+              requestData = snapshot.data!.data() as Map<String, dynamic>;
             }
 
-            final requestData = snapshot.data!.data() as Map<String, dynamic>;
+            if (requestData == null) {
+              return const Center(child: Text('Datos de solicitud no disponibles.'));
+            }
 
             final String requesterName = requestData['name'] ?? 'Usuario Desconocido';
             final String description = requestData['description'] ?? 'Sin descripción.';
@@ -150,7 +151,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
             final String? requesterPhone = requestData['phone'];
             final double? latitude = requestData['latitude'];
             final double? longitude = requestData['longitude'];
-            final String? imageUrl = requestData['imageUrl']; // URL de la foto del solicitante
+            final String? imageUrl = requestData['imageUrl'];
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -162,7 +163,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       radius: 60,
                       backgroundImage: imageUrl != null && imageUrl.isNotEmpty
                           ? NetworkImage(imageUrl)
-                          : const AssetImage('assets/default_avatar.png') as ImageProvider, // Placeholder
+                          : const AssetImage('assets/default_avatar.png') as ImageProvider,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -188,14 +189,13 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70),
                   ),
                   const SizedBox(height: 8),
-                  // Placeholder para el mapa
                   Container(
                     height: 200,
                     decoration: BoxDecoration(
                       color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(12),
                       image: const DecorationImage(
-                        image: AssetImage('assets/map_placeholder.png'), // Tu imagen de mapa
+                        image: AssetImage('assets/map_placeholder.png'),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -209,14 +209,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Botones de WhatsApp y Correo
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       if (requesterPhone != null && requesterPhone.isNotEmpty)
                         ElevatedButton.icon(
                           onPressed: () => _launchWhatsApp(requesterPhone),
-                          // Usar Icons.message o FaIcon si font_awesome_flutter está agregado
                           icon: const Icon(Icons.message),
                           label: const Text('WhatsApp'),
                           style: ElevatedButton.styleFrom(
@@ -241,10 +239,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  // Botón "Ofrecer Ayuda"
                   Center(
                     child: ElevatedButton(
-                      onPressed: () => _offerHelp(requestData),
+                      onPressed: () => _offerHelp(requestData), // Pasa requestData directamente
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).primaryColor,
                         foregroundColor: Colors.white,

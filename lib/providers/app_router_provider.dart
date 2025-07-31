@@ -1,5 +1,9 @@
 // lib/providers/app_router_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:eslabon_flutter/router/app_router.dart'; // Asegúrate de importar AppRouter
+import 'package:go_router/go_router.dart'; // Importa GoRouter directamente
+import '../router/app_router.dart'; // Importa la función createAppRouter
 
-final appRouterProvider = Provider<GoRouter>((ref) => AppRouter(ref));
+// appRouterProvider ahora provee una instancia de GoRouter
+final appRouterProvider = Provider<GoRouter>((ref) {
+  return createAppRouter(ref);
+});

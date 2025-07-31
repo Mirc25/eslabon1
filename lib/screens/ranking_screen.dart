@@ -2,32 +2,55 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Importa FirebaseAuth
 
-// Importa tus widgets de branding y AppBar
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
+import '../services/app_services.dart';
 
-class RankingScreen extends ConsumerWidget {
+class RankingScreen extends ConsumerStatefulWidget {
   const RankingScreen({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RankingScreen> createState() => _RankingScreenState();
+}
+
+class _RankingScreenState extends ConsumerState<RankingScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final AppServices _appServices;
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ CORREGIDO: Pasar FirebaseAuth.instance
+    _appServices = AppServices(_firestore, FirebaseAuth.instance);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return CustomBackground(
-      showLogo: true, // Muestra el logo centrado arriba
-      showAds: false, // Puedes decidir si mostrar publicidad aquí
+      showLogo: true,
+      showAds: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: const CustomAppBar(title: 'Ranking de Usuarios'),
+        appBar: CustomAppBar(
+          title: 'Ranking de Usuarios',
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
         body: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
+          stream: _firestore
               .collection('users')
-              .orderBy('averageRating', descending: true) // Ordenar por reputación de mayor a menor
+              .orderBy('averageRating', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
+              AppServices.showSnackBar(context, 'Error al cargar el ranking: ${snapshot.error}', Colors.red);
               return Center(child: Text('Error: ${snapshot.error}'));
             }
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -46,12 +69,12 @@ class RankingScreen extends ConsumerWidget {
               itemCount: users.length,
               itemBuilder: (context, index) {
                 final userData = users[index].data() as Map<String, dynamic>;
-                final int rank = index + 1; // Posición en el ranking
+                final int rank = index + 1;
 
                 final String name = userData['name'] ?? 'Usuario Anónimo';
                 final String? photoUrl = userData['photoUrl'];
                 final double averageRating = (userData['averageRating'] ?? 0.0).toDouble();
-                final int helpCount = (userData['helpCount'] ?? 0); // Cantidad de calificaciones/ayudas
+                final int helpCount = (userData['helpCount'] ?? 0);
 
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -62,7 +85,6 @@ class RankingScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(16.0),
                     child: Row(
                       children: [
-                        // Posición en el ranking
                         SizedBox(
                           width: 40,
                           child: Text(
@@ -70,12 +92,11 @@ class RankingScreen extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: rank <= 3 ? Colors.amber[700] : Colors.grey[700], // Destaca el top 3
+                              color: rank <= 3 ? Colors.amber[700] : Colors.grey[700],
                             ),
                           ),
                         ),
                         const SizedBox(width: 16),
-                        // Foto de perfil
                         CircleAvatar(
                           radius: 30,
                           backgroundImage: photoUrl != null && photoUrl.isNotEmpty
@@ -83,7 +104,6 @@ class RankingScreen extends ConsumerWidget {
                               : const AssetImage('assets/default_avatar.png') as ImageProvider,
                         ),
                         const SizedBox(width: 16),
-                        // Nombre y reputación
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +119,7 @@ class RankingScreen extends ConsumerWidget {
                                   Icon(Icons.star, color: Colors.amber, size: 18),
                                   const SizedBox(width: 4),
                                   Text(
-                                    averageRating.toStringAsFixed(1), // Muestra 1 decimal
+                                    averageRating.toStringAsFixed(1),
                                     style: const TextStyle(fontSize: 16, color: Colors.black87),
                                   ),
                                   const SizedBox(width: 8),

@@ -10,19 +10,29 @@ class AppServices {
 
   AppServices(this._firestore, this._auth);
 
-  // Método para añadir comentarios (ya existía en tu MainScreen)
+  // Método estático para mostrar SnackBar
+  static void showSnackBar(BuildContext context, String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  // Método para añadir comentarios
   Future<void> addComment(BuildContext context, String requestId, String commentText) async {
     final User? currentUser = _auth.currentUser;
 
     if (currentUser == null) {
-      _showSnackBar(context, 'Debes iniciar sesión para comentar.', Colors.red);
+      AppServices.showSnackBar(context, 'Debes iniciar sesión para comentar.', Colors.red);
       return;
     }
 
     String userName = currentUser.displayName ?? 'Usuario Anónimo';
     String? userAvatar = currentUser.photoURL;
 
-    // Puedes buscar el nombre y avatar del usuario desde Firestore si no están en Firebase Auth
     if (currentUser.displayName == null || currentUser.displayName!.isEmpty || currentUser.photoURL == null) {
       try {
         final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
@@ -37,7 +47,7 @@ class AppServices {
 
     try {
       await _firestore
-          .collection('solicitudes-de-ayuda') // Asume esta es la colección de requests
+          .collection('solicitudes-de-ayuda')
           .doc(requestId)
           .collection('comments')
           .add({
@@ -49,18 +59,18 @@ class AppServices {
       });
     } catch (e) {
       print('Error adding comment: $e');
-      _showSnackBar(context, 'Error al enviar comentario: $e', Colors.red);
+      AppServices.showSnackBar(context, 'Error al enviar comentario: $e', Colors.red);
     }
   }
 
   // Método para lanzar Google Maps
   Future<void> launchGoogleMaps(BuildContext context, double latitude, double longitude) async {
-    final String googleMapsUrl = 'http://googleusercontent.com/maps.google.com/8';
+    final String googleMapsUrl = 'http://googleusercontent.com/maps.google.com/10';
     final Uri uri = Uri.parse(googleMapsUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      _showSnackBar(context, 'No se pudo abrir Google Maps.', Colors.red);
+      AppServices.showSnackBar(context, 'No se pudo abrir Google Maps.', Colors.red);
     }
   }
 
@@ -70,18 +80,7 @@ class AppServices {
     if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
       await launchUrl(Uri.parse(whatsappUrl));
     } else {
-      _showSnackBar(context, 'No se pudo abrir WhatsApp. Asegúrate de tener la aplicación instalada.', Colors.red);
+      AppServices.showSnackBar(context, 'No se pudo abrir WhatsApp. Asegúrate de tener la aplicación instalada.', Colors.red);
     }
-  }
-
-  // Método privado para mostrar SnackBar
-  void _showSnackBar(BuildContext context, String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 }

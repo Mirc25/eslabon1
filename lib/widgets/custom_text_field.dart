@@ -4,49 +4,60 @@ import 'package:flutter/material.dart';
 class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final String labelText;
-  final bool isPassword;
+  final IconData? icon; // ✅ AÑADIDO: Parámetro de icono opcional
+  final bool obscureText;
   final TextInputType keyboardType;
-  final String? hintText;
-  final bool enabled; // Para controlar si el campo está activo
+  final String? Function(String?)? validator;
+  final int maxLines;
 
   const CustomTextField({
     Key? key,
     required this.controller,
     required this.labelText,
-    this.isPassword = false,
+    this.icon, // ✅ AÑADIDO: Inicialización del icono
+    this.obscureText = false,
     this.keyboardType = TextInputType.text,
-    this.hintText,
-    this.enabled = true,
+    this.validator,
+    this.maxLines = 1,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0), // Padding estándar
-      child: TextField(
-        controller: controller,
-        obscureText: isPassword,
-        keyboardType: keyboardType,
-        enabled: enabled, // Aplica el estado de enabled
-        style: const TextStyle(color: Colors.white), // Color del texto de entrada
-        decoration: InputDecoration(
-          labelText: labelText,
-          hintText: hintText,
-          labelStyle: const TextStyle(color: Colors.white70), // Color del label
-          hintStyle: const TextStyle(color: Colors.white54), // Color del hint
-          border: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.white54), // Borde por defecto
-          ),
-          enabledBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.white54), // Borde cuando está habilitado
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.amber), // Borde cuando tiene el foco
-          ),
-          filled: true,
-          fillColor: Colors.grey[800], // Color de fondo del campo
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      style: const TextStyle(color: Colors.white), // Color del texto de entrada
+      decoration: InputDecoration(
+        labelText: labelText,
+        labelStyle: const TextStyle(color: Colors.white70),
+        // ✅ CORREGIDO: Usar el icono si está presente
+        prefixIcon: icon != null ? Icon(icon, color: Colors.white70) : null,
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.1), // Fondo semitransparente
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none, // Sin borde visible
+        ),
+        enabledBorder: OutlineInputBorder( // Borde cuando está habilitado
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder( // Borde cuando está enfocado
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2), // Borde de color primario al enfocar
+        ),
+        errorBorder: OutlineInputBorder( // Borde cuando hay un error
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder( // Borde cuando hay un error y está enfocado
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
       ),
+      validator: validator,
     );
   }
 }

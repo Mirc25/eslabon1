@@ -5,12 +5,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
-// Importa tus widgets de branding y AppBar
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
+import '../services/app_services.dart'; // Importa AppServices
 
-// Importa la pantalla de calificación del solicitante
-import 'rate_requester_screen.dart'; // Asegúrate de que esta ruta sea correcta
+import 'rate_requester_screen.dart';
 
 class HelpHistoryScreen extends ConsumerStatefulWidget {
   const HelpHistoryScreen({Key? key}) : super(key: key);
@@ -22,18 +21,24 @@ class HelpHistoryScreen extends ConsumerStatefulWidget {
 class _HelpHistoryScreenState extends ConsumerState<HelpHistoryScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final AppServices _appServices; // Instancia de AppServices
 
   User? get currentUser => _auth.currentUser;
 
-  // Función para verificar si el ayudador ya calificó al solicitante para una solicitud específica
+  @override
+  void initState() {
+    super.initState();
+    _appServices = AppServices(_firestore, _auth); // Inicializa AppServices
+  }
+
   Future<bool> _hasRatedRequester(String requestId, String requesterId) async {
     if (currentUser == null) return false;
 
     final QuerySnapshot ratings = await _firestore
         .collection('ratings')
         .where('requestId', isEqualTo: requestId)
-        .where('raterUserId', isEqualTo: currentUser!.uid) // El ayudador
-        .where('ratedUserId', isEqualTo: requesterId) // El solicitante
+        .where('raterUserId', isEqualTo: currentUser!.uid)
+        .where('ratedUserId', isEqualTo: requesterId)
         .where('type', isEqualTo: 'requester_rating')
         .limit(1)
         .get();
@@ -51,13 +56,19 @@ class _HelpHistoryScreenState extends ConsumerState<HelpHistoryScreen> {
     final String currentUserId = currentUser!.uid;
 
     return CustomBackground(
-      showLogo: true, // Puedes decidir si mostrar el logo aquí
-      showAds: false, // Puedes decidir si mostrar publicidad aquí
+      showLogo: true,
+      showAds: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: const CustomAppBar(title: 'Historial de Ayuda'),
+        appBar: CustomAppBar(
+          title: 'Historial de Ayuda',
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+        ),
         body: DefaultTabController(
-          length: 2, // Dos pestañas: Mis Solicitudes y Mis Ayudas
+          length: 2,
           child: Column(
             children: [
               const TabBar(
@@ -72,9 +83,7 @@ class _HelpHistoryScreenState extends ConsumerState<HelpHistoryScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    // Sección 1: Mis Solicitudes Publicadas
                     _buildMyRequestsSection(currentUserId),
-                    // Sección 2: Mis Ayudas Brindadas
                     _buildMyHelpsSection(currentUserId),
                   ],
                 ),
@@ -146,7 +155,6 @@ class _HelpHistoryScreenState extends ConsumerState<HelpHistoryScreen> {
                         'Fecha: ${timestamp.toDate().toLocal().day}/${timestamp.toDate().toLocal().month}/${timestamp.toDate().toLocal().year}',
                         style: const TextStyle(fontSize: 14, color: Colors.grey),
                       ),
-                    // Puedes añadir más detalles de la solicitud aquí
                   ],
                 ),
               ),
@@ -162,7 +170,7 @@ class _HelpHistoryScreenState extends ConsumerState<HelpHistoryScreen> {
       stream: _firestore
           .collection('offers')
           .where('helperId', isEqualTo: userId)
-          .where('status', isEqualTo: 'accepted') // Solo ayudas aceptadas
+          .where('status', isEqualTo: 'accepted')
           .orderBy('timestamp', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -260,7 +268,6 @@ class _HelpHistoryScreenState extends ConsumerState<HelpHistoryScreen> {
                                 alignment: Alignment.bottomRight,
                                 child: ElevatedButton.icon(
                                   onPressed: () {
-                                    // Navegar a RateRequesterScreen
                                     context.go('/rate_requester/$requestId');
                                   },
                                   icon: const Icon(Icons.star),

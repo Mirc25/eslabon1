@@ -1,11 +1,11 @@
 // lib/main.dart
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Importa Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:eslabon_flutter/firebase_options.dart';
 
-import 'package:eslabon_flutter/router/app_router.dart'; // Importa AppRouter
-import 'package:eslabon_flutter/providers/app_router_provider.dart'; // Importa el nuevo provider de AppRouter
+import 'package:eslabon_flutter/router/app_router.dart'; // Importa AppRouter (la clase)
+import 'package:eslabon_flutter/providers/app_router_provider.dart'; // Importa el provider de GoRouter
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,27 +13,27 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(
-    const ProviderScope( // Envuelve la aplicación con ProviderScope
+    const ProviderScope(
       child: MyApp(),
     ),
   );
 }
 
-class MyApp extends ConsumerWidget { // Cambiado a ConsumerWidget
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) { // Agrega WidgetRef ref
-    final goRouter = ref.watch(appRouterProvider); // Obtiene la instancia de GoRouter del provider
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Obtiene la instancia de GoRouter del provider
+    final goRouter = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
       title: 'Eslabón',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        // Puedes definir un esquema de color más completo
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
-          secondary: Colors.amber, // Color de acento
+          secondary: Colors.amber,
         ),
       ),
       routerConfig: goRouter, // Usa la instancia de GoRouter directamente

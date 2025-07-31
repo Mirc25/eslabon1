@@ -5,14 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
-// Importa tu widget de fondo personalizado
 import '../widgets/custom_background.dart';
-// Importa tu CustomAppBar si la usas
 import '../widgets/custom_app_bar.dart';
+import '../services/app_services.dart'; // Importa AppServices
 
 class RateOfferScreen extends ConsumerStatefulWidget {
   final String requestId;
-  final String helperId; // El ID del usuario que hizo la oferta
+  final String helperId;
 
   const RateOfferScreen({
     Key? key,
@@ -27,21 +26,18 @@ class RateOfferScreen extends ConsumerStatefulWidget {
 class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  double _currentRating = 3.0; // Valor inicial de la calificación
+  double _currentRating = 3.0;
 
   @override
   void initState() {
     super.initState();
-    _checkIfAlreadyRated(); // Opcional: para evitar doble calificación
+    _checkIfAlreadyRated();
   }
 
-  // Opcional: Verificar si ya se calificó esta oferta
   Future<void> _checkIfAlreadyRated() async {
     final User? currentUser = _auth.currentUser;
     if (currentUser == null) return;
 
-    // Puedes necesitar una forma más robusta de identificar una calificación única para esta oferta/ayudador
-    // Por ejemplo, un campo 'offerId' en la colección 'ratings' si se crea uno.
     final QuerySnapshot existingRatings = await _firestore
         .collection('ratings')
         .where('requestId', isEqualTo: widget.requestId)
@@ -52,60 +48,40 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
         .get();
 
     if (existingRatings.docs.isNotEmpty) {
-      // Si ya hay una calificación, puedes deshabilitar el botón o mostrar un mensaje.
-      // Por ahora, solo informamos.
       print('Esta oferta ya ha sido calificada por este solicitante.');
     }
   }
 
   Future<void> _submitRating(
       Map<String, dynamic> helperData, Map<String, dynamic> requestData) async {
-    final User? currentUser = _auth.currentUser; // El solicitante
+    final User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debes iniciar sesión para calificar.')),
-      );
+      AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red); // Usa el método estático
       return;
     }
 
-    // Asegurarse de que el usuario actual es el solicitante de la petición
     if (currentUser.uid != requestData['userId']) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Solo el solicitante puede calificar esta oferta.')),
-      );
+      AppServices.showSnackBar(context, 'Solo el solicitante puede calificar esta oferta.', Colors.red); // Usa el método estático
       return;
     }
 
     try {
-      // Guardar la calificación en la colección 'ratings'
       await _firestore.collection('ratings').add({
         'requestId': widget.requestId,
-        'ratedUserId': widget.helperId, // El ayudador es el calificado
-        'raterUserId': currentUser.uid, // El solicitante es quien califica
+        'ratedUserId': widget.helperId,
+        'raterUserId': currentUser.uid,
         'rating': _currentRating,
         'timestamp': FieldValue.serverTimestamp(),
-        'type': 'helper_rating', // Indica que el solicitante califica al ayudador
+        'type': 'helper_rating',
         'raterUserName': requestData['name'] ?? 'Solicitante',
         'ratedUserName': helperData['name'] ?? 'Ayudador',
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Calificación enviada con éxito.')),
-      );
+      AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green); // Usa el método estático
 
-      // Las Cloud Functions (updateUserRating y sendRatingNotifications)
-      // se encargarán automáticamente de:
-      // 1. Actualizar el promedio de calificación del ayudador.
-      // 2. Enviar la notificación 'rating_received' al ayudador.
-      // 3. Enviar la notificación 'invite_rate_requester' al ayudador
-      //    para que califique al solicitante (si es parte del flujo).
-
-      context.go('/'); // Redirige a la pantalla principal o al historial
+      context.go('/');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al enviar calificación: $e')),
-      );
+      AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red); // Usa el método estático
       print('Error al enviar calificación: $e');
     }
   }
@@ -114,10 +90,16 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
   Widget build(BuildContext context) {
     return CustomBackground(
       showLogo: true,
-      showAds: false, // Puedes ajustar si quieres publicidad aquí
+      showAds: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: const CustomAppBar(title: 'Calificar Oferta'),
+        appBar: CustomAppBar(
+          title: 'Calificar Oferta',
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+        ),
         body: FutureBuilder<List<DocumentSnapshot>>(
           future: Future.wait([
             _firestore.collection('users').doc(widget.helperId).get(),
@@ -146,10 +128,9 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center, // Centra el contenido
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 20),
-                  // Nombre y foto del ayudador
                   CircleAvatar(
                     radius: 60,
                     backgroundImage: helperPhotoUrl != null && helperPhotoUrl.isNotEmpty
@@ -163,7 +144,6 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
                         fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 24),
-                  // Detalles breves del pedido
                   Container(
                     padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -185,13 +165,10 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        // Puedes añadir más detalles de la solicitud aquí si son relevantes
-                        // Text('Ubicación: ${requestData['location'] ?? 'N/A'}'),
                       ],
                     ),
                   ),
                   const SizedBox(height: 32),
-                  // Estrellas para calificar
                   const Text(
                     'Califica la ayuda recibida:',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
@@ -220,11 +197,10 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
                     style: const TextStyle(fontSize: 16, color: Colors.white70),
                   ),
                   const SizedBox(height: 32),
-                  // Botón "Enviar calificación"
                   ElevatedButton(
                     onPressed: () => _submitRating(helperData, requestData),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary, // Un color de acento
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                       textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),

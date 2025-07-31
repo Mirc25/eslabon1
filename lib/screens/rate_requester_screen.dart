@@ -5,10 +5,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
-// Importa tu widget de fondo personalizado
 import '../widgets/custom_background.dart';
-// Importa tu CustomAppBar
 import '../widgets/custom_app_bar.dart';
+import '../services/app_services.dart'; // Importa AppServices
 
 class RateRequesterScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -25,7 +24,7 @@ class RateRequesterScreen extends ConsumerStatefulWidget {
 class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  double _currentRating = 3.0; // Valor inicial de la calificación
+  double _currentRating = 3.0;
 
   @override
   void initState() {
@@ -61,31 +60,25 @@ class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
       Map<String, dynamic> requesterData, Map<String, dynamic> requestData) async {
     final User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debes iniciar sesión para calificar.')),
-      );
+      AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red); // Usa el método estático
       return;
     }
 
     final String requesterId = requestData['userId'];
     if (requesterId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: No se pudo identificar al solicitante.')),
-      );
+      AppServices.showSnackBar(context, 'Error: No se pudo identificar al solicitante.', Colors.red); // Usa el método estático
       return;
     }
 
     if (currentUser.uid == requesterId) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No puedes calificar tu propia solicitud aquí.')),
-      );
+       AppServices.showSnackBar(context, 'No puedes calificar tu propia solicitud aquí.', Colors.red); // Usa el método estático
       return;
     }
 
-    String raterUserName = currentUser!.displayName ?? 'Usuario';
-    if (currentUser!.displayName == null || currentUser!.displayName!.isEmpty) {
+    String raterUserName = currentUser.displayName ?? 'Usuario';
+    if (currentUser.displayName == null || currentUser.displayName!.isEmpty) {
       try {
-        final userDoc = await _firestore.collection('users').doc(currentUser!.uid).get();
+        final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
         if (userDoc.exists && userDoc.data() != null) {
           raterUserName = userDoc.data()!['name'] ?? 'Usuario';
         }
@@ -106,15 +99,11 @@ class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
         'ratedUserName': requesterData['name'] ?? 'Solicitante',
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Calificación enviada con éxito.')),
-      );
+      AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green); // Usa el método estático
 
       context.go('/');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al enviar calificación: $e')),
-      );
+      AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red); // Usa el método estático
       print('Error al enviar calificación: $e');
     }
   }
@@ -122,13 +111,13 @@ class _RateRequesterScreenState extends ConsumerState<RateRequesterScreen> {
   @override
   Widget build(BuildContext context) {
     return CustomBackground(
-      showLogo: true, // Puedes ajustar si quieres el logo
-      showAds: false, // Puedes ajustar si quieres publicidad
+      showLogo: true,
+      showAds: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
           title: 'Calificar Solicitante',
-          leading: IconButton( // Botón de regreso explícito
+          leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => context.pop(),
           ),
