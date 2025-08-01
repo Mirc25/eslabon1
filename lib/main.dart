@@ -22,8 +22,7 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // ✅ CORREGIDO: Pasa la instancia de GoRouter directamente al constructor de NotificationService
-  final GoRouter appRouterInstance = AppRouter.router; // Obtiene la instancia estática del router
+  final GoRouter appRouterInstance = AppRouter.router;
   final NotificationService notificationService = NotificationService(appRouter: appRouterInstance);
 
   runApp(
@@ -46,22 +45,13 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
-  // ✅ ELIMINADO: _router ya no es necesario aquí como State, se pasa directamente en main()
-  // late GoRouter _router;
-
   @override
   void initState() {
     super.initState();
-    // ✅ ELIMINADO: Ya no se necesita llamar setRouter aquí
-    // _router = AppRouter.router;
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   ref.read(notificationServiceProvider.notifier).setRouter(_router);
-    // });
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CORREGIDO: Obtiene la instancia del router directamente de AppRouter.router
     final GoRouter router = AppRouter.router;
 
     return MaterialApp.router(
@@ -102,7 +92,7 @@ class _MyAppState extends ConsumerState<MyApp> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
-      routerConfig: router, // Usa la instancia del router
+      routerConfig: router,
     );
   }
 }

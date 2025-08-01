@@ -9,10 +9,9 @@ import 'package:eslabon_flutter/screens/rate_requester_screen.dart';
 import 'package:eslabon_flutter/screens/rate_offer_screen.dart';
 import 'package:eslabon_flutter/screens/request_detail_screen.dart';
 import 'package:eslabon_flutter/screens/create_request_screen.dart';
-import 'package:eslabon_flutter/screens/login_screen.dart';
+import 'package:eslabon_flutter/screens/auth_screen.dart';
 import 'package:eslabon_flutter/screens/auth_gate.dart';
 import 'package:eslabon_flutter/screens/home_screen.dart';
-import 'package:eslabon_flutter/screens/register_screen.dart';
 import 'package:eslabon_flutter/screens/my_requests_screen.dart';
 import 'package:eslabon_flutter/screens/favorites_screen.dart';
 import 'package:eslabon_flutter/screens/chat_list_screen.dart';
@@ -23,7 +22,6 @@ import 'package:eslabon_flutter/screens/settings_screen.dart';
 import 'package:eslabon_flutter/screens/faq_screen.dart';
 import 'package:eslabon_flutter/screens/report_problem_screen.dart';
 import 'package:eslabon_flutter/screens/profile_screen.dart';
-
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -40,13 +38,13 @@ class AppRouter {
       GoRoute(
         path: '/login',
         builder: (BuildContext context, GoRouterState state) {
-          return const LoginScreen();
+          return const AuthScreen();
         },
       ),
       GoRoute(
         path: '/register',
         builder: (BuildContext context, GoRouterState state) {
-          return const RegisterScreen();
+          return const AuthScreen();
         },
       ),
       GoRoute(
@@ -68,8 +66,8 @@ class AppRouter {
         },
       ),
       GoRoute(
-        path: '/rate-helper/:requestId', // ✅ RUTA: Para que el solicitante califique al ayudador
-        name: 'rate-helper', // ✅ Nombre de la ruta
+        path: '/rate-helper/:requestId',
+        name: 'rate-helper',
         builder: (BuildContext context, GoRouterState state) {
           final String? requestId = state.pathParameters['requestId'];
           final Map<String, dynamic>? extraData = state.extra as Map<String, dynamic>?;
@@ -108,22 +106,15 @@ class AppRouter {
         },
       ),
       GoRoute(
-        path: '/rate-requester/:requestId', // ✅ RUTA: Para que el ayudador califique al solicitante
-        name: 'rate-requester', // ✅ Nombre de la ruta
+        path: '/rate-requester/:requestId',
+        name: 'rate-requester',
         builder: (BuildContext context, GoRouterState state) {
           final String? requestId = state.pathParameters['requestId'];
-          final Map<String, dynamic>? extraData = state.extra as Map<String, dynamic>?;
-          final String? requesterId = extraData?['requesterId'] as String?;
-          final String? requesterName = extraData?['requesterName'] as String?;
 
           debugPrint('DEBUG ROUTER /rate-requester: requestId: $requestId');
-          debugPrint('DEBUG ROUTER /rate-requester: extraData: $extraData');
-          debugPrint('DEBUG ROUTER /rate-requester: requesterId: $requesterId');
-          debugPrint('DEBUG ROUTER /rate-requester: requesterName: $requesterName');
 
-
-          if (requestId == null || requesterId == null || requesterName == null) {
-             debugPrint('DEBUG ROUTER /rate-requester: Datos incompletos, mostrando error.');
+          if (requestId == null) {
+             debugPrint('DEBUG ROUTER /rate-requester: ID de solicitud faltante, mostrando error.');
              return Scaffold(
               appBar: AppBar(title: const Text('Error de Calificación')),
               body: const Center(
@@ -135,14 +126,14 @@ class AppRouter {
               ),
             );
           }
-          return RateRequesterScreen(
-            requestId: requestId,
-          );
+          // ✅ Corregido: La pantalla RateRequesterScreen ahora solo necesita el requestId
+          // y es responsable de cargar sus propios datos.
+          return RateRequesterScreen(requestId: requestId);
         },
       ),
       GoRoute(
-        path: '/rate-offer/:requestId/:helperId', // ✅ RUTA: Para calificar una oferta (Ayudador)
-        name: 'rate-offer', // ✅ Nombre de la ruta
+        path: '/rate-offer/:requestId/:helperId',
+        name: 'rate-offer',
         builder: (BuildContext context, GoRouterState state) {
           final String? requestId = state.pathParameters['requestId'];
           final String? helperId = state.pathParameters['helperId'];
@@ -205,7 +196,7 @@ class AppRouter {
         },
       ),
       GoRoute(
-        path: '/messages', // Esta es la ruta para ChatListScreen
+        path: '/messages',
         builder: (BuildContext context, GoRouterState state) {
           return const ChatListScreen();
         },
@@ -274,15 +265,13 @@ class AppRouter {
     ],
     redirect: (BuildContext context, GoRouterState state) {
       final bool loggedIn = FirebaseAuth.instance.currentUser != null;
-      final bool goingToLogin = state.fullPath == '/login';
-      final bool goingToRegister = state.fullPath == '/register';
+      final bool goingToAuth = state.fullPath == '/login' || state.fullPath == '/register';
       final bool goingToHome = state.fullPath == '/home';
-      final bool goingToRoot = state.fullPath == '/';
 
-      if (!loggedIn && !(goingToLogin || goingToRegister || goingToHome || goingToRoot)) {
+      if (!loggedIn && !(goingToAuth || goingToHome)) {
         return '/login';
       }
-      if (loggedIn && (goingToLogin || goingToRegister || goingToHome || goingToRoot)) {
+      if (loggedIn && goingToAuth) {
         return '/main';
       }
       return null;

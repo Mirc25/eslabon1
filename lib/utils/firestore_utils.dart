@@ -1,12 +1,8 @@
+// lib/utils/firestore_utils.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-// Eliminada la importación de notification_model.dart ya que no maneja notificaciones directamente aquí
-// import 'package:eslabon_flutter/models/notification_model.dart'; // No necesaria aquí
 
 class FirestoreUtils {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  // ✅ ELIMINADO: createNotificationDocument fue eliminado.
-  // Las notificaciones deben ser creadas usando AppServices.addNotification.
 
   static Future<void> saveRating({
     required String targetUserId,
@@ -45,8 +41,8 @@ class FirestoreUtils {
 
     final userDoc = await userRef.get();
     if (userDoc.exists) {
-      final currentRatingCount = (userDoc.data()?['ratingCount'] ?? 0).toDouble();
-      final currentRatingSum = (userDoc.data()?['ratingSum'] ?? 0).toDouble();
+      final currentRatingCount = (userDoc.data()?['ratingCount'] as num? ?? 0).toInt();
+      final currentRatingSum = (userDoc.data()?['ratingSum'] as num? ?? 0).toDouble();
 
       final updatedRatingCount = currentRatingCount + 1;
       final updatedRatingSum = currentRatingSum + newRating;

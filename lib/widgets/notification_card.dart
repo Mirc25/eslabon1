@@ -1,27 +1,27 @@
 // lib/widgets/notification_card.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Para actualizar el estado de lectura
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NotificationCard extends StatelessWidget {
-  final String notificationId; // ✅ AÑADIDO: ID del documento de la notificación
+  final String notificationId;
   final Map<String, dynamic> notificationData;
   final VoidCallback onTap;
 
   const NotificationCard({
     Key? key,
-    required this.notificationId, // ✅ REQUERIDO
+    required this.notificationId,
     required this.notificationData,
     required this.onTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final String type = notificationData['type'] ?? 'general';
-    final String title = notificationData['title'] ?? 'Nueva Notificación';
-    final String body = notificationData['body'] ?? 'No hay contenido para esta notificación.';
+    final String type = notificationData['type'] as String? ?? 'general';
+    final String title = notificationData['title'] as String? ?? 'Nueva Notificación';
+    final String body = notificationData['body'] as String? ?? 'No hay contenido para esta notificación.';
     final Timestamp? timestamp = notificationData['timestamp'] as Timestamp?;
-    final bool read = notificationData['read'] ?? false;
+    final bool read = notificationData['read'] as bool? ?? false;
 
     String formattedTime = '';
     if (timestamp != null) {
@@ -55,14 +55,12 @@ class NotificationCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-      color: read ? Colors.grey[850] : Colors.grey[700], // Color diferente si no ha sido leída
+      color: read ? Colors.grey[850] : Colors.grey[700],
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
-          // Marcar como leída al tocar
-          FirebaseFirestore.instance.collection('notifications').doc(notificationId).update({'read': true});
-          onTap(); // Ejecutar la acción de navegación
+          onTap();
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(

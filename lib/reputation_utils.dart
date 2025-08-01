@@ -1,35 +1,53 @@
-// lib/reputation_utils.dart
+// lib/user_reputation_widget.dart
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-Future<double> getAverageRating({required String userId, required bool fromRequesters}) async {
-  if (userId.isEmpty) { // <--- ¡AÑADIDO: Validación de userId!
-    print('DEBUG REPUTATION UTILS: userId vacío, devolviendo 0.0 para reputación.');
-    return 0.0;
-  }
+class UserReputationWidget extends StatelessWidget {
+  final String userId;
+  final bool fromRequesters;
 
-  final String collectionPath = fromRequesters ? 'receivedRatingsAsRequester' : 'receivedRatingsAsHelper';
+  const UserReputationWidget({
+    super.key,
+    required this.userId,
+    this.fromRequesters = false,
+  });
 
-  try {
-    final querySnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .collection(collectionPath)
-        .get();
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(userId).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Text('Error', style: TextStyle(color: Colors.red, fontSize: 10));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Text('Cargando...', style: TextStyle(color: Colors.white54, fontSize: 10));
+        }
 
-    if (querySnapshot.docs.isEmpty) {
-      return 0.0;
-    }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Text('Sin datos de reputación', style: TextStyle(color: Colors.white54, fontSize: 10));
+        }
 
-    double totalRating = 0.0;
-    for (var doc in querySnapshot.docs) {
-      final data = doc.data();
-      totalRating += (data['rating'] as num? ?? 0).toDouble();
-    }
+        final userData = snapshot.data!.data() as Map<String, dynamic>;
+        final double averageRating = userData['averageRating'] as double? ?? 0.0;
+        final int ratingCount = (userData['ratingCount'] as num? ?? 0).toInt();
 
-    return totalRating / querySnapshot.docs.length;
-  } catch (e) {
-    print('Error al obtener la calificación promedio para $userId en $collectionPath: $e');
-    // Relanza el error para que el FutureBuilder lo capture, o devuelve un valor predeterminado
-    return 0.0; // O puedes lanzar una excepción si prefieres que el FutureBuilder muestre el error
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.star,
+              color: averageRating > 0 ? Colors.amber : Colors.grey,
+              size: 14,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${averageRating.toStringAsFixed(1)} (${ratingCount})',
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

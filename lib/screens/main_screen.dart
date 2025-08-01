@@ -26,7 +26,7 @@ import 'package:eslabon_flutter/screens/faq_screen.dart';
 import 'package:eslabon_flutter/screens/report_problem_screen.dart';
 import 'package:eslabon_flutter/screens/request_detail_screen.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
-import 'package:eslabon_flutter/services/app_services.dart'; // ✅ Importación correcta de AppServices
+import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/providers/user_provider.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/providers/location_provider.dart';
@@ -43,7 +43,7 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  late final AppServices _appServices; // ✅ Declaración correcta
+  late final AppServices _appServices;
 
   final Map<String, TextEditingController> _commentControllers = {};
   final Set<String> _notifiedRequestIds = {};
@@ -51,7 +51,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _appServices = AppServices(_firestore, _auth); // ✅ Inicialización correcta
+    _appServices = AppServices(_firestore, _auth);
   }
 
   @override
@@ -201,7 +201,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                           final String commentUser = comment['userName'] ?? 'Usuario';
                           final String commentText = comment['text'] ?? 'Sin comentario';
                           final String? userAvatar = comment['userAvatar'] as String?;
-                          final Timestamp? commentTimestamp = comment['timestamp'] as Timestamp?;
+                          final dynamic commentTimestampData = comment['timestamp'];
+                          final Timestamp? commentTimestamp = commentTimestampData is Timestamp ? commentTimestampData : null;
 
                           String formattedTime = '';
                           if (commentTimestamp != null) {
@@ -218,7 +219,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                   radius: 18,
                                   backgroundImage: (userAvatar != null && userAvatar.startsWith('http'))
                                       ? NetworkImage(userAvatar)
-                                      : const AssetImage('assets/default_avatar.avatar.png') as ImageProvider,
+                                      : const AssetImage('assets/default_avatar.png') as ImageProvider,
                                   backgroundColor: Colors.grey[700],
                                 ),
                                 const SizedBox(width: 12),
@@ -364,8 +365,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     final String requestEmail = requestData['email'] ?? '';
 
     final String memberSince = requestData['memberSince'] ?? 'N/A';
-    final int helpedCount = requestData['helpedCount'] as int? ?? 0;
-    final int receivedHelpCount = requestData['receivedHelpCount'] as int? ?? 0;
+    // ✅ CORREGIDO: Leer como tipo numérico para evitar errores de tipo
+    final int helpedCount = (requestData['helpedCount'] as num? ?? 0).toInt();
+    final int receivedHelpCount = (requestData['receivedHelpCount'] as num? ?? 0).toInt();
 
     final dynamic timestampData = requestData['timestamp'];
     final Timestamp timestamp = timestampData is Timestamp ? timestampData : Timestamp.now();
@@ -590,7 +592,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
                                     icon: const Icon(Icons.location_on, color: Colors.blue),
-                                    onPressed: () => _appServices.launchMap(context, latitude, longitude), 
+                                    onPressed: () => _appServices.launchMap(context, latitude, longitude),
                                     tooltip: 'Ver mapa',
                                   ),
                                 ),
@@ -860,18 +862,23 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   elevation: 0,
                   iconTheme: const IconThemeData(color: Colors.white),
                   toolbarHeight: 120,
-                  title: const Column(
+                  title: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      SizedBox(height: 10),
-                      Text(
+                      // Logo pequeño
+                      Image.asset(
+                        'assets/icon.jpg',
+                        height: 50,
+                      ),
+                      const SizedBox(height: 10),
+                      // Texto
+                      const Text(
                         'Cadena de Favores Solidaria',
                         style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
-                      SizedBox(height: 10),
                     ],
                   ),
                   centerTitle: true,

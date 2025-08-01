@@ -7,9 +7,9 @@ import 'package:go_router/go_router.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
-import '../services/app_services.dart'; // Importa AppServices
-import '../utils/firestore_utils.dart'; // Para la función saveRating
-import '../user_reputation_widget.dart'; // Para mostrar la reputación
+import '../services/app_services.dart';
+import '../utils/firestore_utils.dart';
+import '../user_reputation_widget.dart';
 
 class RateHelperScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -32,19 +32,18 @@ class RateHelperScreen extends ConsumerStatefulWidget {
 class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  late final AppServices _appServices; // Instancia de AppServices
-  double _currentRating = 0.0; // Valor inicial de la calificación
-  bool _hasRated = false; // Para saber si el usuario ya calificó
+  late final AppServices _appServices;
+  double _currentRating = 0.0;
+  bool _hasRated = false;
 
-  // Datos del solicitante actual (el que está calificando)
   String? _requesterName;
   String? _requesterId;
-  String? _requestTitle; // Título de la solicitud
+  String? _requestTitle;
 
   @override
   void initState() {
     super.initState();
-    _appServices = AppServices(_firestore, _auth); // Inicializar AppServices
+    _appServices = AppServices(_firestore, _auth);
     _loadRequesterAndRequestData();
   }
 
@@ -57,7 +56,6 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
     _requesterId = currentUser.uid;
     _requesterName = currentUser.displayName ?? 'Usuario';
 
-    // Si requestData no se pasó, cárgalo
     Map<String, dynamic>? currentRequestData = widget.requestData;
     if (currentRequestData == null) {
       final requestDoc = await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).get();
@@ -73,12 +71,11 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
       return;
     }
 
-    // Verificar si el solicitante ya calificó al ayudador
     final QuerySnapshot existingRatings = await _firestore
         .collection('ratings')
         .where('requestId', isEqualTo: widget.requestId)
-        .where('raterUserId', isEqualTo: _requesterId) // El solicitante es el que califica
-        .where('ratedUserId', isEqualTo: widget.helperId) // El ayudador es el calificado
+        .where('raterUserId', isEqualTo: _requesterId)
+        .where('ratedUserId', isEqualTo: widget.helperId)
         .where('type', isEqualTo: 'helper_rating')
         .limit(1)
         .get();
@@ -91,7 +88,6 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
     }
   }
 
-  // ✅ ACTUALIZADO: _submitRating para enviar calificación y notificar al ayudador
   Future<void> _submitRating() async {
     if (_currentRating == 0.0) {
       AppServices.showSnackBar(context, 'Por favor, selecciona una calificación.', Colors.orange);
@@ -107,33 +103,30 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
     }
 
     try {
-      // 1. Guardar la calificación del solicitante al ayudador
       await FirestoreUtils.saveRating(
-        targetUserId: widget.helperId, // El ayudador es el calificado
-        sourceUserId: _requesterId!, // El solicitante es el que califica
+        targetUserId: widget.helperId,
+        sourceUserId: _requesterId!,
         rating: _currentRating,
         requestId: widget.requestId,
-        comment: '', // Puedes añadir un campo de comentario si lo deseas
-        type: 'helper_rating', // Tipo de calificación
+        comment: '',
+        type: 'helper_rating',
       );
       setState(() {
         _hasRated = true;
       });
       AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green);
 
-      // 2. Notificar al ayudador que ha sido calificado por el solicitante
-      // ✅ CORREGIDO: Llamada al método con el nombre correcto
       await _appServices.notifyHelperAfterRequesterRates(
         context: context,
-        helperId: widget.helperId, // El ayudador es el que recibe la notificación
-        requesterId: _requesterId!, // El solicitante que calificó
-        requesterName: _auth.currentUser!.displayName ?? 'Solicitante', // Nombre del solicitante que calificó
+        helperId: widget.helperId,
+        requesterId: _requesterId!,
+        requesterName: _auth.currentUser!.displayName ?? 'Solicitante',
         rating: _currentRating,
         requestId: widget.requestId,
         requestTitle: _requestTitle!,
       );
 
-      context.go('/main'); // Redirigir al main después de calificar
+      context.go('/main');
     } catch (e) {
       print("Error submitting rating: $e");
       AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red);
@@ -143,7 +136,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   @override
   Widget build(BuildContext context) {
     return CustomBackground(
-      showAds: false, // Puedes ajustar si quieres ads en esta pantalla
+      showAds: false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
@@ -164,16 +157,15 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
               CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.grey[700],
-                // Aquí deberías cargar la foto de perfil del ayudador (widget.helperId)
                 child: const Icon(Icons.person, size: 60, color: Colors.white),
               ),
               const SizedBox(height: 16),
               Text(
-                widget.helperName, // Muestra el nombre del ayudador
+                widget.helperName,
                 style: const TextStyle(
                     fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-              UserReputationWidget(userId: widget.helperId, fromRequesters: false), // Reputación del ayudador
+              UserReputationWidget(userId: widget.helperId, fromRequesters: false),
               const SizedBox(height: 24),
               Text(
                 'Califica la ayuda recibida para tu solicitud:\n"${_requestTitle!}"',
@@ -190,7 +182,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
                       color: Colors.amber,
                       size: 40,
                     ),
-                    onPressed: _hasRated ? null : () { // Deshabilitar si ya calificó
+                    onPressed: _hasRated ? null : () {
                       setState(() {
                         _currentRating = (index + 1).toDouble();
                       });
@@ -205,7 +197,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _hasRated ? null : _submitRating, // Deshabilitar si ya calificó
+                onPressed: _hasRated ? null : _submitRating,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _hasRated ? Colors.grey : Theme.of(context).colorScheme.secondary,
                   foregroundColor: Colors.white,

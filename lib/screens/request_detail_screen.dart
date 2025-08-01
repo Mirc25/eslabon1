@@ -1,3 +1,4 @@
+// lib/screens/request_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -805,8 +806,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
               final userData = snapshot.data!.data() as Map<String, dynamic>;
               final String memberSince = userData['memberSince'] as String? ?? 'N/A';
-              final int helpedCount = userData['helpedCount'] as int? ?? 0;
-              final int receivedHelpCount = userData['receivedHelpCount'] as int? ?? 0;
+              // ✅ CORREGIDO: Leer como tipo numérico para evitar errores de tipo
+              final int helpedCount = (userData['helpedCount'] as num? ?? 0).toInt();
+              final int receivedHelpCount = (userData['receivedHelpCount'] as num? ?? 0).toInt();
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

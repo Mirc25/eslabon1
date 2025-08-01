@@ -8,9 +8,10 @@ import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/utils/firestore_utils.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/widgets/custom_app_bar.dart';
+import 'package:eslabon_flutter/user_reputation_widget.dart';
 
 class RateRequesterScreen extends StatefulWidget {
-  final String requestId; // ✅ Ahora recibe solo el requestId
+  final String requestId;
 
   const RateRequesterScreen({
     Key? key,
@@ -29,6 +30,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
   String? _requesterId;
   String? _requestTitle;
   bool _hasRated = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -37,6 +39,10 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
   }
 
   Future<void> _loadRequesterData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final requestDoc = await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).get();
       if (requestDoc.exists) {
@@ -48,34 +54,36 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
         });
       } else {
         AppServices.showSnackBar(context, 'Error: Solicitud no encontrada.', Colors.red);
+        if (mounted) context.pop();
         return;
       }
 
       final User? currentUser = _auth.currentUser;
       if (currentUser == null) {
         AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red);
+        if (mounted) context.go('/login');
         return;
       }
 
       if (_requesterId == null) {
         AppServices.showSnackBar(context, 'Error: No se pudo identificar al solicitante.', Colors.red);
+        if (mounted) context.pop();
         return;
       }
 
-      // ✅ CORREGIDO: Si el usuario actual es el solicitante, no debería calificar aquí.
+      // Si el usuario actual es el solicitante, no debería calificar aquí.
       // Esta pantalla es para que el AYUDADOR califique al SOLICITANTE.
       if (currentUser.uid == _requesterId) {
         AppServices.showSnackBar(context, 'No puedes calificar tu propia solicitud aquí. Esta pantalla es para que califiques al solicitante.', Colors.red);
-        // Puedes redirigir a /main o a una pantalla de error/información
-        // context.go('/main');
+        if (mounted) context.go('/main');
         return;
       }
 
       final QuerySnapshot existingRatings = await _firestore
           .collection('ratings')
           .where('requestId', isEqualTo: widget.requestId)
-          .where('raterUserId', isEqualTo: currentUser.uid) // El ayudador es el que califica
-          .where('ratedUserId', isEqualTo: _requesterId) // El solicitante es el calificado
+          .where('sourceUserId', isEqualTo: currentUser.uid)
+          .where('targetUserId', isEqualTo: _requesterId)
           .where('type', isEqualTo: 'requester_rating')
           .limit(1)
           .get();
@@ -86,14 +94,20 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
         });
         AppServices.showSnackBar(context, 'Ya has calificado a este solicitante para esta ayuda.', Colors.orange);
       }
-
     } catch (e) {
       print("Error loading requester data: $e");
-      AppServices.showSnackBar(context, 'Error al cargar datos del solicitante: $e', Colors.red);
+      if (mounted) {
+        AppServices.showSnackBar(context, 'Error al cargar datos del solicitante: $e', Colors.red);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  // ✅ ACTUALIZADO: _submitRating para enviar calificación y notificar al solicitante
   Future<void> _submitRating() async {
     if (_currentRating == 0.0) {
       AppServices.showSnackBar(context, 'Por favor, selecciona una calificación.', Colors.orange);
@@ -111,26 +125,21 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
     try {
       // 1. Guardar la calificación del ayudador al solicitante
       await FirestoreUtils.saveRating(
-        targetUserId: _requesterId!, // El solicitante es el calificado
-        sourceUserId: _auth.currentUser!.uid, // El ayudador es el que califica
+        targetUserId: _requesterId!,
+        sourceUserId: _auth.currentUser!.uid,
         rating: _currentRating,
         requestId: widget.requestId,
-        comment: '', // Puedes añadir un campo de comentario si lo deseas
-        type: 'requester_rating', // Tipo de calificación
+        comment: '',
+        type: 'requester_rating',
       );
       setState(() {
         _hasRated = true;
       });
       AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green);
 
-      // ✅ ELIMINADO: La llamada a notifyRequesterOfRating (ahora notifyHelperAfterRequesterRates)
-      // ya no va aquí, porque esta pantalla es para que el AYUDADOR califique al SOLICITANTE.
-      // La notificación al AYUDADOR la envía el SOLICITANTE desde RateHelperScreen.
-      // La notificación al SOLICITANTE de que fue calificado por el AYUDADOR es opcional y no se había pedido explícitamente aquí.
-      // Si se desea, se podría añadir una llamada a addNotification aquí para notificar al solicitante.
-      // Pero el ciclo principal se cierra con la notificación de RateHelperScreen.
-
-      context.go('/main'); // Redirigir al main después de calificar
+      if (mounted) {
+        context.go('/main');
+      }
     } catch (e) {
       print("Error submitting rating: $e");
       AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red);
@@ -140,7 +149,6 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
   @override
   Widget build(BuildContext context) {
     return CustomBackground(
-      showAds: false, // Puedes ajustar si quieres ads en esta pantalla
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
@@ -150,7 +158,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
             onPressed: () => context.pop(),
           ),
         ),
-        body: _requesterName == null
+        body: _isLoading || _requesterName == null
             ? const Center(child: CircularProgressIndicator(color: Colors.amber))
             : SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -169,10 +177,12 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
                 style: const TextStyle(
                     fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
               ),
+              if (_requesterId != null)
+                UserReputationWidget(userId: _requesterId!),
               const SizedBox(height: 24),
-              const Text(
-                'Califica al solicitante por la ayuda recibida:',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              Text(
+                'Califica al solicitante por la ayuda en:\n"${_requestTitle!}"',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),

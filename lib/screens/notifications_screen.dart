@@ -41,8 +41,9 @@ class NotificationsScreen extends ConsumerWidget {
         ),
         body: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
               .collection('notifications')
-              .where('recipientId', isEqualTo: userId)
               .orderBy('timestamp', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
@@ -84,9 +85,17 @@ class NotificationsScreen extends ConsumerWidget {
                   notificationId: notificationId,
                   notificationData: notificationData,
                   onTap: () {
-                    // ✅ CORREGIDO: Eliminada la llamada a setRouter, ya no es necesaria.
-                    // ref.read(notificationServiceProvider.notifier).setRouter(GoRouter.of(context));
-                    // Añadir el ID de la notificación a los datos para que el servicio la marque como leída
+                    // ✅ CORREGIDO: Lógica para marcar como leída
+                    if (notificationId != null) {
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .collection('notifications')
+                          .doc(notificationId)
+                          .update({'read': true});
+                    }
+                    
+                    // La lógica para manejar la navegación y marcar como leída
                     notificationData['notificationId'] = notificationId;
                     ref.read(notificationServiceProvider.notifier).handleNotificationNavigation(notificationData);
                   },

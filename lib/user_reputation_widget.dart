@@ -1,14 +1,15 @@
+// lib/user_reputation_widget.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserReputationWidget extends StatelessWidget {
   final String userId;
-  final bool fromRequesters; // true si queremos mostrar la reputación como solicitante, false como ayudador
+  final bool fromRequesters;
 
   const UserReputationWidget({
     super.key,
     required this.userId,
-    this.fromRequesters = false, // Por defecto, asume reputación como ayudador
+    this.fromRequesters = false,
   });
 
   @override
@@ -29,10 +30,7 @@ class UserReputationWidget extends StatelessWidget {
 
         final userData = snapshot.data!.data() as Map<String, dynamic>;
         final double averageRating = userData['averageRating'] as double? ?? 0.0;
-        final int ratingCount = userData['ratingCount'] as int? ?? 0;
-
-        // Puedes ajustar la lógica si tienes diferentes campos para reputación de solicitantes/ayudadores
-        // Por ahora, usamos el mismo 'averageRating' y 'ratingCount'
+        final int ratingCount = (userData['ratingCount'] as num? ?? 0).toInt();
 
         return Row(
           mainAxisSize: MainAxisSize.min,
