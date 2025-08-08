@@ -21,12 +21,14 @@ plugins {
 android {
     namespace = "com.example.eslabon_flutter" // Asegúrate que este sea el namespace correcto
     compileSdk = 35 // <--- ¡ACTUALIZADO A 35!
+
     // >>>>>>>>>>> INICIO DE LAS MODIFICACIONES NECESARIAS <<<<<<<<<<<
 
     // 1. Sobreescribir la versión de Android NDK con la requerida por tus plugins
     ndkVersion = "27.0.12077973" // Valor específico requerido
 
-    // ************ ¡CRUCIAL! AÑADIDO PARA SOPORTE DE JAVA 8 Y DESUGARING ************
+    // ************ ¡CRUCIAL!
+    // AÑADIDO PARA SOPORTE DE JAVA 8 Y DESUGARING ************
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -39,7 +41,8 @@ android {
     // ***********************************************************************************
 
     defaultConfig {
-        applicationId = "com.example.eslabon_flutter" // ¡CRUCIAL! Debe coincidir con google-services.json
+        applicationId = "com.example.eslabon_flutter" // ¡CRUCIAL!
+        // Debe coincidir con google-services.json
         minSdk = 23 // Mínimo 23 para Firebase
         targetSdk = 35 // <--- ¡ACTUALIZADO A 35 para coincidir con compileSdk!
         versionCode = 1
@@ -81,6 +84,14 @@ android {
     // buildFeatures {
     //     viewBinding = true
     // }
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlin") {
+            useVersion("2.1.0")
+        }
+    }
 }
 
 dependencies {
