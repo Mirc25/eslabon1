@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "eslabon-app",
+    "y": "eslabon-app"
+  },
+  "targets": {},
+  "etags": {}
+}

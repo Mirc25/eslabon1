@@ -1,0 +1,270 @@
+// lib/screens/ranking_section.dart
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:eslabon_flutter/user_reputation_widget.dart';
+import 'package:eslabon_flutter/services/app_services.dart';
+import '../widgets/spinning_image_loader.dart'; // ✅ AÑADIDO: Importa el widget
+
+class RankingSection extends StatefulWidget {
+  const RankingSection({Key? key}) : super(key: key);
+
+  @override
+  State<RankingSection> createState() => _RankingSectionState();
+}
+
+class _RankingSectionState extends State<RankingSection> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ScrollController _scrollController = ScrollController();
+  List<DocumentSnapshot> _users = [];
+  bool _isLoading = true;
+  bool _hasMore = true;
+  DocumentSnapshot? _lastDocument;
+
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+    _scrollController.addListener(_onScroll);
+    
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
+      _loadMoreUsers();
+    }
+  }
+
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (_searchQuery != _searchController.text.trim()) {
+        setState(() {
+          _searchQuery = _searchController.text.trim().toLowerCase();
+          _loadUsers();
+        });
+      }
+    });
+  }
+
+  Future<void> _loadUsers() async {
+    setState(() {
+      _isLoading = true;
+      _hasMore = true;
+      _users.clear();
+      _lastDocument = null;
+    });
+
+    Query query;
+    if (_searchQuery.isNotEmpty) {
+      query = _firestore.collection('users')
+          .where('lowercaseName', isGreaterThanOrEqualTo: _searchQuery)
+          .where('lowercaseName', isLessThanOrEqualTo: '$_searchQuery\uf8ff')
+          .limit(20);
+    } else {
+      query = _firestore.collection('users')
+          .where('helpedCount', isGreaterThan: 0)
+          .orderBy('helpedCount', descending: true)
+          .orderBy('averageRating', descending: true)
+          .limit(20);
+    }
+
+    final snapshot = await query.get();
+    if (snapshot.docs.isNotEmpty) {
+      _lastDocument = snapshot.docs.last;
+      _users = snapshot.docs;
+      _hasMore = snapshot.docs.length == 20 && _searchQuery.isEmpty;
+    } else {
+      _hasMore = false;
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _loadMoreUsers() async {
+    if (_isLoading || !_hasMore || _searchQuery.isNotEmpty || _lastDocument == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    Query query = _firestore.collection('users')
+        .where('helpedCount', isGreaterThan: 0)
+        .orderBy('helpedCount', descending: true)
+        .orderBy('averageRating', descending: true)
+        .startAfterDocument(_lastDocument!)
+        .limit(20);
+
+    final snapshot = await query.get();
+    if (snapshot.docs.isNotEmpty) {
+      _lastDocument = snapshot.docs.last;
+      _users.addAll(snapshot.docs);
+      _hasMore = snapshot.docs.length == 20;
+    } else {
+      _hasMore = false;
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextField(
+            controller: _searchController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: 'Buscar usuarios...',
+              labelStyle: const TextStyle(color: Colors.white70),
+              filled: true,
+              fillColor: Colors.grey[800],
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.white),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                          _loadUsers();
+                        });
+                      },
+                    )
+                  : const Icon(Icons.search, color: Colors.white),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _isLoading && _users.isEmpty
+              ? const Center(child: SpinningImageLoader()) // ✅ CORREGIDO: Usando el nuevo widget
+              : _users.isEmpty
+                  ? Center(child: Text(
+                      _searchQuery.isNotEmpty
+                        ? 'No se encontraron usuarios con ese nombre.'
+                        : 'No se encontraron usuarios en el ranking.',
+                      style: const TextStyle(color: Colors.white70)
+                    ))
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: _users.length + (_hasMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _users.length) {
+                          if (_hasMore) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: SpinningImageLoader(), // ✅ CORREGIDO: Usando el nuevo widget
+                              ),
+                            );
+                          } else {
+                            return const SizedBox.shrink();
+                          }
+                        }
+
+                        final userData = _users[index].data() as Map<String, dynamic>;
+                        final String userId = _users[index].id;
+                        final int rank = index + 1;
+                        final String name = userData['name'] ?? 'Usuario Anónimo';
+                        final String? profilePicture = userData['profilePicture'] as String?;
+                        final double averageRating = (userData['averageRating'] as num? ?? 0.0).toDouble();
+                        final int helpedCount = (userData['helpedCount'] as num? ?? 0).toInt();
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                          color: Colors.grey[850],
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          elevation: 4,
+                          child: InkWell(
+                            onTap: () {
+                              context.pushNamed('user_rating_details', pathParameters: {'userId': userId}, extra: name);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 40,
+                                    child: Text(
+                                      '#$rank',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: rank <= 3 ? Colors.amber[700] : Colors.white70,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  CircleAvatar(
+                                    radius: 30,
+                                    backgroundImage: (profilePicture != null && profilePicture.startsWith('http'))
+                                        ? NetworkImage(profilePicture)
+                                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                                    backgroundColor: Colors.grey[700],
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.star, color: Colors.amber, size: 18),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              averageRating.toStringAsFixed(1),
+                                              style: const TextStyle(fontSize: 16, color: Colors.white70),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '(${helpedCount} ayudas)',
+                                              style: const TextStyle(fontSize: 14, color: Colors.white54),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+}

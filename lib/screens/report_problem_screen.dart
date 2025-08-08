@@ -1,0 +1,164 @@
+// lib/screens/report_problem_screen.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+
+import '../widgets/custom_background.dart';
+import '../widgets/custom_app_bar.dart';
+import '../widgets/custom_text_field.dart';
+
+class ReportProblemScreen extends StatefulWidget {
+  const ReportProblemScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ReportProblemScreen> createState() => _ReportProblemScreenState();
+}
+
+class _ReportProblemScreenState extends State<ReportProblemScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _subjectController = TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _subjectController.dispose();
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendEmail() async {
+    if (_formKey.currentState?.validate() ?? false) {
+      final Uri emailLaunchUri = Uri(
+        scheme: 'mailto',
+        path: 'pablooviedo58@gmail.com', // ✅ Email de destino
+        query: _encodeEmailParameters(),
+      );
+
+      if (await canLaunchUrl(emailLaunchUri)) {
+        await launchUrl(emailLaunchUri);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo abrir la aplicación de correo. Por favor, revisa si tienes una instalada.'.tr())),
+        );
+      }
+    }
+  }
+
+  String _encodeEmailParameters() {
+    String subject = Uri.encodeComponent(_subjectController.text);
+    String body = Uri.encodeComponent(
+      'Mensaje de: ${_emailController.text}\n\n'
+      '${_messageController.text}',
+    );
+    return 'subject=$subject&body=$body';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: CustomAppBar(
+          title: 'report_problem'.tr(),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Si encuentras algún error, tienes una sugerencia o deseas reportar a un usuario, por favor, utiliza este formulario para contactarnos.'
+                      .tr(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, color: Colors.white70),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _emailController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Tu correo electrónico'.tr(),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    filled: true,
+                    fillColor: Colors.grey[850],
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Este campo es obligatorio.'.tr();
+                    }
+                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                      return 'Introduce un email válido.'.tr();
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _subjectController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Título o asunto'.tr(),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    filled: true,
+                    fillColor: Colors.grey[850],
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Este campo es obligatorio.'.tr();
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _messageController,
+                  style: const TextStyle(color: Colors.white),
+                  maxLines: 5,
+                  decoration: InputDecoration(
+                    labelText: 'Escribe tu mensaje aquí'.tr(),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    filled: true,
+                    fillColor: Colors.grey[850],
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Este campo es obligatorio.'.tr();
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _sendEmail,
+                  icon: const Icon(Icons.send),
+                  label: Text('Enviar Mensaje'.tr()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                    textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
