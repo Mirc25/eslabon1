@@ -1,39 +1,36 @@
 // lib/router/app_router.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
-import '../screens/main_screen.dart';
 import '../screens/register_screen.dart';
-import '../screens/rate_offer_screen.dart';
-import '../screens/rate_helper_screen.dart';
-import '../screens/rate_requester_screen.dart';
-import '../screens/request_detail_screen.dart';
-import '../screens/notifications_screen.dart';
-import '../screens/create_request_screen.dart';
+import '../screens/main_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/create_request_screen.dart';
 import '../screens/my_requests_screen.dart';
 import '../screens/chat_list_screen.dart';
-import '../screens/chat_screen.dart';
+import '../screens/notifications_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/search_users_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/faq_screen.dart';
 import '../screens/report_problem_screen.dart';
-import '../screens/user_profile_view_screen.dart';
+import '../screens/terms_screen.dart';
+import '../screens/request_detail_screen.dart';
+import '../screens/rate_helper_screen.dart';
+import '../screens/rate_requester_screen.dart';
+import '../screens/chat_screen.dart';
+import '../screens/rate_offer_screen.dart';
 import '../screens/ranking_screen.dart';
+import '../screens/user_profile_view_screen.dart';
 import '../screens/ratings_screen.dart';
 import '../screens/user_rating_details_screen.dart';
-import 'package:eslabon_flutter/providers/app_router_provider.dart';
-
 import '../screens/global_chat_screen.dart';
-import '../screens/home_screen.dart';
 import '../screens/auth_gate.dart';
-import '../screens/terms_screen.dart';
 
-final router = GoRouter(
+final GoRouter router = GoRouter(
   initialLocation: '/',
   routes: [
     GoRoute(

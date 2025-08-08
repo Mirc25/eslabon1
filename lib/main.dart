@@ -11,6 +11,7 @@ import 'package:eslabon_flutter/firebase_options.dart';
 import 'package:eslabon_flutter/router/app_router.dart';
 import 'package:eslabon_flutter/services/notification_service.dart';
 import 'package:eslabon_flutter/providers/notification_service_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,8 +23,8 @@ Future<void> main() async {
   await MobileAds.instance.initialize();
 
   await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.debug,
-    appleProvider: AppleProvider.debug,
+    androidProvider: AndroidProvider.playIntegrity,
+    appleProvider: AppleProvider.deviceCheck,
   );
 
   runApp(

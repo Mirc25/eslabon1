@@ -1,9 +1,12 @@
+// lib/screens/register_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:go_router/go_router.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class Country {
   final String code;
@@ -57,11 +60,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Map<String, dynamic> allProvincesData = {};
   bool _isLoadingAuth = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    loadData();
+    _loadLocationData();
   }
 
   @override
@@ -77,24 +81,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> loadData() async {
+  Future<void> _loadLocationData() async {
     try {
       final String countryData = await rootBundle.loadString('lib/data/countries.json');
       final String provinceData = await rootBundle.loadString('lib/data/provinces.json');
 
+      if (!mounted) return;
       setState(() {
-        countries = (json.decode(countryData) as List)
-            .map((e) => Country.fromJson(e))
-            .toList();
+        countries = (json.decode(countryData) as List).map((e) => Country.fromJson(e)).toList();
         allProvincesData = json.decode(provinceData);
       });
     } catch (e) {
+      if (!mounted) return;
       print('Error loading data: $e');
       _showErrorDialog('Error al cargar datos de países/provincias. Intenta de nuevo.'.tr());
     }
   }
 
-  void updateProvincesForCountry(String? countryCode) {
+  void _updateProvincesForCountry(String? countryCode) {
+    if (!mounted) return;
     setState(() {
       provinces = List<String>.from(allProvincesData[countryCode] ?? []);
       selectedProvince = null;
@@ -103,6 +108,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
         orElse: () => Country(code: '', name: '', dialCode: null),
       ).dialCode;
     });
+  }
+
+  Future<void> _saveFcmTokenForUser(User user) async {
+    try {
+      await FirebaseMessaging.instance.requestPermission();
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await _firestore.collection('users').doc(user.uid).set({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        debugPrint('✅ Token FCM guardado correctamente: $token');
+      } else {
+        debugPrint('⚠️ No se pudo obtener el token FCM.');
+      }
+    } catch (e) {
+      debugPrint('❌ Error guardando token FCM: $e');
+    }
   }
 
   DropdownButtonFormField<String> _buildDropdown(String label, String? value, List<String> items, Function(String?) onChanged) {
@@ -129,7 +152,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {bool isPassword = false, TextInputType keyboardType = TextInputType.text, String? customLabelText}) {
+  Widget _buildTextField(String label, TextEditingController controller, {bool isPassword = false, bool isEmail = false, bool isConfirm = false, TextInputType keyboardType = TextInputType.text, String? customLabelText, String? hintText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
@@ -139,6 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: customLabelText ?? label,
+          hintText: hintText,
           labelStyle: const TextStyle(color: Colors.white70),
           enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
           focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
@@ -147,13 +171,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           if (value == null || value.isEmpty) {
             return 'Este campo es obligatorio'.tr();
           }
-          if (label == 'Email' && !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+          if (isEmail && !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
             return 'Introduce un email válido'.tr();
           }
-          if (label == 'Contraseña' && value.length < 6) {
+          if (isPassword && value.length < 6) {
             return 'La contraseña debe tener al menos 6 caracteres'.tr();
           }
-          if (label == 'Repetir Contraseña' && value != passwordController.text) {
+          if (isConfirm && value != passwordController.text) {
             return 'Las contraseñas no coinciden'.tr();
           }
           return null;
@@ -180,7 +204,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () {
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+                },
                 child: Text('close'.tr(), style: const TextStyle(color: Colors.amber)),
               ),
             ],
@@ -188,149 +215,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       },
     );
-  }
-
-  void _showSuccessDialog(String email) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          title: Center(child: Image.asset('assets/logo.png', height: 60)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '¡Bienvenido/a a Eslabon, una cadena solidaria!'.tr(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Revisa tu email ({}) y tu carpeta de spam para verificar tu cuenta.'.tr(args: [email]),
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 20),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.pop(context);
-                },
-                child: Text('accept'.tr(), style: const TextStyle(color: Colors.amber)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showReverifyModal() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          title: Center(child: Image.asset('assets/logo.png', height: 60)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Parece que tu correo ya está registrado pero no ha sido verificado.'.tr(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 15),
-              Text(
-                '¿Quieres que te reenviemos el email de verificación?'.tr(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  ElevatedButton(
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      await _handleReverifyEmail();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Text('Reenviar Email'.tr()),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      Navigator.pop(context);
-                    },
-                    child: Text('Ir a Iniciar Sesión'.tr(), style: const TextStyle(color: Colors.grey)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _handleReverifyEmail() async {
-    try {
-      User? user = _auth.currentUser;
-      if (user != null && user.email == emailController.text) {
-        await user.reload();
-        user = _auth.currentUser;
-
-        if (user != null && !user.emailVerified) {
-          await user.sendEmailVerification();
-          _showErrorDialog('Se ha enviado un nuevo correo de verificación. Por favor, revisa tu bandeja de entrada o SPAM.'.tr());
-        } else if (user != null && user.emailVerified) {
-          _showErrorDialog('Tu correo ya ha sido verificado. Por favor, inicia sesión.'.tr());
-        }
-      } else {
-        _showErrorDialog('No se pudo reenviar el correo. Asegúrate de que el email sea correcto y estés registrado.'.tr());
-      }
-    } catch (e) {
-      _showErrorDialog('Error al reenviar el correo de verificación: ${e.toString()}'.tr());
-      print("Error al reenviar email: $e");
-    }
-  }
-
-  Future<void> _saveUserDataAndShowSuccess() async {
-    final User? user = _auth.currentUser;
-    if (user != null) {
-      await _firestore.collection('users').doc(user.uid).set({
-        'name': nameController.text,
-        'dni': dniController.text,
-        'birthDay': _selectedDay,
-        'birthMonth': _selectedMonth,
-        'birthYear': _selectedYear,
-        'address': addressController.text,
-        'zip': postalCodeController.text,
-        'country': selectedCountry != null ? {
-          'code': selectedCountry!.code,
-          'name': selectedCountry!.name,
-          'dial_code': selectedCountry!.dialCode,
-        } : null,
-        'province': selectedProvince,
-        'phone': '${phoneDialCode ?? ''}${phoneController.text}',
-        'email': emailController.text,
-        'profilePicture': null,
-        'reputation': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'emailVerified': user.emailVerified,
-        'phoneVerified': false, 
-      });
-      _showSuccessDialog(emailController.text);
-    } else {
-      _showErrorDialog('No se pudo guardar la información del usuario: usuario no autenticado.'.tr());
-    }
   }
 
   Future<void> _handleRegister() async {
@@ -354,74 +238,123 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final DateTime today = DateTime.now();
       final int age = today.year - birthDate.year;
 
-      if (today.month < birthDate.month ||
-          (today.month == birthDate.month && today.day < birthDate.day)) {
-        if (age <= 18) {
-          _showErrorDialog('Para registrarte debes ser mayor de 18 años.'.tr());
-          return;
-        }
-      } else {
-        if (age < 18) {
-          _showErrorDialog('Para registrarte debes ser mayor de 18 años.'.tr());
-          return;
-        }
+      if (age < 18 || (age == 18 && (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)))) {
+        _showErrorDialog('Para registrarte debes ser mayor de 18 años.'.tr());
+        return;
       }
     }
 
+    if (!mounted) return;
     setState(() {
       _isLoadingAuth = true;
+      _errorMessage = null;
     });
 
     try {
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: emailController.text,
-        password: passwordController.text,
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
       );
 
-      if (userCredential.user != null) {
-        await userCredential.user!.sendEmailVerification();
-        print("Email de verificación enviado.".tr());
+      final User? user = userCredential.user;
+      if (user != null) {
+        await user.sendEmailVerification();
 
-        await _saveUserDataAndShowSuccess();
+        await _firestore.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'email': user.email,
+          'name': nameController.text.trim(),
+          'lowercaseName': nameController.text.trim().toLowerCase(),
+          'profilePicture': null,
+          'country': selectedCountry != null ? {
+            'code': selectedCountry!.code,
+            'name': selectedCountry!.name,
+            'dial_code': selectedCountry!.dialCode,
+          } : null,
+          'province': selectedProvince,
+          'birthDay': int.tryParse(_selectedDay!),
+          'birthMonth': int.tryParse(_selectedMonth!),
+          'birthYear': int.tryParse(_selectedYear!),
+          'phone': '${phoneDialCode ?? ''}${phoneController.text.trim()}',
+          'gender': null,
+          'dni': dniController.text.trim(),
+          'address': addressController.text.trim(),
+          'zip': postalCodeController.text.trim(),
+          'reputation': 0,
+          'helpedCount': 0,
+          'receivedHelpCount': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        await _saveFcmTokenForUser(user);
+
+        if (!mounted) return;
+        _showSuccessDialog(emailController.text.trim());
       }
     } on FirebaseAuthException catch (e) {
-      String errorMessage = 'Error al registrar: ${e.message}'.tr();
+      String errorMessage;
       if (e.code == 'email-already-in-use') {
-        try {
-          UserCredential signInCredential = await _auth.signInWithEmailAndPassword(
-            email: emailController.text,
-            password: passwordController.text,
-          );
-          if (signInCredential.user != null && !signInCredential.user!.emailVerified) {
-            _showReverifyModal();
-          } else {
-            _showErrorDialog('Este correo ya está registrado y verificado. Por favor, inicia sesión.'.tr());
-            if (mounted) Navigator.pop(context);
-          }
-        } on FirebaseAuthException catch (signInError) {
-          if (signInError.code == 'wrong-password') {
-            _showErrorDialog('Este correo ya está registrado, pero la contraseña es incorrecta. Si es tuyo, inicia sesión con la contraseña correcta. De lo contrario, usa otro email.'.tr());
-          } else {
-            _showErrorDialog('Error al intentar iniciar sesión con email existente: ${signInError.message}'.tr());
-          }
-        }
+        errorMessage = 'Este correo ya está registrado. Por favor, inicia sesión.'.tr();
       } else if (e.code == 'weak-password') {
         errorMessage = 'La contraseña es demasiado débil.'.tr();
       } else if (e.code == 'invalid-email') {
         errorMessage = 'El formato del correo electrónico no es válido.'.tr();
-      } else if (e.code == 'credential-already-in-use') {
-        errorMessage = 'Este correo electrónico ya está asociado a otra cuenta (posiblemente por teléfono). Intenta iniciar sesión o usa otro email.'.tr();
+      } else {
+        errorMessage = 'Error al registrar: ${e.message}'.tr();
       }
+      if (!mounted) return;
       _showErrorDialog(errorMessage);
       print("Firebase Auth Error: ${e.code} - ${e.message}");
     } catch (e) {
+      if (!mounted) return;
       _showErrorDialog('Ocurrió un error inesperado durante el registro: ${e.toString()}'.tr());
       print("General Error during registration: $e");
     } finally {
-      setState(() {
-        _isLoadingAuth = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingAuth = false;
+        });
+      }
     }
+  }
+
+  void _showSuccessDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          title: Center(child: Image.asset('assets/logo.png', height: 60)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '¡Bienvenido/a a Eslabon, una cadena solidaria!'.tr(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Revisa tu email ({}) y tu carpeta de spam para verificar tu cuenta.'.tr(args: [email]),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  if (!mounted) return;
+                  context.go('/main');
+                },
+                child: Text('accept'.tr(), style: const TextStyle(color: Colors.amber)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -452,7 +385,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 12),
 
               Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Text(
                   'birth_date'.tr(),
                   style: TextStyle(color: Colors.white70, fontSize: 16),
@@ -486,7 +419,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 onChanged: (Country? newValue) {
                   setState(() {
                     selectedCountry = newValue;
-                    updateProvincesForCountry(newValue?.code);
+                    _updateProvincesForCountry(newValue?.code);
                   });
                 },
                 validator: (val) {
@@ -545,25 +478,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 12),
 
-              _buildTextField('email'.tr(), emailController, keyboardType: TextInputType.emailAddress),
+              _buildTextField('email'.tr(), emailController, keyboardType: TextInputType.emailAddress, isEmail: true),
               _buildTextField('password'.tr(), passwordController, isPassword: true),
-              _buildTextField('confirm_password'.tr(), confirmPasswordController, isPassword: true),
+              _buildTextField('confirm_password'.tr(), confirmPasswordController, isPassword: true, isConfirm: true),
               const SizedBox(height: 20),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white10,
-                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0xFFFFC107),
+                  foregroundColor: Colors.black,
                   side: const BorderSide(color: Colors.white54),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: _isLoadingAuth ? null : _handleRegister,
                 child: _isLoadingAuth
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const CircularProgressIndicator(color: Colors.black)
                     : Text('register'.tr()),
               ),
               const SizedBox(height: 20),
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  if (!mounted) return;
+                  context.go('/login');
+                },
                 child: Text('already_have_account'.tr(), style: TextStyle(color: Colors.white70)),
               ),
             ],
