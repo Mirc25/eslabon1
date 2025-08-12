@@ -256,9 +256,9 @@ class _AuthScreenState extends State<AuthScreen> {
         'name': nameController.text,
         'lowercaseName': nameController.text.toLowerCase(),
         'dni': dniController.text,
-        'birthDay': _selectedDay,
-        'birthMonth': _selectedMonth,
-        'birthYear': _selectedYear,
+        'birthDay': int.tryParse(_selectedDay!), // 🔄 CORRECCIÓN: Guardamos como int
+        'birthMonth': int.tryParse(_selectedMonth!), // 🔄 CORRECCIÓN: Guardamos como int
+        'birthYear': int.tryParse(_selectedYear!), // 🔄 CORRECCIÓN: Guardamos como int
         'address': addressController.text,
         'zip': postalCodeController.text,
         'country': selectedCountry != null ? {

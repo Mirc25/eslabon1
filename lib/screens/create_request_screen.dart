@@ -59,7 +59,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
   final TextEditingController _nameDisplayController = TextEditingController();
   final TextEditingController _emailDisplayController = TextEditingController();
-  String? _userAvatarUrl;
+  String? _userAvatarPath;
   String? _userCountryName;
   String? _userProvinceName;
 
@@ -86,9 +86,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instanceFor(
-    bucket: 'eslabon-app.firebasestorage.app',
-  );
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   late AppServices _appServices;
 
   @override
@@ -222,10 +220,14 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
             _emailDisplayController.text = data['email'] ?? '';
             _phoneNumberDisplayController.text = data['phone'] ?? '';
             
-            if (data['birthDay'] != null && data['birthMonth'] != null && data['birthYear'] != null) {
-                _dobDisplayController.text = '${data['birthDay']}/${data['birthMonth']}/${data['birthYear']}';
+            final String? birthDay = (data['birthDay'] is int) ? data['birthDay'].toString() : data['birthDay'];
+            final String? birthMonth = (data['birthMonth'] is int) ? data['birthMonth'].toString().padLeft(2, '0') : data['birthMonth'];
+            final String? birthYear = (data['birthYear'] is int) ? data['birthYear'].toString() : data['birthYear'];
+
+            if (birthDay != null && birthMonth != null && birthYear != null) {
+              _dobDisplayController.text = '$birthDay/$birthMonth/$birthYear';
             } else {
-                _dobDisplayController.text = '';
+              _dobDisplayController.text = '';
             }
 
             if (_addressDisplayController.text.isEmpty) {
@@ -235,7 +237,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                 _localityController.text = data['locality'] ?? '';
             }
 
-            _userAvatarUrl = data['profilePicture'];
+            _userAvatarPath = data['profilePicture'];
             _userCountryName = data['country_name'] ?? data['country']?['name'] ?? 'N/A';
             _userProvinceName = data['province_name'] ?? data['province'] ?? 'N/A';
 
@@ -368,7 +370,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         return;
       }
       
-      List<String> imageUrls = [];
+      List<String> imagePaths = [];
       for (dynamic imageSource in _selectedImages) {
         String fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource is XFile ? imageSource.name : (imageSource as File).path.split('/').last}';
         UploadTask uploadTask;
@@ -381,12 +383,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         } else {
           continue;
         }
-        TaskSnapshot snapshot = await uploadTask;
-        imageUrls.add(await snapshot.ref.getDownloadURL());
-        print('DEBUG CREATE: Imagen subida: ${imageUrls.last}');
+        await uploadTask;
+        imagePaths.add(fileName);
+        print('DEBUG CREATE: Imagen subida: $fileName');
       }
 
-      List<String> videoUrls = [];
+      List<String> videoPaths = [];
       for (dynamic videoSource in _selectedVideos) {
         String fileName = 'videos/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${videoSource is XFile ? videoSource.name : (videoSource as File).path.split('/').last}';
         UploadTask uploadTask;
@@ -404,18 +406,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         } else {
           continue;
         }
-        TaskSnapshot snapshot = await uploadTask;
-        videoUrls.add(await snapshot.ref.getDownloadURL());
-        print('DEBUG CREATE: Video subido: ${videoUrls.last}');
+        await uploadTask;
+        videoPaths.add(fileName);
+        print('DEBUG CREATE: Video subido: $fileName');
       }
       
       final requesterName = userData['name'] ?? 'Usuario anónimo'.tr();
-      final profileImageUrl = userData['profilePicture'] ?? '';
+      final profileImagePath = userData['profilePicture'] ?? '';
 
       final requestDataToSave = {
         'userId': currentUser.uid,
         'requesterName': requesterName,
-        'profileImageUrl': profileImageUrl,
+        'profileImagePath': profileImagePath,
         'phone': _phoneNumberDisplayController.text.trim(),
         'email': _emailDisplayController.text.trim(),
         'address': _addressDisplayController.text.trim(),
@@ -433,8 +435,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         'longitude': _requestLongitude,
         'timestamp': FieldValue.serverTimestamp(),
         'estado': 'activa',
-        'imagenes': imageUrls,
-        'videos': videoUrls,
+        'imagenes': imagePaths,
+        'videos': videoPaths,
         'offersCount': 0,
         'commentsCount': 0,
         'showWhatsapp': _showWhatsapp,
@@ -447,6 +449,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       print('DEBUG CREATE: Solicitud guardada en Firestore con Lat: $_requestLatitude, Lon: $_requestLongitude');
       _showSnackBar('¡Solicitud creada con éxito!'.tr(), Colors.green);
       Navigator.pop(context);
+    } on firebase_auth.FirebaseAuthException catch (e) {
+        debugPrint("DEBUG CREATE: Firebase Auth Exception al crear solicitud: ${e.code} - ${e.message}");
+        _showSnackBar('Error de autenticación: ${e.message}. Por favor, vuelve a iniciar sesión si el problema persiste.'.tr(), Colors.red);
     } on FirebaseException catch (e) {
       debugPrint("DEBUG CREATE: Firebase Exception al crear solicitud: ${e.code} - ${e.message}");
       _showSnackBar('Error de Firebase: ${e.message}'.tr(), Colors.red);
@@ -573,12 +578,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                         Text('Datos del Solicitante'.tr(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         Center(
-                          child: CircleAvatar(
-                            radius: 40,
-                            backgroundColor: Colors.grey[700],
-                            backgroundImage: (_userAvatarUrl != null && _userAvatarUrl!.startsWith('http'))
-                                ? NetworkImage(_userAvatarUrl!)
-                                : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                          child: FutureBuilder<String>(
+                            future: _userAvatarPath != null ? _storage.ref().child(_userAvatarPath!).getDownloadURL() : Future.value(''),
+                            builder: (context, urlSnapshot) {
+                              final String? finalImageUrl = urlSnapshot.data;
+                              return CircleAvatar(
+                                radius: 40,
+                                backgroundColor: Colors.grey[700],
+                                backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
+                                    ? NetworkImage(finalImageUrl)
+                                    : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(height: 10),

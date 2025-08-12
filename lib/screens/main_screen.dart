@@ -1,6 +1,6 @@
 // lib/screens/main_screen.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // ÚNICA IMPORTACIÓN
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -9,31 +9,19 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; 
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
-// Importaciones de tus propias pantallas y proveedores
+
 import 'package:eslabon_flutter/services/app_services.dart';
-import 'package:eslabon_flutter/screens/create_request_screen.dart';
-import 'package:eslabon_flutter/screens/profile_screen.dart';
-import 'package:eslabon_flutter/screens/my_requests_screen.dart';
-import 'package:eslabon_flutter/screens/chat_list_screen.dart';
-import 'package:eslabon_flutter/screens/notifications_screen.dart';
-import 'package:eslabon_flutter/screens/history_screen.dart';
-import 'package:eslabon_flutter/screens/search_users_screen.dart';
-import 'package:eslabon_flutter/screens/settings_screen.dart';
-import 'package:eslabon_flutter/screens/faq_screen.dart';
-import 'package:eslabon_flutter/screens/report_problem_screen.dart';
-import 'package:eslabon_flutter/screens/request_detail_screen.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/providers/user_provider.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/providers/location_provider.dart';
 import 'package:eslabon_flutter/providers/help_requests_provider.dart';
-import 'package:eslabon_flutter/screens/ranking_screen.dart';
-import 'package:eslabon_flutter/screens/ratings_screen.dart';
 import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import 'package:eslabon_flutter/models/user_model.dart';
-import 'package:eslabon_flutter/widgets/banner_ad_widget.dart'; 
+import 'package:eslabon_flutter/widgets/banner_ad_widget.dart';
 
 
 class MainScreen extends ConsumerStatefulWidget {
@@ -46,6 +34,7 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStateMixin {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   late final AppServices _appServices;
 
   final Map<String, TextEditingController> _commentControllers = {};
@@ -100,8 +89,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
         final String requestId = doc.id;
         final double? requestLat = request['latitude'];
         final double? requestLon = request['longitude'];
-        final String requestDescription = request['descripcion'] ?? 'Solicitud de ayuda'.tr();
-        final String requestName = request['requesterName'] ?? 'Alguien'.tr();
 
         if (requestLat != null && requestLon != null) {
           final distance = _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon);
@@ -114,6 +101,10 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     });
   }
 
+  double _degreesToRadians(double degrees) {
+    return degrees * (pi / 180);
+  }
+  
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     const R = 6371.0;
 
@@ -127,10 +118,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     double distance = R * c;
 
     return distance;
-  }
-
-  double _degreesToRadians(double degrees) {
-    return degrees * (pi / 180);
   }
 
   Future<void> _addComment(String requestId, String commentText) async {
@@ -365,6 +352,25 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     );
   }
 
+  void _showDetailsDialog(BuildContext context, String title, String details) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Text(details, style: const TextStyle(color: Colors.white70)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('close'.tr(), style: const TextStyle(color: Colors.amber)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHelpCard(BuildContext context, Map<String, dynamic> request, String requestId, firebase_auth.User? currentUser, {String? distanceText}) {
     final Map<String, dynamic> requestData = request;
 
@@ -421,7 +427,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
       stream: _firestore.collection('users').doc(requesterUserId).snapshots(),
       builder: (context, userSnapshot) {
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
-        final String? profileImageUrl = userData?['profilePicture'] as String?;
+        final String? profilePictureUrl = userData?['profilePicture'] as String?;
         final String requestPhone = userData?['phone'] as String? ?? 'N/A';
         final bool showWhatsapp = requestData['showWhatsapp'] ?? false;
 
@@ -452,8 +458,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             children: [
                               CircleAvatar(
                                 radius: 20,
-                                backgroundImage: (profileImageUrl != null && profileImageUrl.startsWith('http'))
-                                    ? NetworkImage(profileImageUrl)
+                                backgroundImage: (profilePictureUrl != null && profilePictureUrl.startsWith('http'))
+                                    ? NetworkImage(profilePictureUrl)
                                     : const AssetImage('assets/default_avatar.png') as ImageProvider,
                                 backgroundColor: Colors.grey[700],
                               ),
@@ -700,25 +706,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     );
   }
 
-  void _showDetailsDialog(BuildContext context, String title, String details) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Text(details, style: const TextStyle(color: Colors.white70)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('close'.tr(), style: const TextStyle(color: Colors.amber)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _showFilterDialog(BuildContext dialogContext, String currentFilterScope, double proximityRadiusKm) async {
     String _dialogSelectedFilterScope = currentFilterScope;
     double _dialogProximityRadiusKm = proximityRadiusKm;
@@ -908,10 +895,10 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
       },
     );
   }
-
+  
   @override
   Widget build(BuildContext context) {
-    final User? currentUser = ref.watch(userProvider).value; // CORRECCIÓN
+    final User? currentUser = ref.watch(userProvider).value;
     final String currentFilterScope = ref.watch(filterScopeProvider);
     final double proximityRadiusKm = ref.watch(proximityRadiusProvider);
     final UserLocationData userLocation = ref.watch(userLocationProvider);

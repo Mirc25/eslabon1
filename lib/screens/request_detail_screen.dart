@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
@@ -33,6 +34,7 @@ class RequestDetailScreen extends ConsumerStatefulWidget {
 class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   late final AppServices _appServices;
 
   final Map<String, TextEditingController> _commentControllers = {};
@@ -213,7 +215,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       final Map<String, dynamic> helperData = helperProfile.data() as Map<String, dynamic>? ?? {};
 
       final String helperName = helperData['name'] ?? currentUser.displayName ?? 'Ayudador';
-      final String? helperAvatarUrl = helperData['profilePicture'] ?? currentUser.photoURL;
+      final String? helperAvatarPath = helperData['profilePicture'] as String?;
 
       final String requestTitle = requestData['titulo'] as String? ?? requestData['descripcion'] as String? ?? 'Solicitud de ayuda';
 
@@ -226,7 +228,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         'helperName': helperName,
         'mensaje': 'El usuario $helperName ha ofrecido ayuda.',
         'timestamp': FieldValue.serverTimestamp(),
-        'helperAvatarUrl': helperAvatarUrl,
+        'helperAvatarUrl': helperAvatarPath,
         'requesterId': requesterUserId, 
       });
 
@@ -240,7 +242,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         requesterId: requesterUserId,
         helperId: currentUser.uid,
         helperName: helperName,
-        helperAvatarUrl: helperAvatarUrl,
+        helperAvatarUrl: helperAvatarPath,
         requestTitle: requestTitle,
         requestData: requestData,
       );
@@ -663,11 +665,18 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         final userData = userSnapshot.data!.data() as Map<String, dynamic>;
 
         final String requesterName = userData['name'] as String? ?? 'Usuario Anónimo';
-        final String? requesterAvatarUrl = userData['profilePicture'] as String?;
+        final String? requesterAvatarPath = userData['profilePicture'] as String?;
         final String requesterPhone = userData['phone'] as String? ?? 'N/A';
         final String requesterEmail = userData['email'] as String? ?? 'N/A';
         final String requesterAddress = userData['address'] as String? ?? 'No especificada';
-        final String requesterDOB = '${userData['birthDay']}/${userData['birthMonth']}/${userData['birthYear']}' as String? ?? 'No especificada';
+        
+        final String? birthDay = (userData['birthDay'] as num?)?.toString();
+        final String? birthMonth = (userData['birthMonth'] as num?)?.toString().padLeft(2, '0');
+        final String? birthYear = (userData['birthYear'] as num?)?.toString();
+        final String requesterDOB = (birthDay != null && birthMonth != null && birthYear != null)
+            ? '$birthDay/$birthMonth/$birthYear'
+            : 'No especificada';
+        
         final String requesterProvincia = userData['province'] as String? ?? 'No especificada';
         final String requesterCountry = userData['country']?['name'] as String? ?? 'No especificado';
         
@@ -713,19 +722,19 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
             break;
         }
 
-        List<String> imageUrls = [];
+        List<String> imagePaths = [];
         dynamic rawImages = requestData['imagenes'];
         if (rawImages != null) {
           if (rawImages is List) {
-            imageUrls = List<String>.from(rawImages.where((item) => item is String));
+            imagePaths = List<String>.from(rawImages.where((item) => item is String));
           } else if (rawImages is String && rawImages.isNotEmpty) {
-            imageUrls = [rawImages];
+            imagePaths = [rawImages];
           }
         }
-        String imageUrlToDisplay = imageUrls.isNotEmpty ? imageUrls.first : '';
+        String? imagePathToDisplay = imagePaths.isNotEmpty ? imagePaths.first : null;
 
-        final double? latitude = requestData['latitude'] as double?;
-        final double? longitude = requestData['longitude'] as double?;
+        final double? latitude = (requestData['latitude'] as num?)?.toDouble();
+        final double? longitude = (requestData['longitude'] as num?)?.toDouble();
         final bool hasDetails = requestDetail != null && requestDetail.isNotEmpty && requestDetail != 'Sin detalles';
 
         return SingleChildScrollView(
@@ -746,12 +755,20 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       children: [
                         Row(
                           children: [
-                            CircleAvatar(
-                              radius: 25,
-                              backgroundImage: (requesterAvatarUrl != null && requesterAvatarUrl.startsWith('http'))
-                                  ? NetworkImage(requesterAvatarUrl)
-                                  : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                              backgroundColor: Colors.grey[700],
+                            FutureBuilder<String>(
+                              future: requesterAvatarPath != null
+                                  ? _storage.ref().child(requesterAvatarPath).getDownloadURL()
+                                  : Future.value(''),
+                              builder: (context, urlSnapshot) {
+                                final String? finalImageUrl = urlSnapshot.data;
+                                return CircleAvatar(
+                                  radius: 25,
+                                  backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
+                                      ? NetworkImage(finalImageUrl)
+                                      : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                                  backgroundColor: Colors.grey[700],
+                                );
+                              },
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -834,9 +851,18 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               ),
               const Divider(height: 24, thickness: 1, color: Colors.grey),
 
-              if (imageUrls.isNotEmpty)
+              if (imagePaths.isNotEmpty)
                 GestureDetector(
-                  onTap: () => _showImageFullScreen(context, imageUrlToDisplay),
+                  onTap: () async {
+                    if (imagePathToDisplay != null) {
+                      try {
+                        final imageUrl = await _storage.ref().child(imagePathToDisplay).getDownloadURL();
+                        _showImageFullScreen(context, imageUrl);
+                      } catch (e) {
+                        _showSnackBar('Error al cargar la imagen. Intenta de nuevo.', Colors.red);
+                      }
+                    }
+                  },
                   child: Center(
                     child: Container(
                       height: 200,
@@ -844,23 +870,42 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: NetworkImage(imageUrlToDisplay),
-                          fit: BoxFit.cover,
-                        ),
+                        color: Colors.grey[800],
                       ),
-                      child: Align(
-                        alignment: Alignment.bottomRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: CircleAvatar(
-                            backgroundColor: Colors.black54,
-                            child: Text(
-                              '${imageUrls.length}',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
+                      child: FutureBuilder<String>(
+                        future: imagePathToDisplay != null ? _storage.ref().child(imagePathToDisplay).getDownloadURL() : Future.value(''),
+                        builder: (context, urlSnapshot) {
+                          if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
+                            final imageUrl = urlSnapshot.data!;
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Stack(
+                                children: [
+                                  Image.network(
+                                    imageUrl,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                  ),
+                                  Align(
+                                    alignment: Alignment.bottomRight,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: CircleAvatar(
+                                        backgroundColor: Colors.black54,
+                                        child: Text(
+                                          '${imagePaths.length}',
+                                          style: const TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return const Center(child: CircularProgressIndicator(color: Colors.amber));
+                        },
                       ),
                     ),
                   ),
@@ -937,7 +982,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: () => _startChat(requesterUserId, requesterName, requesterAvatarUrl),
+                      onPressed: () => _startChat(requesterUserId, requesterName, requesterAvatarPath),
                       icon: const Icon(Icons.chat_bubble_outline, color: Colors.black),
                       label: const Text('Iniciar Chat', style: TextStyle(fontSize: 14, color: Colors.black)),
                       style: ElevatedButton.styleFrom(

@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
@@ -30,13 +32,16 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   late final AppServices _appServices;
 
   User? _currentUser;
   String? _currentUserName;
-  String? _currentUserAvatar;
+  String? _currentUserAvatarPath;
+  String? _chatPartnerAvatarUrl;
+  String? _currentUserAvatarUrl;
 
   @override
   void initState() {
@@ -45,6 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _currentUser = _auth.currentUser;
     _updateUserPresence(widget.chatId);
     _loadCurrentUserData();
+    _loadChatPartnerAvatarUrl();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     _markChatNotificationsAsRead();
   }
@@ -100,8 +106,34 @@ class _ChatScreenState extends State<ChatScreen> {
         final userData = userDoc.data() as Map<String, dynamic>;
         setState(() {
           _currentUserName = userData['name'];
-          _currentUserAvatar = userData['profilePicture'];
+          _currentUserAvatarPath = userData['profilePicture'];
         });
+        if (_currentUserAvatarPath != null) {
+          final url = await _storage.ref().child(_currentUserAvatarPath!).getDownloadURL();
+          setState(() {
+            _currentUserAvatarUrl = url;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _loadChatPartnerAvatarUrl() async {
+    if (widget.chatPartnerAvatar != null) {
+      try {
+        // CORRECCIÓN: Evitar usar una URL completa como ruta
+        final String imagePath = Uri.parse(widget.chatPartnerAvatar!).pathSegments.sublist(2).join('/');
+        final url = await _storage.ref().child(imagePath).getDownloadURL();
+        setState(() {
+          _chatPartnerAvatarUrl = url;
+        });
+      } catch (e) {
+        // Si no es una URL de Firebase, usarla directamente
+        if (widget.chatPartnerAvatar!.startsWith('http')) {
+          _chatPartnerAvatarUrl = widget.chatPartnerAvatar;
+        } else {
+          print('Error loading chat partner avatar URL: $e');
+        }
       }
     }
   }
@@ -190,8 +222,8 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           actions: [
             CircleAvatar(
-              backgroundImage: widget.chatPartnerAvatar != null && widget.chatPartnerAvatar!.startsWith('http')
-                  ? NetworkImage(widget.chatPartnerAvatar!)
+              backgroundImage: (_chatPartnerAvatarUrl != null)
+                  ? NetworkImage(_chatPartnerAvatarUrl!)
                   : const AssetImage('assets/default_avatar.png') as ImageProvider,
               backgroundColor: Colors.grey[700],
             ),
@@ -232,7 +264,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         message['text'] as String,
                         message['timestamp'],
                         isMe,
-                        isMe ? _currentUserAvatar : widget.chatPartnerAvatar,
+                        isMe ? _currentUserAvatarUrl : _chatPartnerAvatarUrl,
                       );
                     },
                   );

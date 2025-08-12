@@ -23,9 +23,9 @@ Future<void> main() async {
   await MobileAds.instance.initialize();
 
   await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity,
-    appleProvider: AppleProvider.deviceCheck,
-  );
+  androidProvider: AndroidProvider.debug,
+  appleProvider: AppleProvider.debug,
+);
 
   runApp(
     ProviderScope(

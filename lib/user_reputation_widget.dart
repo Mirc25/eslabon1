@@ -29,8 +29,7 @@ class UserReputationWidget extends StatelessWidget {
         }
 
         final userData = snapshot.data!.data() as Map<String, dynamic>;
-        final double averageRating = userData['averageRating'] as double? ?? 0.0;
-        // ✅ CORREGIDO: Leer el campo ratingCount como num y convertirlo a int
+        final double averageRating = (userData['averageRating'] as num? ?? 0.0).toDouble();
         final int ratingCount = (userData['ratingCount'] as num? ?? 0).toInt();
 
         return Row(

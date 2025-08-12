@@ -12,7 +12,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../widgets/spinning_image_loader.dart'; 
 
-// Asegúrate de que esta clase Country sea la misma que en register_screen.dart
 class Country {
   final String code;
   final String name;
@@ -67,7 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic> allProvincesData = {};
 
   bool _isLoading = true;
-  String? _profileImageUrl;
+  String? _profileImagePath;
   File? _newProfileImage;
   double? _userLatitude;
   double? _userLongitude;
@@ -76,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadProfileData();
-    _determinePosition(); // Se añade la llamada para obtener la ubicación
+    _determinePosition();
   }
 
   @override
@@ -88,14 +87,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  // ✅ NUEVA FUNCIÓN: Obtiene la ubicación del usuario
   Future<void> _determinePosition() async {
     bool serviceEnabled;
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // Manejar caso de servicio de ubicación deshabilitado
       return;
     }
 
@@ -103,13 +100,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        // Manejar caso de permiso denegado
         return;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      // Manejar caso de permiso denegado permanentemente
       return;
     }
 
@@ -145,23 +140,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           emailDisplay = data['email'] ?? '';
           dniDisplay = data['dni'] ?? '';
           
-          _userLatitude = data['latitude'] as double?;
-          _userLongitude = data['longitude'] as double?;
+          _userLatitude = (data['latitude'] as num?)?.toDouble();
+          _userLongitude = (data['longitude'] as num?)?.toDouble();
 
-          if (data['birthDay'] != null && data['birthMonth'] != null && data['birthYear'] != null) {
-            _selectedDay = data['birthDay'];
-            _selectedMonth = data['birthMonth'];
-            _selectedYear = data['birthYear'];
-          } else {
-            final String? dobString = data['fecha_nacimiento'];
-            if (dobString != null && dobString.isNotEmpty) {
-              final parts = dobString.split('/');
-              if (parts.length == 3) {
-                _selectedDay = parts[0];
-                _selectedMonth = parts[1];
-                _selectedYear = parts[2];
-              }
-            }
+          final String? birthDay = (data['birthDay'] is int) ? data['birthDay'].toString() : data['birthDay'];
+          final String? birthMonth = (data['birthMonth'] is int) ? data['birthMonth'].toString().padLeft(2, '0') : data['birthMonth'];
+          final String? birthYear = (data['birthYear'] is int) ? data['birthYear'].toString() : data['birthYear'];
+
+          if (birthDay != null && birthMonth != null && birthYear != null) {
+            _selectedDay = birthDay;
+            _selectedMonth = birthMonth;
+            _selectedYear = birthYear;
           }
 
           final String countryData = await rootBundle.loadString('lib/data/countries.json');
@@ -181,8 +170,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
           selectedProvince = data['province'];
           phoneDialCode = selectedCountry?.dialCode;
-
-          _profileImageUrl = data['profilePicture'];
+          
+          _profileImagePath = data['profilePicture'] as String?;
         }
       }
     } catch (e) {
@@ -225,13 +214,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return null;
     }
     
-    if (_newProfileImage == null) return _profileImageUrl;
+    if (_newProfileImage == null) return _profileImagePath;
 
     try {
       final String fileName = 'users/${currentUser!.uid}/profile_picture.jpg';
-      UploadTask uploadTask = _storage.ref().child(fileName).putFile(_newProfileImage!);
-      TaskSnapshot snapshot = await uploadTask;
-      return await snapshot.ref.getDownloadURL();
+      final UploadTask uploadTask = _storage.ref().child(fileName).putFile(_newProfileImage!);
+      await uploadTask;
+      return fileName;
     } on FirebaseException catch (e) {
       print("Error uploading image: ${e.code} - ${e.message}");
       _showErrorDialog('Error al subir la imagen de perfil: ${e.message}');
@@ -260,8 +249,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      String? newProfilePicUrl = await _uploadImage();
-      if (newProfilePicUrl == null) {
+      String? newProfilePicPath = await _uploadImage();
+      if (newProfilePicPath == null) {
         setState(() {
           _isLoading = false;
         });
@@ -273,16 +262,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'phone': '${phoneDialCode ?? ''}${phoneController.text}',
         'address': addressController.text,
         'zip': postalCodeController.text,
-        'birthDay': _selectedDay,
-        'birthMonth': _selectedMonth,
-        'birthYear': _selectedYear,
+        'birthDay': int.tryParse(_selectedDay!),
+        'birthMonth': int.tryParse(_selectedMonth!),
+        'birthYear': int.tryParse(_selectedYear!),
         'country': selectedCountry != null ? {
           'code': selectedCountry!.code,
           'name': selectedCountry!.name,
           'dial_code': selectedCountry!.dialCode,
         } : null,
         'province': selectedProvince,
-        'profilePicture': newProfilePicUrl,
+        'profilePicture': newProfilePicPath,
         'latitude': _userLatitude,
         'longitude': _userLongitude,
       });
@@ -296,6 +285,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context.pop();
       }
 
+    } on FirebaseAuthException catch (e) {
+        _showErrorDialog('Error de autenticación: ${e.message}. Por favor, vuelve a iniciar sesión si el problema persiste.');
     } on FirebaseException catch (e) {
       print("Error saving profile: $e");
       _showErrorDialog('Error al guardar el perfil: ${e.message}');
@@ -322,7 +313,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       dropdownColor: Colors.black,
       iconEnabledColor: Colors.white,
       style: const TextStyle(color: Colors.white),
-      items: items.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+      items: items.map((item) => DropdownMenuItem(value: item, child: Text(item.tr()))).toList(),
       onChanged: onChanged,
       validator: (val) {
         if (val == null || val.isEmpty) {
@@ -414,34 +405,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Center(
                 child: GestureDetector(
                   onTap: _pickImage,
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Colors.grey[800],
-                        backgroundImage: _newProfileImage != null
-                            ? FileImage(_newProfileImage!)
-                            : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty
-                            ? NetworkImage(_profileImageUrl!) as ImageProvider<Object>?
-                            : const AssetImage('assets/default_avatar.png') as ImageProvider<Object>?),
-                        child: _newProfileImage == null && (_profileImageUrl == null || _profileImageUrl!.isEmpty)
-                            ? const Icon(Icons.person, size: 60, color: Colors.white70)
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: CircleAvatar(
-                          backgroundColor: Colors.amber,
-                          radius: 20,
-                          child: Icon(
-                            Icons.camera_alt,
-                            color: Colors.black,
-                            size: 20,
+                  child: FutureBuilder<String>(
+                    future: _profileImagePath != null ? _storage.ref().child(_profileImagePath!).getDownloadURL() : Future.value(''),
+                    builder: (context, urlSnapshot) {
+                      final String? finalImageUrl = urlSnapshot.data;
+                      return Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Colors.grey[800],
+                            backgroundImage: _newProfileImage != null
+                                ? FileImage(_newProfileImage!)
+                                : (finalImageUrl != null && finalImageUrl.isNotEmpty
+                                ? NetworkImage(finalImageUrl) as ImageProvider<Object>?
+                                : const AssetImage('assets/default_avatar.png') as ImageProvider<Object>?),
+                            child: _newProfileImage == null && (finalImageUrl == null || finalImageUrl.isEmpty)
+                                ? const Icon(Icons.person, size: 60, color: Colors.white70)
+                                : null,
                           ),
-                        ),
-                      ),
-                    ],
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: CircleAvatar(
+                              backgroundColor: Colors.amber,
+                              radius: 20,
+                              child: Icon(
+                                Icons.camera_alt,
+                                color: Colors.black,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

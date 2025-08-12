@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
-import '../user_reputation_widget.dart';
-import '../widgets/spinning_image_loader.dart'; // ✅ AÑADIDO: Importa el widget
+import '../reputation_utils.dart'; // 🔄 CORRECCIÓN: Usamos el archivo correcto
+import '../widgets/spinning_image_loader.dart';
 
 class UserRatingDetailsScreen extends StatelessWidget {
   final String userId;
@@ -41,28 +42,34 @@ class UserRatingDetailsScreen extends StatelessWidget {
           future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: SpinningImageLoader()); // ✅ CORREGIDO: Usando el nuevo widget
+              return const Center(child: SpinningImageLoader());
             }
             if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
               return const Center(child: Text('Error o usuario no encontrado.', style: TextStyle(color: Colors.red)));
             }
             final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-            final String? profilePicture = userData['profilePicture'] as String?;
+            final String? profileImagePath = userData['profilePicture'] as String?;
             final String name = userData['name'] ?? 'Usuario Desconocido';
             
             return SingleChildScrollView(
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.grey[700],
-                    backgroundImage: (profilePicture != null && profilePicture.startsWith('http'))
-                        ? NetworkImage(profilePicture)
-                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                    child: (profilePicture == null || !profilePicture.startsWith('http'))
-                        ? const Icon(Icons.person, size: 60, color: Colors.white70)
-                        : null,
+                  FutureBuilder<String>(
+                    future: profileImagePath != null ? FirebaseStorage.instance.ref().child(profileImagePath).getDownloadURL() : Future.value(''),
+                    builder: (context, urlSnapshot) {
+                      final String? finalImageUrl = urlSnapshot.data;
+                      return CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.grey[700],
+                        backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
+                            ? NetworkImage(finalImageUrl) as ImageProvider
+                            : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                        child: (finalImageUrl == null || finalImageUrl.isEmpty)
+                            ? const Icon(Icons.person, size: 60, color: Colors.white70)
+                            : null,
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -84,7 +91,7 @@ class UserRatingDetailsScreen extends StatelessWidget {
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: SpinningImageLoader()); // ✅ CORREGIDO: Usando el nuevo widget
+                        return const Center(child: SpinningImageLoader());
                       }
                       if (snapshot.hasError) {
                         return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
