@@ -1,6 +1,4 @@
-package com.example.eslabon_flutter  // ← CAMBIALO si tu paquete es diferente
-
+package com.example.eslabon_flutter
 import io.flutter.embedding.android.FlutterActivity
 
-class MainActivity : FlutterActivity() {
-}
+class MainActivity : FlutterActivity()
