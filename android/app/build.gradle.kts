@@ -1,10 +1,14 @@
+// android/app/build.gradle.kts
 import java.util.Properties
+import com.android.build.gradle.internal.dsl.SigningConfig
+import com.android.build.gradle.internal.dsl.BuildType
+import com.android.build.api.dsl.ApplicationBuildType
 
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.android")
-    id("dev.flutter.flutter-gradle-plugin")
+    
 }
 
 // Lee versionCode / versionName que Flutter escribe en local.properties
@@ -31,13 +35,13 @@ android {
         versionName = flutterVersionName
     }
 
-    // ✅ Firma de RELEASE con el debug keystore (para instalar YA en el celu)
     signingConfigs {
         create("release") {
-            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            // ✅ CORRECCIÓN: Sintaxis actualizada para la configuración de la firma
+            storeFile = file("my-upload-key.jks")
+            storePassword = "49228080"
+            keyAlias = "my-key-alias"
+            keyPassword = "49228080"
         }
     }
 
@@ -48,24 +52,16 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
         release {
-            // Por ahora sin minify/shrink (después lo activamos si querés reducir tamaño)
             isMinifyEnabled = false
             isShrinkResources = false
+            // ✅ CORRECCIÓN: Asigna la configuración de la firma de lanzamiento
             signingConfig = signingConfigs.getByName("release")
-            // Cuando quieras optimizar:
-            // isMinifyEnabled = true
-            // isShrinkResources = true
-            // proguardFiles(
-            //     getDefaultProguardFile("proguard-android-optimize.txt"),
-            //     "proguard-rules.pro"
-            // )
         }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        // Necesario en tu stack (flutter_local_notifications)
         isCoreLibraryDesugaringEnabled = true
     }
 }
@@ -76,10 +72,7 @@ kotlin {
 }
 
 dependencies {
-    // AndroidX mínimo
     implementation("androidx.core:core-ktx:1.13.1")
-
-    // Desugaring requerido
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
 

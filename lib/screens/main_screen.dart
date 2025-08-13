@@ -409,12 +409,12 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     }
 
     dynamic rawImages = requestData['imagenes'];
-    String imageUrlToDisplay = '';
+    String? imageUrlPath = '';
     if (rawImages != null) {
       if (rawImages is List && rawImages.isNotEmpty) {
-        imageUrlToDisplay = rawImages.first.toString();
+        imageUrlPath = rawImages.first.toString();
       } else if (rawImages is String) {
-        imageUrlToDisplay = rawImages;
+        imageUrlPath = rawImages;
       }
     }
 
@@ -598,17 +598,28 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                       width: 120,
                       child: AspectRatio(
                         aspectRatio: 1,
-                        child: imageUrlToDisplay.isNotEmpty
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  imageUrlToDisplay,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Container(
+                        child: imageUrlPath != null && imageUrlPath.isNotEmpty
+                            ? FutureBuilder<String>(
+                                future: _storage.ref().child(imageUrlPath).getDownloadURL(),
+                                builder: (context, urlSnapshot) {
+                                  if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
+                                    return ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        urlSnapshot.data!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: Colors.grey[700],
+                                          child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return Container(
                                     color: Colors.grey[700],
-                                    child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
-                                  ),
-                                ),
+                                    child: const Center(child: CircularProgressIndicator(color: Colors.amber)),
+                                  );
+                                },
                               )
                             : Container(
                                 decoration: BoxDecoration(
