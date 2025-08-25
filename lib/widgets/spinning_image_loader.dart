@@ -1,4 +1,4 @@
-// lib/widgets/spinning_image_loader.dart
+﻿// lib/widgets/spinning_image_loader.dart
 import 'package:flutter/material.dart';
 
 class SpinningImageLoader extends StatefulWidget {

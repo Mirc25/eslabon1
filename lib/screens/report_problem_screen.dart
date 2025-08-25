@@ -1,4 +1,4 @@
-// lib/screens/report_problem_screen.dart
+﻿// lib/screens/report_problem_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -34,7 +34,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
     if (_formKey.currentState?.validate() ?? false) {
       final Uri emailLaunchUri = Uri(
         scheme: 'mailto',
-        path: 'pablooviedo58@gmail.com', // ✅ Email de destino
+        path: 'pablooviedo58@gmail.com', // âœ… Email de destino
         query: _encodeEmailParameters(),
       );
 
@@ -42,7 +42,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
         await launchUrl(emailLaunchUri);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo abrir la aplicación de correo. Por favor, revisa si tienes una instalada.'.tr())),
+          SnackBar(content: Text('No se pudo abrir la aplicaciÃ³n de correo. Por favor, revisa si tienes una instalada.'.tr())),
         );
       }
     }
@@ -77,7 +77,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Si encuentras algún error, tienes una sugerencia o deseas reportar a un usuario, por favor, utiliza este formulario para contactarnos.'
+                  'Si encuentras algÃºn error, tienes una sugerencia o deseas reportar a un usuario, por favor, utiliza este formulario para contactarnos.'
                       .tr(),
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 16, color: Colors.white70),
@@ -87,7 +87,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   controller: _emailController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: 'Tu correo electrónico'.tr(),
+                    labelText: 'Tu correo electrÃ³nico'.tr(),
                     labelStyle: const TextStyle(color: Colors.white70),
                     filled: true,
                     fillColor: Colors.grey[850],
@@ -99,7 +99,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                       return 'Este campo es obligatorio.'.tr();
                     }
                     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                      return 'Introduce un email válido.'.tr();
+                      return 'Introduce un email vÃ¡lido.'.tr();
                     }
                     return null;
                   },
@@ -109,7 +109,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   controller: _subjectController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: 'Título o asunto'.tr(),
+                    labelText: 'TÃ­tulo o asunto'.tr(),
                     labelStyle: const TextStyle(color: Colors.white70),
                     filled: true,
                     fillColor: Colors.grey[850],
@@ -128,7 +128,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   style: const TextStyle(color: Colors.white),
                   maxLines: 5,
                   decoration: InputDecoration(
-                    labelText: 'Escribe tu mensaje aquí'.tr(),
+                    labelText: 'Escribe tu mensaje aquÃ­'.tr(),
                     labelStyle: const TextStyle(color: Colors.white70),
                     filled: true,
                     fillColor: Colors.grey[850],

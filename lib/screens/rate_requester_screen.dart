@@ -1,4 +1,4 @@
-// lib/screens/rate_requester_screen.dart
+﻿// lib/screens/rate_requester_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -84,7 +84,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
 
       final User? currentUser = _auth.currentUser;
       if (currentUser == null) {
-        AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red);
+        AppServices.showSnackBar(context, 'Debes iniciar sesiÃ³n para calificar.', Colors.red);
         if (mounted) context.go('/login');
         return;
       }
@@ -96,7 +96,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
       }
 
       if (currentUser.uid == _requesterId) {
-        AppServices.showSnackBar(context, 'No puedes calificar tu propia solicitud aquí. Esta pantalla es para que califiques al solicitante.', Colors.red);
+        AppServices.showSnackBar(context, 'No puedes calificar tu propia solicitud aquÃ­. Esta pantalla es para que califiques al solicitante.', Colors.red);
         if (mounted) context.go('/main');
         return;
       }
@@ -131,7 +131,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
 
   Future<void> _submitRating() async {
     if (_currentRating == 0.0) {
-      AppServices.showSnackBar(context, 'Por favor, selecciona una calificación.', Colors.orange);
+      AppServices.showSnackBar(context, 'Por favor, selecciona una calificaciÃ³n.', Colors.orange);
       return;
     }
     if (_requesterId == null || _auth.currentUser == null) {
@@ -158,7 +158,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
       setState(() {
         _hasRated = true;
       });
-      AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green);
+      AppServices.showSnackBar(context, 'CalificaciÃ³n enviada con Ã©xito.', Colors.green);
 
       await _appServices.notifyRequesterAfterHelperRates(
         context: context,
@@ -176,7 +176,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
       }
     } catch (e) {
       print("Error submitting rating: $e");
-      AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red);
+      AppServices.showSnackBar(context, 'Error al enviar calificaciÃ³n: $e', Colors.red);
     }
   }
 
@@ -244,7 +244,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Tu calificación: ${_currentRating.round()}/5',
+                'Tu calificaciÃ³n: ${_currentRating.round()}/5',
                 style: const TextStyle(fontSize: 16, color: Colors.white70),
               ),
               const SizedBox(height: 24),
@@ -254,7 +254,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
                   controller: _reviewController,
                   maxLines: 4,
                   decoration: InputDecoration(
-                    hintText: 'Escribe tu reseña aquí...',
+                    hintText: 'Escribe tu reseÃ±a aquÃ­...',
                     hintStyle: const TextStyle(color: Colors.white54),
                     filled: true,
                     fillColor: Colors.grey[800],
@@ -276,7 +276,7 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
                   textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 ),
-                child: Text(_hasRated ? 'Calificado' : 'Enviar Calificación y Reseña'),
+                child: Text(_hasRated ? 'Calificado' : 'Enviar CalificaciÃ³n y ReseÃ±a'),
               ),
             ],
           ),

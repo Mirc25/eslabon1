@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class MyOffersScreen extends StatelessWidget {
   const MyOffersScreen({Key? key}) : super(key: key);

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// Importación corregida para el nuevo nombre del archivo RateHelperScreen
+// ImportaciÃ³n corregida para el nuevo nombre del archivo RateHelperScreen
 import 'package:eslabon_flutter/screens/rate_helper_screen.dart'; 
 
 // Este archivo ahora contiene la clase ConfirmHelpReceivedScreen
@@ -44,7 +44,7 @@ class _ConfirmHelpReceivedScreenState extends State<ConfirmHelpReceivedScreen> {
         });
       }
     } catch (e) {
-      debugPrint("DEBUG CONFIRM: Error al cargar estado de valoración: $e");
+      debugPrint("DEBUG CONFIRM: Error al cargar estado de valoraciÃ³n: $e");
     } finally {
       setState(() {
         _isLoading = false;
@@ -53,18 +53,18 @@ class _ConfirmHelpReceivedScreenState extends State<ConfirmHelpReceivedScreen> {
   }
 
   void _navigateToRateScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        // Uso correcto de la clase RateHelperScreen
-        builder: (context) => RateHelperScreen(
-          requestId: widget.requestData['requestId'], 
-          requestData: widget.requestData, 
-          helperUserId: widget.requestData['helperId'], 
-        ),
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => RateHelperScreen(
+        requestId: widget.requestData['requestId'],
+        requestData: widget.requestData,
+        helperId: widget.requestData['helperId'],                 // <- nombre correcto
+        helperName: widget.requestData['helperName'] ?? 'el usuario', // <- requerido
       ),
-    ).then((_) => _loadProfilesAndRatingStatus());
-  }
+    ),
+  ).then((_) => _loadProfilesAndRatingStatus());
+}
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +83,7 @@ class _ConfirmHelpReceivedScreenState extends State<ConfirmHelpReceivedScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '¿Confirmas que $helperName te ayudó?',
+                    'Â¿Confirmas que $helperName te ayudÃ³?',
                     style: const TextStyle(fontSize: 18),
                     textAlign: TextAlign.center,
                   ),
@@ -93,7 +93,7 @@ class _ConfirmHelpReceivedScreenState extends State<ConfirmHelpReceivedScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _hasRated ? Colors.grey : Colors.green,
                     ),
-                    child: Text(_hasRated ? 'Ya calificaste' : 'Sí, confirmar y calificar'),
+                    child: Text(_hasRated ? 'Ya calificaste' : 'SÃ­, confirmar y calificar'),
                   ),
                   const SizedBox(height: 15),
                   ElevatedButton(

@@ -1,10 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AppNotification {
   final String id;
   final String type;
-  final String body; // Contenido del mensaje de la notificación
+  final String body; // Contenido del mensaje de la notificaciÃ³n
   final Timestamp timestamp;
   final bool read;
   final String? requestId;
@@ -12,7 +12,7 @@ class AppNotification {
   final String? senderName;
   final String? senderPhotoUrl;
   final String? chatPartnerId;
-  final String? requestTitle; // Título de la solicitud relacionada
+  final String? requestTitle; // TÃ­tulo de la solicitud relacionada
   final String? helperId;
   final String? requesterId;
   final Map<String, dynamic>? navigationData;
@@ -57,7 +57,7 @@ class AppNotification {
   Future<void> markAsRead() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      print('Error: No hay usuario autenticado para marcar la notificación como leída.');
+      print('Error: No hay usuario autenticado para marcar la notificaciÃ³n como leÃ­da.');
       return;
     }
     await FirebaseFirestore.instance

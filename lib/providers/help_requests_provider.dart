@@ -1,9 +1,9 @@
-// lib/providers/help_requests_provider.dart
+﻿// lib/providers/help_requests_provider.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
 
-import 'package:eslabon_flutter/providers/location_provider.dart'; // Importa el proveedor de ubicación
+import 'package:eslabon_flutter/providers/location_provider.dart'; // Importa el proveedor de ubicaciÃ³n
 
 // Proveedor para el stream crudo de solicitudes de ayuda activas
 final rawHelpRequestsStreamProvider = StreamProvider<QuerySnapshot>((ref) {
@@ -46,7 +46,7 @@ final filteredHelpRequestsProvider = StreamProvider<List<QueryDocumentSnapshot>>
           const String userProvincia = 'San Juan'; // Asumo 'San Juan' como provincia fija del usuario
           passesFilter = (requestProvincia == userProvincia);
         } else if (currentFilterScope == 'Nacional') {
-          passesFilter = (requestCountry == 'Argentina'); // Asumo 'Argentina' como país fijo
+          passesFilter = (requestCountry == 'Argentina'); // Asumo 'Argentina' como paÃ­s fijo
         } else if (currentFilterScope == 'Internacional') {
           passesFilter = true; // Todos pasan el filtro internacional
         }
@@ -56,7 +56,7 @@ final filteredHelpRequestsProvider = StreamProvider<List<QueryDocumentSnapshot>>
       print('DEBUG FILTER_PROVIDER: Total de solicitudes filtradas a mostrar: ${filteredList.length}');
       return Stream.value(filteredList); // Devuelve un stream con la lista filtrada
     },
-    loading: () => const Stream.empty(), // Devuelve un stream vacío mientras carga
+    loading: () => const Stream.empty(), // Devuelve un stream vacÃ­o mientras carga
     error: (err, stack) {
       print('DEBUG FILTER_PROVIDER ERROR: Error al cargar o filtrar solicitudes: $err');
       return Stream.error(err); // Propaga el error
@@ -64,7 +64,7 @@ final filteredHelpRequestsProvider = StreamProvider<List<QueryDocumentSnapshot>>
   );
 });
 
-// Función de cálculo de distancia (Haversine)
+// FunciÃ³n de cÃ¡lculo de distancia (Haversine)
 double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
   const R = 6371.0; // Radius of Earth in kilometers
 

@@ -1,4 +1,4 @@
-// lib/screens/search_users_screen.dart
+﻿// lib/screens/search_users_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -136,7 +136,7 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
                           itemBuilder: (context, index) {
                             final userData = _users[index].data() as Map<String, dynamic>;
                             final String userId = _users[index].id;
-                            final String name = userData['name'] ?? 'Usuario Anónimo'.tr();
+                            final String name = userData['name'] ?? 'Usuario AnÃ³nimo'.tr();
                             final String? profilePicture = userData['profilePicture'] as String?;
 
                             return Card(

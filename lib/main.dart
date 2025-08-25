@@ -1,67 +1,76 @@
+// lib/main.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // Generado por flutterfire configure
 import 'package:go_router/go_router.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-
-import 'package:eslabon_flutter/firebase_options.dart';
+import 'router/app_router.dart'; // expone: final GoRouter router
+import 'services/notification_service.dart';
+import 'providers/notification_service_provider.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  await EasyLocalization.ensureInitialized();
-  MobileAds.instance.initialize();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ CORRECCIÓN: Configuración de Firebase App Check para producción y depuración
-  if (kDebugMode) {
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.debug,
+    // Inicializa EasyLocalization
+    await EasyLocalization.ensureInitialized();
+
+    // Inicializa Firebase con tus opciones generadas (android/ios/web)
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
     );
-  } else {
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.playIntegrity,
-      appleProvider: AppleProvider.appAttest,
-    );
-  }
 
-  // Se han quitado las llamadas a servicios que daban error.
-  // Podrás agregarlos de nuevo después de que la app compile.
+    // Inicializa Google Mobile Ads
+    await MobileAds.instance.initialize();
 
-  runApp(
-    ProviderScope(
-      child: EasyLocalization(
-        supportedLocales: const [Locale('en', 'US'), Locale('es', 'ES')],
-        path: 'lib/translations',
-        fallbackLocale: const Locale('en', 'US'),
-        child: const MyApp(),
+    runApp(
+      EasyLocalization(
+        supportedLocales: const [Locale('es'), Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('es'),
+        child: const ProviderScope(child: EslabonApp()),
       ),
-    ),
-  );
+    );
+  }, (error, stack) {
+    debugPrint('❌ Error en el arranque: $error');
+    debugPrintStack(stackTrace: stack);
+  });
 }
 
-class MyApp extends ConsumerWidget {
-  const MyApp({super.key});
+class EslabonApp extends ConsumerStatefulWidget {
+  const EslabonApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Se han quitado las llamadas a servicios que daban error.
-    // Solo se deja un tema básico para que compile.
+  ConsumerState<EslabonApp> createState() => _EslabonAppState();
+}
+
+class _EslabonAppState extends ConsumerState<EslabonApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Inicializa y escucha las notificaciones cuando la app arranca
+    final notificationService = ref.read(notificationServiceProvider);
+    notificationService.initialize();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
       title: 'Eslabón',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
       locale: context.locale,
-      // La configuración del router puede estar dando problemas, la quitamos temporalmente
-      // routerConfig: router,
+      supportedLocales: context.supportedLocales,
+      localizationsDelegates: context.localizationDelegates,
+      routerConfig: router,
     );
   }
 }

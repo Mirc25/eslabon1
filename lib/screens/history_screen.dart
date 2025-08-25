@@ -1,4 +1,4 @@
-// lib/screens/history_screen.dart
+﻿// lib/screens/history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -102,7 +102,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final requestData = requests[index].data() as Map<String, dynamic>;
-            final String description = requestData['descripcion'] ?? 'Sin descripción.'.tr();
+            final String description = requestData['descripcion'] ?? 'Sin descripciÃ³n.'.tr();
             final String status = requestData['estado'] ?? 'activa';
             final Timestamp? timestamp = requestData['timestamp'] as Timestamp?;
             final String requestId = requests[index].id;
@@ -184,7 +184,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final requestData = requests[index].data() as Map<String, dynamic>;
-            final String description = requestData['descripcion'] ?? 'Sin descripción.'.tr();
+            final String description = requestData['descripcion'] ?? 'Sin descripciÃ³n.'.tr();
             final String status = requestData['estado'] ?? 'activa';
             final Timestamp? timestamp = requestData['timestamp'] as Timestamp?;
             final String requestId = requests[index].id;

@@ -1,4 +1,4 @@
-// lib/screens/chat_screen.dart
+﻿// lib/screens/chat_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -80,10 +80,10 @@ class _ChatScreenState extends State<ChatScreen> {
           batch.update(doc.reference, {'read': true});
         }
         await batch.commit();
-        print('DEBUG CHAT: Notificaciones de chat marcadas como leídas.');
+        print('DEBUG CHAT: Notificaciones de chat marcadas como leÃ­das.');
       }
     } catch (e) {
-      print('Error al marcar notificaciones como leídas: $e');
+      print('Error al marcar notificaciones como leÃ­das: $e');
     }
   }
 
@@ -121,7 +121,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadChatPartnerAvatarUrl() async {
     if (widget.chatPartnerAvatar != null) {
       try {
-        // CORRECCIÓN: Evitar usar una URL completa como ruta
+        // CORRECCIÃ“N: Evitar usar una URL completa como ruta
         final String imagePath = Uri.parse(widget.chatPartnerAvatar!).pathSegments.sublist(2).join('/');
         final url = await _storage.ref().child(imagePath).getDownloadURL();
         setState(() {
@@ -158,14 +158,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final chatDocRef = _firestore.collection('chats').doc(widget.chatId);
-      // Guardar el mensaje en la subcolección de mensajes
+      // Guardar el mensaje en la subcolecciÃ³n de mensajes
       await chatDocRef.collection('messages').add({
         'senderId': _currentUser!.uid,
         'receiverId': widget.chatPartnerId,
         'text': messageText,
         'timestamp': FieldValue.serverTimestamp(),
       });
-      // Actualizar el último mensaje en el documento principal del chat
+      // Actualizar el Ãºltimo mensaje en el documento principal del chat
       await chatDocRef.update({
         'lastMessage': {
           'text': messageText,
@@ -173,7 +173,7 @@ class _ChatScreenState extends State<ChatScreen> {
           'senderId': _currentUser!.uid,
         },
       });
-      // ✅ LLamada para enviar notificación push al otro usuario
+      // âœ… LLamada para enviar notificaciÃ³n push al otro usuario
       await _appServices.sendChatNotification(
         chatRoomId: widget.chatId,
         senderId: _currentUser!.uid,
@@ -197,7 +197,7 @@ class _ChatScreenState extends State<ChatScreen> {
           backgroundColor: Colors.transparent,
           body: Center(
             child: Text(
-              'Debes iniciar sesión para chatear.',
+              'Debes iniciar sesiÃ³n para chatear.',
               style: TextStyle(color: Colors.white, fontSize: 18),
             ),
           ),
@@ -247,7 +247,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                     return const Center(
-                      child: Text('¡Empieza la conversación!', style: TextStyle(color: Colors.white54)),
+                      child: Text('Â¡Empieza la conversaciÃ³n!', style: TextStyle(color: Colors.white54)),
                     );
                   }
 

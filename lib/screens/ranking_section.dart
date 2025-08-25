@@ -1,4 +1,4 @@
-// lib/screens/ranking_section.dart
+﻿// lib/screens/ranking_section.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
-import '../widgets/spinning_image_loader.dart'; // ✅ AÑADIDO: Importa el widget
+import '../widgets/spinning_image_loader.dart'; // âœ… AÃ‘ADIDO: Importa el widget
 
 class RankingSection extends StatefulWidget {
   const RankingSection({Key? key}) : super(key: key);
@@ -161,7 +161,7 @@ class _RankingSectionState extends State<RankingSection> {
         ),
         Expanded(
           child: _isLoading && _users.isEmpty
-              ? const Center(child: SpinningImageLoader()) // ✅ CORREGIDO: Usando el nuevo widget
+              ? const Center(child: SpinningImageLoader()) // âœ… CORREGIDO: Usando el nuevo widget
               : _users.isEmpty
                   ? Center(child: Text(
                       _searchQuery.isNotEmpty
@@ -179,7 +179,7 @@ class _RankingSectionState extends State<RankingSection> {
                             return const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(8.0),
-                                child: SpinningImageLoader(), // ✅ CORREGIDO: Usando el nuevo widget
+                                child: SpinningImageLoader(), // âœ… CORREGIDO: Usando el nuevo widget
                               ),
                             );
                           } else {
@@ -190,7 +190,7 @@ class _RankingSectionState extends State<RankingSection> {
                         final userData = _users[index].data() as Map<String, dynamic>;
                         final String userId = _users[index].id;
                         final int rank = index + 1;
-                        final String name = userData['name'] ?? 'Usuario Anónimo';
+                        final String name = userData['name'] ?? 'Usuario AnÃ³nimo';
                         final String? profilePicture = userData['profilePicture'] as String?;
                         final double averageRating = (userData['averageRating'] as num? ?? 0.0).toDouble();
                         final int helpedCount = (userData['helpedCount'] as num? ?? 0).toInt();

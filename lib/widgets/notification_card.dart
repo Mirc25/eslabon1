@@ -1,4 +1,4 @@
-// lib/widgets/notification_card.dart
+﻿// lib/widgets/notification_card.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,8 +19,8 @@ class NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String type = notificationData['type'] ?? 'general';
-    final String title = notificationData['title'] ?? 'Nueva Notificación';
-    final String body = notificationData['body'] ?? 'No hay contenido para esta notificación.';
+    final String title = notificationData['title'] ?? 'Nueva NotificaciÃ³n';
+    final String body = notificationData['body'] ?? 'No hay contenido para esta notificaciÃ³n.';
     final Timestamp? timestamp = notificationData['timestamp'] as Timestamp?;
     final bool read = notificationData['read'] ?? false;
 

@@ -1,4 +1,4 @@
-// lib/router/app_router.dart
+﻿// lib/router/app_router.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,13 +22,16 @@ import '../screens/request_detail_screen.dart';
 import '../screens/rate_helper_screen.dart';
 import '../screens/rate_requester_screen.dart';
 import '../screens/chat_screen.dart';
-import '../screens/rate_offer_screen.dart';
 import '../screens/ranking_screen.dart';
 import '../screens/user_profile_view_screen.dart';
 import '../screens/ratings_screen.dart';
 import '../screens/user_rating_details_screen.dart';
 import '../screens/global_chat_screen.dart';
 import '../screens/auth_gate.dart';
+import '../screens/confirm_help_received_screen.dart';
+import '../screens/my_offers_screen.dart';
+import '../screens/about_screen.dart';
+import '../screens/bad_params_screen.dart';
 
 final GoRouter router = GoRouter(
   initialLocation: '/',
@@ -102,8 +105,12 @@ final GoRouter router = GoRouter(
       path: '/request_detail/:requestId',
       name: 'request_detail',
       builder: (context, state) {
-        final requestId = state.pathParameters['requestId']!;
+        final requestId = state.pathParameters['requestId'];
         final extraData = state.extra as Map<String, dynamic>?;
+
+        if (requestId == null) {
+          return const BadParamsScreen(message: 'request_detail: Falta requestId.');
+        }
         return RequestDetailScreen(requestId: requestId, requestData: extraData);
       },
     ),
@@ -111,16 +118,16 @@ final GoRouter router = GoRouter(
       path: '/rate-helper/:requestId',
       name: 'rate-helper',
       builder: (context, state) {
-        final requestId = state.pathParameters['requestId']!;
+        final requestId = state.pathParameters['requestId'];
         final extraData = state.extra as Map<String, dynamic>;
         final helperId = extraData['helperId'] as String?;
         final helperName = extraData['helperName'] as String?;
         final requestData = extraData['requestData'] as Map<String, dynamic>?;
 
-        if (helperId == null || helperName == null) {
-          return const MainScreen();
+        if (requestId == null || helperId == null || helperName == null) {
+          return const BadParamsScreen(message: 'rate-helper: Faltan parámetros (requestId, helperId o helperName).');
         }
-        
+
         return RateHelperScreen(requestId: requestId, helperId: helperId, helperName: helperName, requestData: requestData);
       },
     ),
@@ -128,15 +135,14 @@ final GoRouter router = GoRouter(
       path: '/rate-requester/:requestId',
       name: 'rate-requester',
       builder: (context, state) {
-        final requestId = state.pathParameters['requestId']!;
+        final requestId = state.pathParameters['requestId'];
         final extraData = state.extra as Map<String, dynamic>?;
         final requesterId = extraData?['requesterId'] as String?;
         final requesterName = extraData?['requesterName'] as String?;
-        
-        if (requesterId == null || requesterName == null) {
-          return const MainScreen();
-        }
 
+        if (requestId == null || requesterId == null || requesterName == null) {
+          return const BadParamsScreen(message: 'rate-requester: Faltan parámetros (requestId, requesterId o requesterName).');
+        }
         return RateRequesterScreen(requestId: requestId, requesterId: requesterId, requesterName: requesterName);
       },
     ),
@@ -144,30 +150,21 @@ final GoRouter router = GoRouter(
       path: '/chat/:chatId',
       name: 'chat',
       builder: (context, state) {
-        final chatId = state.pathParameters['chatId']!;
+        final chatId = state.pathParameters['chatId'];
         final extraData = state.extra as Map<String, dynamic>? ?? {};
         final chatPartnerId = extraData['chatPartnerId'] as String?;
         final chatPartnerName = extraData['chatPartnerName'] as String?;
         final chatPartnerAvatar = extraData['chatPartnerAvatar'] as String?;
 
-        if (chatPartnerId == null || chatPartnerName == null) {
-          return const MainScreen();
+        if (chatId == null || chatPartnerId == null || chatPartnerName == null) {
+          return const BadParamsScreen(message: 'chat: Faltan parámetros (chatId, chatPartnerId o chatPartnerName).');
         }
-
         return ChatScreen(
           chatId: chatId,
           chatPartnerId: chatPartnerId,
           chatPartnerName: chatPartnerName,
           chatPartnerAvatar: chatPartnerAvatar,
         );
-      },
-    ),
-    GoRoute(
-      path: '/rate-offer/:requestId/:helperId',
-      builder: (context, state) {
-        final requestId = state.pathParameters['requestId']!;
-        final helperId = state.pathParameters['helperId']!;
-        return RateOfferScreen(requestId: requestId, helperId: helperId);
       },
     ),
     GoRoute(
@@ -178,12 +175,15 @@ final GoRouter router = GoRouter(
       path: '/user_profile_view/:userId',
       name: 'user_profile_view',
       builder: (context, state) {
-        final userId = state.pathParameters['userId']!;
+        final userId = state.pathParameters['userId'];
         final extraData = state.extra as Map<String, dynamic>?;
         final userName = extraData?['userName'] as String?;
         final userPhotoUrl = extraData?['userPhotoUrl'] as String?;
         final message = extraData?['message'] as String?;
-        
+
+        if (userId == null) {
+          return const BadParamsScreen(message: 'user_profile_view: Falta userId.');
+        }
         return UserProfileViewScreen(
           userId: userId,
           userName: userName,
@@ -201,8 +201,11 @@ final GoRouter router = GoRouter(
       path: '/user_rating_details/:userId',
       name: 'user_rating_details',
       builder: (context, state) {
-        final userId = state.pathParameters['userId']!;
+        final userId = state.pathParameters['userId'];
         final userName = state.extra as String?;
+        if (userId == null) {
+          return const BadParamsScreen(message: 'user_rating_details: Falta userId.');
+        }
         return UserRatingDetailsScreen(userId: userId, userName: userName);
       },
     ),
@@ -210,6 +213,27 @@ final GoRouter router = GoRouter(
       path: '/global_chat',
       name: 'global_chat',
       builder: (context, state) => const GlobalChatScreen(),
+    ),
+    GoRoute(
+      path: '/my_offers',
+      name: 'my_offers',
+      builder: (context, state) => const MyOffersScreen(),
+    ),
+    GoRoute(
+      path: '/about',
+      name: 'about',
+      builder: (context, state) => const AboutScreen(),
+    ),
+    GoRoute(
+      path: '/confirm-help-received',
+      name: 'confirm-help-received',
+      builder: (context, state) {
+        final requestData = state.extra as Map<String, dynamic>?;
+        if (requestData == null) {
+          return const BadParamsScreen(message: 'confirm-help-received: Falta requestData.');
+        }
+        return ConfirmHelpReceivedScreen(requestData: requestData);
+      },
     ),
   ],
 );

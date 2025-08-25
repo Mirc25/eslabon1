@@ -1,4 +1,4 @@
-// lib/widgets/custom_background.dart
+﻿// lib/widgets/custom_background.dart
 import 'package:flutter/material.dart';
 
 class CustomBackground extends StatelessWidget {
@@ -34,7 +34,7 @@ class CustomBackground extends StatelessWidget {
               ),
             ),
           ),
-          // ✅ ELIMINADO: La lógica del logo ya no está aquí.
+          // âœ… ELIMINADO: La lÃ³gica del logo ya no estÃ¡ aquÃ­.
           child, // El contenido de la pantalla
           if (showAds)
             Positioned(

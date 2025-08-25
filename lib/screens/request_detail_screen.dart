@@ -10,12 +10,15 @@ import 'package:go_router/go_router.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/utils/firestore_utils.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/widgets/banner_ad_widget.dart';
+import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
+import '../widgets/custom_app_bar.dart';
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -59,30 +62,38 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (RewardedAd ad) {
-          setState(() {
-            _rewardedAd = ad;
-            _isRewardedAdLoaded = true;
-          });
+          if (mounted) {
+            setState(() {
+              _rewardedAd = ad;
+              _isRewardedAdLoaded = true;
+            });
+          }
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
               _rewardedAd = null;
               _isRewardedAdLoaded = false;
-              _goToChat(widget.requestData!['userId'], widget.requestData!['requesterName'], widget.requestData!['profilePicture']);
+              if (widget.requestData != null) {
+                _goToChat(widget.requestData!['userId']?.toString() ?? 'error', widget.requestData!['requesterName']?.toString() ?? 'Usuario Anónimo', widget.requestData!['profilePicture']?.toString());
+              }
             },
             onAdFailedToShowFullScreenContent: (ad, error) {
               ad.dispose();
               _rewardedAd = null;
               _isRewardedAdLoaded = false;
               print('❌ Error al mostrar RewardedAd: $error');
-              _goToChat(widget.requestData!['userId'], widget.requestData!['requesterName'], widget.requestData!['profilePicture']);
+              if (widget.requestData != null) {
+                _goToChat(widget.requestData!['userId']?.toString() ?? 'error', widget.requestData!['requesterName']?.toString() ?? 'Usuario Anónimo', widget.requestData!['profilePicture']?.toString());
+              }
             },
           );
         },
         onAdFailedToLoad: (LoadAdError error) {
-          setState(() {
-            _isRewardedAdLoaded = false;
-          });
+          if (mounted) {
+            setState(() {
+              _isRewardedAdLoaded = false;
+            });
+          }
           print('❌ Error al cargar RewardedAd: $error');
         },
       ),
@@ -167,19 +178,19 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: Colors.grey[900],
-          title: const Text('¿Estás seguro de ofrecer ayuda?', style: TextStyle(color: Colors.white)),
-          content: const Text(
-            'Al aceptar, te comprometes a intentar ayudar a esta persona. Recuerda que tu ayuda será calificada, lo cual puede influir en tu reputación.',
-            style: TextStyle(color: Colors.white70),
+          title: Text('¿Estás seguro de ofrecer ayuda?'.tr(), style: const TextStyle(color: Colors.white)),
+          content: Text(
+            'Al aceptar, te comprometes a intentar ayudar a esta persona. Recuerda que tu ayuda será calificada, lo cual puede influir en tu reputación.'.tr(),
+            style: const TextStyle(color: Colors.white70),
           ),
           actions: <Widget>[
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false), 
-              child: const Text('Cerrar', style: TextStyle(color: Colors.white70)),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text('Cerrar'.tr(), style: const TextStyle(color: Colors.white70)),
             ),
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true), 
-              child: const Text('Aceptar', style: TextStyle(color: Colors.amber)),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text('Aceptar'.tr(), style: const TextStyle(color: Colors.amber)),
             ),
           ],
         );
@@ -194,42 +205,42 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   Future<void> _handleOfferHelp(Map<String, dynamic> requestData) async {
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      _showSnackBar('Debes iniciar sesión para ofrecer ayuda.', Colors.red);
+      _showSnackBar('Debes iniciar sesión para ofrecer ayuda.'.tr(), Colors.red);
       return;
     }
 
-    final String requesterUserId = requestData['userId'] as String? ?? '';
+    final String requesterUserId = requestData['userId']?.toString() ?? '';
 
     if (currentUser.uid == requesterUserId) {
-      _showSnackBar('No puedes ofrecerte ayuda a ti mismo.', Colors.orange);
+      _showSnackBar('No puedes ofrecerte ayuda a ti mismo.'.tr(), Colors.orange);
       return;
     }
 
     if (_hasOfferedHelp) {
-      _showSnackBar('Ya has ofrecido ayuda para esta solicitud.', Colors.orange);
+      _showSnackBar('Ya has ofrecido ayuda para esta solicitud.'.tr(), Colors.orange);
       return;
     }
 
     try {
       final DocumentSnapshot helperProfile = await _firestore.collection('users').doc(currentUser.uid).get();
-      final Map<String, dynamic> helperData = helperProfile.data() as Map<String, dynamic>? ?? {};
+      final Map<String, dynamic> helperData = (helperProfile.data() as Map<String, dynamic>?) ?? {};
 
-      final String helperName = helperData['name'] ?? currentUser.displayName ?? 'Ayudador';
-      final String? helperAvatarPath = helperData['profilePicture'] as String?;
+      final String helperName = helperData['name']?.toString() ?? currentUser.displayName ?? 'Ayudador';
+      final String? helperAvatarPath = helperData['profilePicture']?.toString();
 
-      final String requestTitle = requestData['titulo'] as String? ?? requestData['descripcion'] as String? ?? 'Solicitud de ayuda';
+      final String requestTitle = requestData['titulo']?.toString() ?? requestData['descripcion']?.toString() ?? 'Solicitud de ayuda';
 
       await _firestore
           .collection('solicitudes-de-ayuda')
           .doc(widget.requestId)
           .collection('offers')
           .add({
-        'helperId': currentUser.uid, 
+        'helperId': currentUser.uid,
         'helperName': helperName,
         'mensaje': 'El usuario $helperName ha ofrecido ayuda.',
         'timestamp': FieldValue.serverTimestamp(),
         'helperAvatarUrl': helperAvatarPath,
-        'requesterId': requesterUserId, 
+        'requesterId': requesterUserId,
       });
 
       await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
@@ -252,25 +263,25 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           _hasOfferedHelp = true;
         });
       }
-      _showSnackBar('¡Has ofrecido ayuda con éxito! El solicitante ha sido notificado.', Colors.green);
+      _showSnackBar('¡Has ofrecido ayuda con éxito! El solicitante ha sido notificado.'.tr(), Colors.green);
 
     } on FirebaseException catch (e) {
       print("Error al ofrecer ayuda: $e");
-      _showSnackBar('Error de Firebase al ofrecer ayuda: ${e.message}', Colors.red);
+      _showSnackBar('Error de Firebase al ofrecer ayuda: ${e.message}'.tr(), Colors.red);
     } catch (e) {
       print("Error inesperado al ofrecer ayuda: $e");
-      _showSnackBar('Ocurrió un error inesperado al ofrecer ayuda.', Colors.red);
+      _showSnackBar('Ocurrió un error inesperado al ofrecer ayuda.'.tr(), Colors.red);
     }
   }
   
   void _startChat(String chatPartnerId, String chatPartnerName, String? chatPartnerAvatar) async {
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      _showSnackBar('Debes iniciar sesión para chatear.', Colors.red);
+      _showSnackBar('Debes iniciar sesión para chatear.'.tr(), Colors.red);
       return;
     }
     if (currentUser.uid == chatPartnerId) {
-      _showSnackBar('No puedes chatear contigo mismo.', Colors.orange);
+      _showSnackBar('No puedes chatear contigo mismo.'.tr(), Colors.orange);
       return;
     }
     
@@ -297,9 +308,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
       DocumentSnapshot? chatDoc;
       for (var doc in existingChat.docs) {
-        final participants = doc.data() as Map<String, dynamic>;
-        final List<dynamic> participantsList = participants['participants'];
-        if (participantsList.contains(chatPartnerId)) {
+        final participants = doc.data() as Map<String, dynamic>?;
+        final List<dynamic>? participantsList = participants?['participants'];
+        if (participantsList != null && participantsList.contains(chatPartnerId)) {
           chatDoc = doc;
           break;
         }
@@ -330,26 +341,26 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       }
     } catch (e) {
       print("Error starting chat: $e");
-      _showSnackBar('Error al iniciar el chat.', Colors.red);
+      _showSnackBar('Error al iniciar el chat.'.tr(), Colors.red);
     }
   }
 
   Future<void> _addComment(String requestId, String commentText) async {
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null || commentText.trim().isEmpty) {
-      _showSnackBar('Debes iniciar sesión para comentar y el comentario no puede estar vacío.', Colors.red);
+      _showSnackBar('Debes iniciar sesión para comentar y el comentario no puede estar vacío.'.tr(), Colors.red);
       return;
     }
 
     try {
       await _appServices.addComment(context, requestId, commentText);
-      _showSnackBar('Comentario enviado.', Colors.green);
+      _showSnackBar('Comentario enviado.'.tr(), Colors.green);
     } on FirebaseException catch (e) {
       print("Error adding comment: $e");
-      _showSnackBar('Error de Firebase al enviar comentario: ${e.message}', Colors.red);
+      _showSnackBar('Error de Firebase al enviar comentario: ${e.message}'.tr(), Colors.red);
     } catch (e) {
       print("Unexpected error adding comment: $e");
-      _showSnackBar('Ocurrió un error inesperado al enviar el comentario.', Colors.red);
+      _showSnackBar('Ocurrió un error inesperado al enviar el comentario.'.tr(), Colors.red);
     } finally {
       _commentControllers[requestId]?.clear();
     }
@@ -378,7 +389,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               children: [
                 AppBar(
                   backgroundColor: Colors.grey[850],
-                  title: const Text('Comentarios', style: TextStyle(color: Colors.white)),
+                  title: Text('Comentarios'.tr(), style: const TextStyle(color: Colors.white)),
                   leading: IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.pop(modalContext),
@@ -400,15 +411,15 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         return const Center(child: CircularProgressIndicator(color: Colors.amber));
                       }
 
-                      final List<Map<String, dynamic>> comments = commentSnapshot.data!.docs
+                      final List<Map<String, dynamic>> comments = commentSnapshot.data?.docs
                           .map((doc) => doc.data() as Map<String, dynamic>)
-                          .toList();
+                          .toList() ?? [];
 
                       if (comments.isEmpty) {
-                        return const Center(
+                        return Center(
                           child: Text(
-                            'Sé el primero en comentar.',
-                            style: TextStyle(color: Colors.white54, fontSize: 16),
+                            'Sé el primero en comentar.'.tr(),
+                            style: const TextStyle(color: Colors.white54, fontSize: 16),
                             textAlign: TextAlign.center,
                           ),
                         );
@@ -419,9 +430,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         reverse: true,
                         itemBuilder: (context, index) {
                           final comment = comments[index];
-                          final String commentUser = comment['userName'] ?? 'Usuario';
-                          final String commentText = comment['text'] ?? 'Sin comentario';
-                          final String? userAvatar = comment['userAvatar'] as String?;
+                          final String commentUser = comment['userName']?.toString() ?? 'Usuario'.tr();
+                          final String commentText = comment['text']?.toString() ?? 'Sin comentario'.tr();
+                          final String? userAvatar = comment['userAvatar']?.toString();
                           final dynamic commentTimestampData = comment['timestamp'];
                           final Timestamp? commentTimestamp = commentTimestampData is Timestamp ? commentTimestampData : null;
 
@@ -461,7 +472,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                                           ),
                                           Text(
                                             formattedTime,
-                                            style: TextStyle(fontSize: 10, color: Colors.white54),
+                                            style: const TextStyle(fontSize: 10, color: Colors.white54),
                                           ),
                                         ],
                                       ),
@@ -490,8 +501,8 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                             controller: commentController,
                             style: const TextStyle(color: Colors.white, fontSize: 14),
                             decoration: InputDecoration(
-                              hintText: 'Escribe un comentario...',
-                              hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
+                              hintText: 'Escribe un comentario...'.tr(),
+                              hintStyle: const TextStyle(color: Colors.white54, fontSize: 14),
                               filled: true,
                               fillColor: Colors.grey[800],
                               border: OutlineInputBorder(
@@ -520,11 +531,11 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     ),
                   ),
                 if (currentUser == null)
-                  const Padding(
-                    padding: EdgeInsets.all(16.0),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
                     child: Text(
-                      'Inicia sesión para comentar en esta publicación.',
-                      style: TextStyle(color: Colors.white54, fontSize: 14),
+                      'Inicia sesión para comentar en esta publicación.'.tr(),
+                      style: const TextStyle(color: Colors.white54, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -552,12 +563,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                 child: Image.network(
                   imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => Center(
+                  errorBuilder: (context, error, stackTrace) => const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.broken_image, color: Colors.white54, size: 100),
-                        const SizedBox(height: 10),
+                        Icon(Icons.broken_image, color: Colors.white54, size: 100),
+                        SizedBox(height: 10),
                         Text('Error al cargar imagen', style: TextStyle(color: Colors.white54)),
                       ],
                     ),
@@ -586,7 +597,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           return const Row(children: [Icon(Icons.comment, color: Colors.grey, size: 18), SizedBox(width: 4), Text('...', style: TextStyle(fontSize: 10, color: Colors.grey))]);
         }
 
-        final int commentsCount = commentSnapshot.data!.docs.length;
+        final int commentsCount = commentSnapshot.data?.docs.length ?? 0;
 
         return GestureDetector(
           onTap: () => _showCommentsModal(requestId),
@@ -622,7 +633,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Detalles de la Solicitud', style: TextStyle(color: Colors.white)),
+        title: Text('Detalles de la Solicitud'.tr(), style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.grey[900],
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -634,10 +645,10 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               return const Center(child: CircularProgressIndicator(color: Colors.amber));
             }
             if (snapshot.hasError) {
-              return Center(child: Text('Error al cargar la solicitud: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+              return Center(child: Text('Error al cargar la solicitud: ${snapshot.error}'.tr(), style: const TextStyle(color: Colors.red)));
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('Solicitud no encontrada.', style: TextStyle(color: Colors.white)));
+              return Center(child: Text('Solicitud no encontrada.'.tr(), style: const TextStyle(color: Colors.white)));
             }
 
             final requestData = snapshot.data!;
@@ -650,7 +661,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
   Widget _buildBodyWithData(BuildContext context, Map<String, dynamic> requestData) {
     final firebase_auth.User? currentUser = _auth.currentUser;
-    final String requesterUserId = requestData['userId'] as String? ?? '';
+    final String requesterUserId = requestData['userId']?.toString() ?? '';
 
     return StreamBuilder<DocumentSnapshot>(
       stream: _firestore.collection('users').doc(requesterUserId).snapshots(),
@@ -659,38 +670,41 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           return const Center(child: CircularProgressIndicator(color: Colors.amber));
         }
         if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
-          return const Center(child: Text('Error al cargar los datos del solicitante.', style: TextStyle(color: Colors.red)));
+          return Center(child: Text('Error al cargar los datos del solicitante.'.tr(), style: const TextStyle(color: Colors.red)));
         }
 
-        final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+        final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+        if (userData == null) {
+          return Center(child: Text('Error al cargar los datos del solicitante.'.tr(), style: const TextStyle(color: Colors.red)));
+        }
 
-        final String requesterName = userData['name'] as String? ?? 'Usuario Anónimo';
-        final String? requesterAvatarPath = userData['profilePicture'] as String?;
-        final String requesterPhone = userData['phone'] as String? ?? 'N/A';
-        final String requesterEmail = userData['email'] as String? ?? 'N/A';
-        final String requesterAddress = userData['address'] as String? ?? 'No especificada';
+        final String requesterName = userData['name']?.toString() ?? 'Usuario Anónimo'.tr();
+        final String? requesterAvatarPath = userData['profilePicture']?.toString();
+        final String requesterPhone = userData['phone']?.toString() ?? 'N/A';
+        final String requesterEmail = userData['email']?.toString() ?? 'N/A';
+        final String requesterAddress = userData['address']?.toString() ?? 'No especificada'.tr();
         
-        final String? birthDay = (userData['birthDay'] as num?)?.toString();
-        final String? birthMonth = (userData['birthMonth'] as num?)?.toString().padLeft(2, '0');
-        final String? birthYear = (userData['birthYear'] as num?)?.toString();
+        final String? birthDay = (userData['birthDay'] as num?)?.toInt().toString();
+        final String? birthMonth = (userData['birthMonth'] as num?)?.toInt().toString().padLeft(2, '0');
+        final String? birthYear = (userData['birthYear'] as num?)?.toInt().toString();
         final String requesterDOB = (birthDay != null && birthMonth != null && birthYear != null)
             ? '$birthDay/$birthMonth/$birthYear'
-            : 'No especificada';
+            : 'No especificada'.tr();
         
-        final String requesterProvincia = userData['province'] as String? ?? 'No especificada';
-        final String requesterCountry = userData['country']?['name'] as String? ?? 'No especificado';
+        final String requesterProvincia = userData['province']?.toString() ?? 'No especificada'.tr();
+        final String requesterCountry = userData['country']?['name']?.toString() ?? 'No especificado'.tr();
         
         final dynamic memberSinceTimestamp = userData['createdAt'];
         final String memberSince = memberSinceTimestamp != null ? DateFormat('dd/MM/yyyy').format((memberSinceTimestamp as Timestamp).toDate()) : 'N/A';
         final int helpedCount = (userData['helpedCount'] as num? ?? 0).toInt();
         final int receivedHelpCount = (userData['receivedHelpCount'] as num? ?? 0).toInt();
 
-        final bool showWhatsapp = requestData['showWhatsapp'] as bool? ?? false;
-        final bool showEmail = requestData['showEmail'] as bool? ?? false;
-        final bool showAddress = requestData['showAddress'] as bool? ?? false;
+        final bool showWhatsapp = (requestData['showWhatsapp'] as bool?) ?? false;
+        final bool showEmail = (requestData['showEmail'] as bool?) ?? false;
+        final bool showAddress = (requestData['showAddress'] as bool?) ?? false;
         
-        final String requestDescription = requestData['descripcion'] ?? 'Sin descripción';
-        final String requestDetail = requestData['detalle'] ?? 'Sin detalles';
+        final String requestDescription = requestData['descripcion']?.toString() ?? 'Sin descripción'.tr();
+        final String requestDetail = requestData['detalle']?.toString() ?? 'Sin detalles'.tr();
         final dynamic timestampData = requestData['timestamp'];
         final Timestamp timestamp = timestampData is Timestamp ? timestampData : Timestamp.now();
         final DateTime requestTime = timestamp.toDate();
@@ -699,7 +713,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
         String timeRemainingText;
         if (remainingTime.isNegative) {
-          timeRemainingText = 'Expirada';
+          timeRemainingText = 'Expirada'.tr();
         } else {
           final hours = remainingTime.inHours;
           final minutes = remainingTime.inMinutes.remainder(60);
@@ -707,7 +721,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         }
 
         Color priorityColor = Colors.grey;
-        switch (requestData['prioridad'] as String?) {
+        switch (requestData['prioridad']?.toString()) {
           case 'alta':
             priorityColor = Colors.redAccent;
             break;
@@ -726,16 +740,16 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         dynamic rawImages = requestData['imagenes'];
         if (rawImages != null) {
           if (rawImages is List) {
-            imagePaths = List<String>.from(rawImages.where((item) => item is String));
+            imagePaths = List<String>.from(rawImages.where((item) => item is String).map((e) => e.toString()));
           } else if (rawImages is String && rawImages.isNotEmpty) {
-            imagePaths = [rawImages];
+            imagePaths = [rawImages.toString()];
           }
         }
         String? imagePathToDisplay = imagePaths.isNotEmpty ? imagePaths.first : null;
 
         final double? latitude = (requestData['latitude'] as num?)?.toDouble();
         final double? longitude = (requestData['longitude'] as num?)?.toDouble();
-        final bool hasDetails = requestDetail != null && requestDetail.isNotEmpty && requestDetail != 'Sin detalles';
+        final bool hasDetails = requestDetail.isNotEmpty && requestDetail != 'Sin detalles'.tr();
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -789,14 +803,14 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                                     fromRequesters: false,
                                   ),
                                   Text(
-                                    '${requestData['localidad'] as String? ?? 'Desconocida'}, $requesterProvincia, $requesterCountry',
-                                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                                    '${requestData['localidad']?.toString() ?? 'Desconocida'.tr()}, $requesterProvincia, $requesterCountry',
+                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   Text(
-                                    'Categoría: ${requestData['categoria'] as String? ?? 'N/A'}',
-                                    style: TextStyle(
+                                    'Categoría: ${requestData['categoria']?.toString() ?? 'N/A'}',
+                                    style: const TextStyle(
                                         color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.w600),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -809,16 +823,16 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         const SizedBox(height: 8),
                         if (currentUser?.uid == requesterUserId || showWhatsapp || showEmail || showAddress) ...[
                           const Divider(height: 16, thickness: 0.5, color: Colors.grey),
-                          const Text('Información de Contacto:', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                          Text('Información de Contacto:'.tr(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
                           const SizedBox(height: 8),
                           if (currentUser?.uid == requesterUserId || showWhatsapp)
-                            Text('Teléfono: $requesterPhone', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text('Teléfono: $requesterPhone'.tr(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
                           if (currentUser?.uid == requesterUserId || showEmail)
-                            Text('Email: $requesterEmail', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text('Email: $requesterEmail'.tr(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
                           if (currentUser?.uid == requesterUserId || showAddress)
-                            Text('Dirección: $requesterAddress', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text('Dirección: $requesterAddress'.tr(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
                           if (currentUser?.uid == requesterUserId || showAddress)
-                            Text('Fecha Nacimiento: $requesterDOB', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text('Fecha Nacimiento: $requesterDOB'.tr(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
                           const SizedBox(height: 8),
                         ],
                       ],
@@ -834,13 +848,13 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
-                              'Prioridad ${requestData['prioridad'] as String? ?? 'N/A'}',
+                              'Prioridad ${requestData['prioridad']?.toString() ?? 'N/A'}'.tr(),
                           style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Expira en $timeRemainingText',
+                        'Expira en $timeRemainingText'.tr(),
                         style: TextStyle(
                             color: remainingTime.isNegative ? Colors.red : Colors.lightGreenAccent,
                             fontSize: 12),
@@ -859,7 +873,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         final imageUrl = await _storage.ref().child(imagePathToDisplay).getDownloadURL();
                         _showImageFullScreen(context, imageUrl);
                       } catch (e) {
-                        _showSnackBar('Error al cargar la imagen. Intenta de nuevo.', Colors.red);
+                        _showSnackBar('Error al cargar la imagen. Intenta de nuevo.'.tr(), Colors.red);
                       }
                     }
                   },
@@ -912,12 +926,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                 ),
 
               Text(
-                'Descripción: ${requestData['descripcion'] as String? ?? 'Sin descripción'}',
+                'Descripción: ${requestData['descripcion']?.toString() ?? 'Sin descripción'.tr()}',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               const SizedBox(height: 8),
               Text(
-                requestData['detalle'] as String? ?? 'Sin detalles adicionales.',
+                requestData['detalle']?.toString() ?? 'Sin detalles adicionales.'.tr(),
                 style: const TextStyle(fontSize: 14, color: Colors.white70),
               ),
               const SizedBox(height: 24),
@@ -929,15 +943,15 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     IconButton(
                       icon: const Icon(Icons.location_on, color: Colors.blue, size: 28),
                       onPressed: () => _appServices.launchMap(context, latitude, longitude),
-                      tooltip: 'Ver mapa',
+                      tooltip: 'Ver mapa'.tr(),
                     ),
-                  if (showWhatsapp && requesterPhone.isNotEmpty)
+                  if (showWhatsapp && requesterPhone.isNotEmpty && requesterPhone != 'N/A')
                     IconButton(
                       icon: const Icon(FontAwesomeIcons.whatsapp, color: Colors.green, size: 28),
                       onPressed: () => _appServices.launchWhatsapp(context, requesterPhone),
-                      tooltip: 'WhatsApp',
+                      tooltip: 'WhatsApp'.tr(),
                     ),
-                  if (showEmail && requesterEmail.isNotEmpty)
+                  if (showEmail && requesterEmail.isNotEmpty && requesterEmail != 'N/A')
                     IconButton(
                       icon: const Icon(Icons.email, color: Colors.blueAccent, size: 28),
                       onPressed: () async {
@@ -949,10 +963,10 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         if (await canLaunchUrl(emailLaunchUri)) {
                           await launchUrl(emailLaunchUri);
                         } else {
-                          _showSnackBar('No se pudo abrir el correo.', Colors.red);
+                          _showSnackBar('No se pudo abrir el correo.'.tr(), Colors.red);
                         }
                       },
-                      tooltip: 'Email',
+                      tooltip: 'Email'.tr(),
                     ),
                 ],
               ),
@@ -962,15 +976,15 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Miembro desde: $memberSince',
+                    'Miembro desde: $memberSince'.tr(),
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                   Text(
-                    'Ayudó a ${helpedCount.toString().padLeft(4, '0')} Personas',
+                    'Ayudó a ${helpedCount.toString().padLeft(4, '0')} Personas'.tr(),
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                   Text(
-                    'Recibió Ayuda de ${receivedHelpCount.toString().padLeft(4, '0')} Personas',
+                    'Recibió Ayuda de ${receivedHelpCount.toString().padLeft(4, '0')} Personas'.tr(),
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
@@ -984,7 +998,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     ElevatedButton.icon(
                       onPressed: () => _startChat(requesterUserId, requesterName, requesterAvatarPath),
                       icon: const Icon(Icons.chat_bubble_outline, color: Colors.black),
-                      label: const Text('Iniciar Chat', style: TextStyle(fontSize: 14, color: Colors.black)),
+                      label: Text('Iniciar Chat'.tr(), style: const TextStyle(fontSize: 14, color: Colors.black)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.amber,
                         foregroundColor: Colors.black,
@@ -996,7 +1010,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       onPressed: _hasOfferedHelp ? null : () => _showOfferHelpConfirmation(requestData),
                       icon: const Icon(Icons.handshake_outlined, color: Colors.black),
                       label: Text(
-                        _hasOfferedHelp ? 'Ayuda Ofrecida' : 'Ofrecer Ayuda',
+                        _hasOfferedHelp ? 'Ayuda Ofrecida'.tr() : 'Ofrecer Ayuda'.tr(),
                         style: const TextStyle(fontSize: 14, color: Colors.black),
                       ),
                       style: ElevatedButton.styleFrom(

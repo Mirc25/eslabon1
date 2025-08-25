@@ -1,4 +1,4 @@
-// lib/screens/auth_gate.dart
+﻿// lib/screens/auth_gate.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
@@ -24,12 +24,12 @@ class _AuthGateState extends State<AuthGate> {
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
         });
-        debugPrint('✅ Token FCM guardado correctamente en AuthGate: $token');
+        debugPrint('âœ… Token FCM guardado correctamente en AuthGate: $token');
       } else {
-        debugPrint('⚠️ No se pudo obtener el token FCM en AuthGate.');
+        debugPrint('âš ï¸ No se pudo obtener el token FCM en AuthGate.');
       }
     } catch (e) {
-      debugPrint('❌ Error guardando token FCM en AuthGate: $e');
+      debugPrint('âŒ Error guardando token FCM en AuthGate: $e');
     }
   }
 
@@ -53,7 +53,7 @@ class _AuthGateState extends State<AuthGate> {
           return const SizedBox.shrink();
         }
 
-        // Si el usuario no ha iniciado sesión, redirigir a la pantalla de inicio (Home)
+        // Si el usuario no ha iniciado sesiÃ³n, redirigir a la pantalla de inicio (Home)
         Future.microtask(() => context.go('/home'));
         return const SizedBox.shrink();
       },

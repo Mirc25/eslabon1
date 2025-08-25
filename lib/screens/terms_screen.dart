@@ -1,4 +1,4 @@
-// lib/screens/terms_screen.dart
+﻿// lib/screens/terms_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -26,7 +26,7 @@ class TermsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Título y Jurisdicción
+              // TÃ­tulo y JurisdicciÃ³n
               Text(
                 'terminos_de_uso_titulo'.tr(),
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
@@ -43,7 +43,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Aceptación del Contrato
+              // AceptaciÃ³n del Contrato
               _buildSectionTitle('aceptacion_contrato_titulo'.tr()),
               Text(
                 'aceptacion_contrato_texto'.tr(),
@@ -51,7 +51,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Identificación de las Partes
+              // IdentificaciÃ³n de las Partes
               _buildSectionTitle('identificacion_partes_titulo'.tr()),
               Text(
                 'prestador_servicio'.tr(),
@@ -64,7 +64,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Objeto de la Aplicación
+              // Objeto de la AplicaciÃ³n
               _buildSectionTitle('objeto_app_titulo'.tr()),
               Text(
                 'objeto_app_texto'.tr(),
@@ -117,7 +117,7 @@ class TermsScreen extends StatelessWidget {
               ]),
               const SizedBox(height: 16),
 
-              // Geolocalización
+              // GeolocalizaciÃ³n
               _buildSectionTitle('geolocalizacion_titulo'.tr()),
               Text(
                 'geolocalizacion_texto'.tr(),
@@ -149,7 +149,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Exención de Responsabilidad
+              // ExenciÃ³n de Responsabilidad
               _buildSectionTitle('exencion_responsabilidad_titulo'.tr()),
               Text(
                 'sin_control_ayudas'.tr(),
@@ -162,7 +162,7 @@ class TermsScreen extends StatelessWidget {
               ]),
               const SizedBox(height: 16),
               
-              // Exposición de Datos
+              // ExposiciÃ³n de Datos
               _buildSectionTitle('exposicion_datos_titulo'.tr()),
               Text(
                 'datos_visibles_texto'.tr(),
@@ -174,7 +174,7 @@ class TermsScreen extends StatelessWidget {
               ]),
               const SizedBox(height: 16),
 
-              // Prohibición de Contacto con Menores
+              // ProhibiciÃ³n de Contacto con Menores
               _buildSectionTitle('prohibicion_menores_titulo'.tr()),
               _buildBulletedList([
                 'prohibicion_menores_lista_1'.tr(),
@@ -191,7 +191,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Protección de Datos Personales
+              // ProtecciÃ³n de Datos Personales
               _buildSectionTitle('proteccion_datos_titulo'.tr()),
               Text(
                 'ley_datos_personales'.tr(),
@@ -211,7 +211,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Seguridad de la Información
+              // Seguridad de la InformaciÃ³n
               _buildSectionTitle('seguridad_informacion_titulo'.tr()),
               Text(
                 'seguridad_informacion_texto'.tr(),
@@ -227,7 +227,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Cambios en los Términos
+              // Cambios en los TÃ©rminos
               _buildSectionTitle('cambios_terminos_titulo'.tr()),
               Text(
                 'cambios_terminos_texto'.tr(),
@@ -235,7 +235,7 @@ class TermsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Jurisdicción Final
+              // JurisdicciÃ³n Final
               _buildSectionTitle('jurisdiccion_final_titulo'.tr()),
               Text(
                 'jurisdiccion_final_texto'.tr(),
@@ -289,7 +289,7 @@ class TermsScreen extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('• ', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                const Text('â€¢ ', style: TextStyle(fontSize: 16, color: Colors.white70)),
                 Expanded(
                   child: Text(item, style: const TextStyle(fontSize: 16, color: Colors.white70)),
                 ),

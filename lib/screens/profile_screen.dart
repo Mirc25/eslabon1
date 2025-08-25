@@ -115,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userLongitude = position.longitude;
       });
     } catch (e) {
-      print("Error al obtener ubicación: $e");
+      print("Error al obtener ubicaciÃ³n: $e");
     }
   }
 
@@ -176,7 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       print("Error loading profile data: $e");
-      _showErrorDialog('Error al cargar la información de tu perfil. Intenta de nuevo.');
+      _showErrorDialog('Error al cargar la informaciÃ³n de tu perfil. Intenta de nuevo.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -210,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<String?> _uploadImage() async {
     if (currentUser == null) {
-      _showErrorDialog('Debes iniciar sesión para subir una imagen de perfil.');
+      _showErrorDialog('Debes iniciar sesiÃ³n para subir una imagen de perfil.');
       return null;
     }
     
@@ -227,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return null;
     } catch (e) {
       print("Unexpected error uploading image: $e");
-      _showErrorDialog('Ocurrió un error inesperado al subir la imagen.');
+      _showErrorDialog('OcurriÃ³ un error inesperado al subir la imagen.');
       return null;
     }
   }
@@ -286,13 +286,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
     } on FirebaseAuthException catch (e) {
-        _showErrorDialog('Error de autenticación: ${e.message}. Por favor, vuelve a iniciar sesión si el problema persiste.');
+        _showErrorDialog('Error de autenticaciÃ³n: ${e.message}. Por favor, vuelve a iniciar sesiÃ³n si el problema persiste.');
     } on FirebaseException catch (e) {
       print("Error saving profile: $e");
       _showErrorDialog('Error al guardar el perfil: ${e.message}');
     } catch (e) {
       print("Unexpected error saving profile: $e");
-      _showErrorDialog('Ocurrió un error inesperado al guardar el perfil.');
+      _showErrorDialog('OcurriÃ³ un error inesperado al guardar el perfil.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -324,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {bool isReadOnly = false, TextInputType keyboardType = TextInputType.text, String? initialValue, String? customLabelText}) {
+  Widget _buildTextField(String label, TextEditingController controller, {bool isReadOnly = false, TextInputType keyboardType = TextInputType.text, String? customLabelText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(

@@ -7,13 +7,12 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/> 
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="Eslabón"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"> 
+        android:icon="@mipmap/ic_launcher">
         
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
@@ -57,18 +56,18 @@
 
     <queries>
         <package android:name="com.whatsapp" />
-        <package android:name="com.whatsapp.w4b" /> 
+        <package android:name="com.whatsapp.w4b" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="geo" />
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="http" android:host="maps.google.com" />
+            <data android:scheme="http" android:host="googleusercontent.com/maps.google.com/0" />
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="https" android:host="maps.google.com" />
+            <data android:scheme="https" android:host="googleusercontent.com/maps.google.com/0" />
         </intent>
 
         <intent>

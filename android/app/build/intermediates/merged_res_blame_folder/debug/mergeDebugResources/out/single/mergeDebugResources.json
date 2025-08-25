@@ -1,0 +1,34 @@
+[
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/raw_panic_alert.mp3.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/raw/panic_alert.mp3"
+    },
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/drawable_ic_stat_ic_notification.xml.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/drawable/ic_stat_ic_notification.xml"
+    },
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/drawable-v21_launch_background.xml.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/drawable-v21/launch_background.xml"
+    },
+    {
+        "merged": "com.example.eslabon_flutter.app-debug-78:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.example.eslabon_flutter.app-main-80:/mipmap-xxxhdpi/ic_launcher.png"
+    }
+]

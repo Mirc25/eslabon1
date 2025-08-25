@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class FavoritesScreen extends StatelessWidget {
@@ -24,12 +24,12 @@ class FavoritesScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Aquí encontrarás las solicitudes o perfiles que has marcado como favoritos.',
+                'AquÃ­ encontrarÃ¡s las solicitudes o perfiles que has marcado como favoritos.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 18, color: Colors.white70),
               ),
               SizedBox(height: 20),
-              // Aquí iría la lista de favoritos
+              // AquÃ­ irÃ­a la lista de favoritos
               Icon(Icons.favorite, size: 80, color: Colors.redAccent),
             ],
           ),

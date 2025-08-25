@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class BannerAdWidget extends StatefulWidget {
@@ -16,7 +16,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   void initState() {
     super.initState();
 
-    // ✅ ID de prueba de Google para banners.
+    // âœ… ID de prueba de Google para banners.
     // Reemplaza con tu ID de banner real cuando lo tengas.
     _bannerAd = BannerAd(
       adUnitId: 'ca-app-pub-3940256099942544/6300978111',
@@ -27,11 +27,11 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
           setState(() {
             _isAdLoaded = true;
           });
-          print('✅ Banner cargado correctamente');
+          print('âœ… Banner cargado correctamente');
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          print('❌ Error al cargar banner: \$error');
+          print('âŒ Error al cargar banner: \$error');
         },
       ),
     );

@@ -1,4 +1,4 @@
-// lib/screens/my_ratings_section.dart
+﻿// lib/screens/my_ratings_section.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
-import '../widgets/spinning_image_loader.dart'; // ✅ AÑADIDO: Importa el widget
+import '../widgets/spinning_image_loader.dart'; // âœ… AÃ‘ADIDO: Importa el widget
 
 class MyRatingsSection extends StatelessWidget {
   const MyRatingsSection({Key? key}) : super(key: key);
@@ -16,7 +16,7 @@ class MyRatingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final User? currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      return const Center(child: Text('Debes iniciar sesión para ver tus calificaciones.', style: TextStyle(color: Colors.white)));
+      return const Center(child: Text('Debes iniciar sesiÃ³n para ver tus calificaciones.', style: TextStyle(color: Colors.white)));
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -27,7 +27,7 @@ class MyRatingsSection extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: SpinningImageLoader()); // ✅ CORREGIDO: Usando el nuevo widget
+          return const Center(child: SpinningImageLoader()); // âœ… CORREGIDO: Usando el nuevo widget
         }
         if (snapshot.hasError) {
           return Center(child: Text('Error al cargar calificaciones: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
@@ -35,7 +35,7 @@ class MyRatingsSection extends StatelessWidget {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(
             child: Text(
-              'Aún no has recibido calificaciones. ¡Empieza a ayudar!',
+              'AÃºn no has recibido calificaciones. Â¡Empieza a ayudar!',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
@@ -50,7 +50,7 @@ class MyRatingsSection extends StatelessWidget {
           itemBuilder: (context, index) {
             final ratingData = ratings[index].data() as Map<String, dynamic>;
             final String sourceUserId = ratingData['sourceUserId'] as String? ?? 'Desconocido';
-            final String comment = ratingData['comment'] as String? ?? 'Sin reseña';
+            final String comment = ratingData['comment'] as String? ?? 'Sin reseÃ±a';
             final double rating = (ratingData['rating'] as num? ?? 0.0).toDouble();
             final Timestamp? timestamp = ratingData['timestamp'] as Timestamp?;
 
@@ -61,7 +61,7 @@ class MyRatingsSection extends StatelessWidget {
                   return const SizedBox.shrink();
                 }
                 final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                final String sourceUserName = userData['name'] ?? 'Usuario anónimo';
+                final String sourceUserName = userData['name'] ?? 'Usuario anÃ³nimo';
                 final String? sourceUserPhoto = userData['profilePicture'];
 
                 return Card(

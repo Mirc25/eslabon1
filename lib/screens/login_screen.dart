@@ -1,4 +1,4 @@
-// lib/screens/login_screen.dart
+﻿// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final user = cred.user;
       if (user == null) {
-        _showError('Ocurrió un error al iniciar sesión.'.tr());
+        _showError('OcurriÃ³ un error al iniciar sesiÃ³n.'.tr());
         return;
       }
 
@@ -63,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final msg = _mapAuthError(e.code, e.message);
       _showError(msg);
     } catch (e) {
-      _showError('Ocurrió un error al iniciar sesión.'.tr());
+      _showError('OcurriÃ³ un error al iniciar sesiÃ³n.'.tr());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -74,11 +74,11 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'user-not-found':
         return 'No existe una cuenta con ese correo.'.tr();
       case 'wrong-password':
-        return 'Contraseña incorrecta.'.tr();
+        return 'ContraseÃ±a incorrecta.'.tr();
       case 'invalid-email':
-        return 'El correo electrónico no es válido.'.tr();
+        return 'El correo electrÃ³nico no es vÃ¡lido.'.tr();
       case 'too-many-requests':
-        return 'Demasiados intentos. Intenta más tarde.'.tr();
+        return 'Demasiados intentos. Intenta mÃ¡s tarde.'.tr();
       default:
         return (message ?? 'Error desconocido').tr();
     }
@@ -127,10 +127,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 await user?.sendEmailVerification();
                 if (!mounted) return;
                 Navigator.of(context).pop();
-                _showError('Se envió un correo de verificación.'.tr());
+                _showError('Se enviÃ³ un correo de verificaciÃ³n.'.tr());
               } catch (_) {
                 if (!mounted) return;
-                _showError('No se pudo reenviar el correo. Intenta más tarde.'.tr());
+                _showError('No se pudo reenviar el correo. Intenta mÃ¡s tarde.'.tr());
               }
             },
             child: Text('resend_verification'.tr(), style: const TextStyle(color: _amber)),
@@ -156,19 +156,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _sendPasswordReset() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty || !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
-      _showError('Introduce un email válido para recuperar tu contraseña.'.tr());
+      _showError('Introduce un email vÃ¡lido para recuperar tu contraseÃ±a.'.tr());
       return;
     }
     try {
       await _auth.sendPasswordResetEmail(email: email);
-      _showError('Te enviamos un correo para restablecer tu contraseña.'.tr());
+      _showError('Te enviamos un correo para restablecer tu contraseÃ±a.'.tr());
     } on FirebaseAuthException catch (e) {
       final msg = e.code == 'user-not-found'
           ? 'No existe una cuenta con ese correo.'.tr()
           : _mapAuthError(e.code, e.message);
       _showError(msg);
     } catch (_) {
-      _showError('No se pudo enviar el correo. Intenta más tarde.'.tr());
+      _showError('No se pudo enviar el correo. Intenta mÃ¡s tarde.'.tr());
     }
   }
 
@@ -216,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   return 'Este campo es obligatorio'.tr();
                                 }
                                 if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) {
-                                  return 'El correo electrónico no es válido.'.tr();
+                                  return 'El correo electrÃ³nico no es vÃ¡lido.'.tr();
                                 }
                                 return null;
                               },
@@ -229,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onToggle: () => setState(() => _obscure = !_obscure),
                               validator: (v) {
                                 if (v == null || v.isEmpty) return 'Este campo es obligatorio'.tr();
-                                if (v.length < 6) return 'La contraseña debe tener al menos 6 caracteres'.tr();
+                                if (v.length < 6) return 'La contraseÃ±a debe tener al menos 6 caracteres'.tr();
                                 return null;
                               },
                             ),
@@ -238,7 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               alignment: Alignment.centerRight,
                               child: TextButton(
                                 onPressed: _isLoading ? null : _sendPasswordReset,
-                                child: Text('Olvidaste tu contraseña?'.tr(),
+                                child: Text('Olvidaste tu contraseÃ±a?'.tr(),
                                     style: const TextStyle(color: _amber)),
                               ),
                             ),

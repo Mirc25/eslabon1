@@ -1,15 +1,15 @@
-// lib/user_reputation_widget.dart
+﻿// lib/user_reputation_widget.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserReputationWidget extends StatelessWidget {
   final String userId;
-  final bool fromRequesters; // true si queremos mostrar la reputación como solicitante, false como ayudador
+  final bool fromRequesters; // true si queremos mostrar la reputaciÃ³n como solicitante, false como ayudador
 
   const UserReputationWidget({
     super.key,
     required this.userId,
-    this.fromRequesters = false, // Por defecto, asume reputación como ayudador
+    this.fromRequesters = false, // Por defecto, asume reputaciÃ³n como ayudador
   });
 
   @override
@@ -25,7 +25,7 @@ class UserReputationWidget extends StatelessWidget {
         }
 
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Text('Sin datos de reputación', style: TextStyle(color: Colors.white54, fontSize: 10));
+          return const Text('Sin datos de reputaciÃ³n', style: TextStyle(color: Colors.white54, fontSize: 10));
         }
 
         final userData = snapshot.data!.data() as Map<String, dynamic>;

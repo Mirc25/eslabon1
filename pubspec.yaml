@@ -56,4 +56,5 @@ flutter:
     - assets/time.png
     - lib/data/countries.json
     - lib/data/provinces.json
-    - lib/translations/
+    - lib/translations/en.json
+    - lib/translations/es.json

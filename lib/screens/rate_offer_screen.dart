@@ -1,20 +1,20 @@
 // lib/screens/rate_offer_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:easy_localization/easy_localization.dart';
+import 'package:eslabon_flutter/services/app_services.dart';
+import 'package:eslabon_flutter/utils/firestore_utils.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/widgets/custom_app_bar.dart';
-import 'package:eslabon_flutter/services/app_services.dart';
-import 'package:eslabon_flutter/utils/firestore_utils.dart'; // Para saveRating
-import 'package:eslabon_flutter/user_reputation_widget.dart'; // Para mostrar la reputación
+import 'package:eslabon_flutter/user_reputation_widget.dart';
 
 class RateOfferScreen extends ConsumerStatefulWidget {
   final String requestId;
   final String helperId;
-  final Map<String, dynamic>? requestData; // Datos de la solicitud, opcional
+  final Map<String, dynamic>? requestData; // opcional
 
   const RateOfferScreen({
     Key? key,
@@ -28,124 +28,135 @@ class RateOfferScreen extends ConsumerStatefulWidget {
 }
 
 class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  late final AppServices _appServices;
-  double _currentRating = 0.0; // Calificación inicial
-  bool _hasRated = false; // Estado para evitar doble calificación
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = firebase_auth.FirebaseAuth.instance;
 
+  String? _requesterId;
+  String? _requestTitle;
   String? _helperName;
   String? _helperAvatarUrl;
-  String? _requestTitle;
-  String? _requesterId; // El ID del usuario actual (solicitante)
+
+  double _currentRating = 0.0;
+  bool _hasRated = false;
+  bool _loading = true;
+
+  final TextEditingController _reviewController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _appServices = AppServices(_firestore, _auth);
     _loadDataAndCheckRatingStatus();
   }
 
+  @override
+  void dispose() {
+    _reviewController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadDataAndCheckRatingStatus() async {
-    final User? currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red);
-      return;
-    }
-    _requesterId = currentUser.uid; // El usuario actual es el solicitante
-
-    // Cargar datos del ayudador
-    final helperDoc = await _firestore.collection('users').doc(widget.helperId).get();
-    if (helperDoc.exists) {
-      final data = helperDoc.data() as Map<String, dynamic>;
-      setState(() {
-        _helperName = data['name'] ?? 'Ayudador Desconocido';
-        _helperAvatarUrl = data['profilePicture'];
-      });
-    } else {
-      AppServices.showSnackBar(context, 'Error: Datos del ayudador no encontrados.', Colors.red);
-      return;
-    }
-
-    // Cargar datos de la solicitud si no se pasaron
-    Map<String, dynamic>? currentRequestData = widget.requestData;
-    if (currentRequestData == null) {
-      final requestDoc = await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).get();
-      if (requestDoc.exists) {
-        currentRequestData = requestDoc.data() as Map<String, dynamic>;
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _snack('Debes iniciar sesión para calificar.'.tr(), Colors.red);
+        if (mounted) {
+          context.go('/login');
+        }
+        return;
       }
-    }
+      _requesterId = user.uid;
 
-    if (currentRequestData != null) {
-      _requestTitle = currentRequestData['titulo'] ?? currentRequestData['descripcion'] ?? 'Solicitud de ayuda';
-    } else {
-      AppServices.showSnackBar(context, 'Error: Datos de la solicitud no encontrados.', Colors.red);
-      return;
-    }
+      final helperDoc =
+          await _firestore.collection('users').doc(widget.helperId).get();
+      if (helperDoc.exists) {
+        final data = helperDoc.data() ?? {};
+        _helperName = (data['name']?.toString() ?? 'Ayudador Desconocido'.tr());
+        _helperAvatarUrl = (data['profilePicture']?.toString());
+      } else {
+        _snack('Error: Datos del ayudador no encontrados.'.tr(), Colors.red);
+        if (mounted) {
+          context.pop();
+        }
+        return;
+      }
 
-    // Verificar si el solicitante ya calificó a este ayudador para esta solicitud
-    final QuerySnapshot existingRatings = await _firestore
-        .collection('ratings')
-        .where('requestId', isEqualTo: widget.requestId)
-        .where('raterUserId', isEqualTo: _requesterId) // El solicitante es el que califica
-        .where('ratedUserId', isEqualTo: widget.helperId) // El ayudador es el calificado
-        .where('type', isEqualTo: 'helper_rating')
-        .limit(1)
-        .get();
+      Map<String, dynamic> currentRequestData =
+          (widget.requestData ?? await _fetchRequest(widget.requestId)) ?? {};
+      _requestTitle = (currentRequestData['titulo']?.toString() ??
+              currentRequestData['descripcion']?.toString() ??
+              'Solicitud de ayuda'.tr());
 
-    if (existingRatings.docs.isNotEmpty) {
+      final existing = await _firestore
+          .collection('ratings')
+          .where('requestId', isEqualTo: widget.requestId)
+          .where('sourceUserId', isEqualTo: _requesterId)
+          .where('ratedUserId', isEqualTo: widget.helperId)
+          .where('type', isEqualTo: 'helper_rating')
+          .limit(1)
+          .get();
+
+      if (!mounted) return;
       setState(() {
-        _hasRated = true;
+        _hasRated = existing.docs.isNotEmpty;
+        _loading = false;
       });
-      AppServices.showSnackBar(context, 'Ya has calificado a este ayudador para esta ayuda.', Colors.orange);
+
+      if (_hasRated) {
+        _snack('Ya has calificado a este ayudador para esta ayuda.'.tr(), Colors.orange);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Error cargando datos: $e'.tr(), Colors.red);
+      setState(() => _loading = false);
     }
+  }
+
+  Future<Map<String, dynamic>?> _fetchRequest(String id) async {
+    final doc = await _firestore.collection('solicitudes-de-ayuda').doc(id).get();
+    if (doc.exists) {
+      return (doc.data() ?? {}) as Map<String, dynamic>;
+    }
+    return null;
   }
 
   Future<void> _submitRating() async {
     if (_currentRating == 0.0) {
-      AppServices.showSnackBar(context, 'Por favor, selecciona una calificación.', Colors.orange);
-      return;
-    }
-    if (_requesterId == null || _auth.currentUser == null) {
-      AppServices.showSnackBar(context, 'Error: Datos de usuario o solicitante faltantes.', Colors.red);
+      _snack('Por favor, selecciona una calificación.'.tr(), Colors.orange);
       return;
     }
     if (_hasRated) {
-      AppServices.showSnackBar(context, 'Ya has calificado a este ayudador.', Colors.orange);
+      _snack('Ya has calificado a este ayudador.'.tr(), Colors.orange);
+      return;
+    }
+    if (_requesterId == null) {
+      _snack('Error: usuario no autenticado.'.tr(), Colors.red);
       return;
     }
 
     try {
-      // 1. Guardar la calificación del solicitante al ayudador
       await FirestoreUtils.saveRating(
-        targetUserId: widget.helperId, // El ayudador es el calificado
-        sourceUserId: _requesterId!, // El solicitante es el que califica
+        targetUserId: widget.helperId,
+        sourceUserId: _requesterId!,
         rating: _currentRating,
         requestId: widget.requestId,
-        comment: '', // Puedes añadir un campo de comentario si lo deseas
-        type: 'helper_rating', // Tipo de calificación
-      );
-      setState(() {
-        _hasRated = true;
-      });
-      AppServices.showSnackBar(context, 'Calificación enviada con éxito.', Colors.green);
-
-      // 2. Notificar al ayudador que ha sido calificado por el solicitante
-      // ✅ CORREGIDO: Llamada al método con el nombre correcto
-      await _appServices.notifyHelperAfterRequesterRates(
-        context: context,
-        helperId: widget.helperId, // El ayudador es el que recibe la notificación
-        requesterId: _requesterId!, // El solicitante que calificó
-        requesterName: _auth.currentUser!.displayName ?? 'Solicitante', // Nombre del solicitante que calificó
-        rating: _currentRating,
-        requestId: widget.requestId,
-        requestTitle: _requestTitle!,
+        comment: _reviewController.text.trim(),
+        type: 'helper_rating',
       );
 
-      context.go('/main'); // Redirigir al main después de calificar
+      if (!mounted) return;
+      setState(() => _hasRated = true);
+      _snack('Calificación enviada con éxito.'.tr(), Colors.green);
+      context.pop();
     } catch (e) {
-      print("Error submitting rating: $e");
-      AppServices.showSnackBar(context, 'Error al enviar calificación: $e', Colors.red);
+      _snack('No se pudo guardar la calificación: $e'.tr(), Colors.red);
+    }
+  }
+
+  void _snack(String msg, Color color) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: color),
+      );
     }
   }
 
@@ -155,88 +166,82 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
-          title: 'Calificar Oferta',
+          title: 'Calificar Ayudador'.tr(),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => context.pop(),
           ),
         ),
-        body: _helperName == null || _requestTitle == null
+        body: _loading
             ? const Center(child: CircularProgressIndicator(color: Colors.amber))
             : SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // ✅ Logo de la app centrado
-              Padding(
-                padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
-                child: Center(
-                  child: Image.asset(
-                    'assets/icon.jpg', // Ruta de tu logo
-                    height: 60, // Tamaño del logo
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              CircleAvatar(
-                radius: 60,
-                backgroundColor: Colors.grey[700],
-                backgroundImage: (_helperAvatarUrl != null && _helperAvatarUrl!.startsWith('http'))
-                    ? NetworkImage(_helperAvatarUrl!)
-                    : const AssetImage('assets/default_avatar.png') as ImageProvider,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _helperName!,
-                style: const TextStyle(
-                    fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              UserReputationWidget(userId: widget.helperId, fromRequesters: false), // Reputación del ayudador
-              const SizedBox(height: 24),
-              Text(
-                'Califica la ayuda recibida para tu solicitud:\n"${_requestTitle!}"',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  return IconButton(
-                    icon: Icon(
-                      index < _currentRating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
-                      size: 40,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: (_helperAvatarUrl != null &&
+                                _helperAvatarUrl!.isNotEmpty)
+                            ? NetworkImage(_helperAvatarUrl!)
+                            : null,
+                        child: (_helperAvatarUrl == null ||
+                                _helperAvatarUrl!.isEmpty)
+                            ? const Icon(Icons.person)
+                            : null,
+                      ),
+                      title: Text(_helperName ?? 'Ayudador'.tr()),
+                      subtitle: Text(_requestTitle ?? 'Solicitud de ayuda'.tr()),
+                      tileColor: Colors.white.withOpacity(.1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    onPressed: _hasRated ? null : () { // Deshabilitar si ya calificó
-                      setState(() {
-                        _currentRating = (index + 1).toDouble();
-                      });
-                    },
-                  );
-                }),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tu calificación: ${_currentRating.round()}/5',
-                style: const TextStyle(fontSize: 16, color: Colors.white70),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: _hasRated ? null : _submitRating, // Deshabilitar si ya calificó
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _hasRated ? Colors.grey : Theme.of(context).colorScheme.secondary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (i) {
+                        final idx = i + 1;
+                        final filled = _currentRating >= idx;
+                        return IconButton(
+                          onPressed: _hasRated
+                              ? null
+                              : () => setState(() {
+                                    _currentRating = idx.toDouble();
+                                  }),
+                          icon: Icon(
+                            filled ? Icons.star : Icons.star_border,
+                            color: Colors.amber,
+                            size: 32,
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _reviewController,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        hintText: 'Deja un comentario (opcional)'.tr(),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(.08),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        hintStyle: const TextStyle(color: Colors.white70),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      enabled: !_hasRated,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _hasRated ? null : _submitRating,
+                      child: Text('Enviar calificación'.tr()),
+                    ),
+                  ],
                 ),
-                child: Text(_hasRated ? 'Calificado' : 'Enviar Calificación'),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }

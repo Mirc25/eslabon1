@@ -1,8 +1,8 @@
-// lib/screens/notifications_screen.dart
+﻿// lib/screens/notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // ✅ CORREGIDO: Agregado alias para evitar conflicto de tipos
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // âœ… CORREGIDO: Agregado alias para evitar conflicto de tipos
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -24,7 +24,7 @@ class NotificationsScreen extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(title: Text('notifications'.tr())),
         body: Center(
-          child: Text('Debes iniciar sesión para ver tus notificaciones.'.tr(), style: const TextStyle(color: Colors.white)),
+          child: Text('Debes iniciar sesiÃ³n para ver tus notificaciones.'.tr(), style: const TextStyle(color: Colors.white)),
         ),
       );
     }

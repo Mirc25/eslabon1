@@ -1,4 +1,4 @@
-// lib/screens/settings_screen.dart
+﻿// lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -28,8 +28,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _showPhoneToVerified = false;
   bool _showEmail = false;
 
-  String _selectedLanguage = 'Español';
-  String _selectedSorting = 'Más cercanos';
+  String _selectedLanguage = 'EspaÃ±ol';
+  String _selectedSorting = 'MÃ¡s cercanos';
   double _searchRadius = 5.0;
 
   bool _isLoading = true;
@@ -58,14 +58,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _approximateLocationEnabled = data['approximateLocationEnabled'] ?? true;
             _showPhoneToVerified = data['showPhoneToVerified'] ?? false;
             _showEmail = data['showEmail'] ?? false;
-            _selectedLanguage = data['language'] ?? 'Español';
-            _selectedSorting = data['sortingPreference'] ?? 'Más cercanos';
+            _selectedLanguage = data['language'] ?? 'EspaÃ±ol';
+            _selectedSorting = data['sortingPreference'] ?? 'MÃ¡s cercanos';
             _searchRadius = (data['searchRadius'] as num?)?.toDouble() ?? 5.0;
           });
         }
       }
     } catch (e) {
-      print('Error al cargar la configuración del usuario: $e');
+      print('Error al cargar la configuraciÃ³n del usuario: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -88,18 +88,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         'searchRadius': _searchRadius,
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Configuración guardada con éxito')),
+        SnackBar(content: Text('ConfiguraciÃ³n guardada con Ã©xito')),
       );
-      if (_selectedSorting == 'Más cercanos') {
+      if (_selectedSorting == 'MÃ¡s cercanos') {
         ref.read(filterScopeProvider.notifier).state = 'Cercano';
         ref.read(proximityRadiusProvider.notifier).state = _searchRadius;
       } else {
          ref.read(filterScopeProvider.notifier).state = _selectedSorting;
       }
     } catch (e) {
-      print('Error al guardar la configuración: $e');
+      print('Error al guardar la configuraciÃ³n: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar la configuración: $e')),
+        SnackBar(content: Text('Error al guardar la configuraciÃ³n: $e')),
       );
     }
   }
@@ -110,16 +110,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       try {
         await _auth.sendPasswordResetEmail(email: currentUser!.email!);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Se ha enviado un enlace de cambio de contraseña a tu email.')),
+          const SnackBar(content: Text('Se ha enviado un enlace de cambio de contraseÃ±a a tu email.')),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al enviar el email de cambio de contraseña: $e')),
+          SnackBar(content: Text('Error al enviar el email de cambio de contraseÃ±a: $e')),
         );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No puedes cambiar tu contraseña porque no usaste email y contraseña para registrarte.')),
+        const SnackBar(content: Text('No puedes cambiar tu contraseÃ±a porque no usaste email y contraseÃ±a para registrarte.')),
       );
     }
   }
@@ -150,7 +150,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Sección de Cuenta
+                    // SecciÃ³n de Cuenta
                     _buildSectionTitle(context, 'Cuenta'.tr()),
                     if (_auth.currentUser?.providerData.any((info) => info.providerId == 'password') ?? false)
                       _buildSettingsTile(
@@ -159,7 +159,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         onTap: _changePassword,
                       ),
 
-                    // Sección de Preferencias
+                    // SecciÃ³n de Preferencias
                     _buildSectionTitle(context, 'preferences'.tr()),
                     SwitchListTile(
                       title: Text('activate_push'.tr(), style: TextStyle(color: Colors.white)),
@@ -192,15 +192,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             if (newValue != null) {
                               setState(() {
                                 _selectedLanguage = newValue;
-                                if (newValue == 'Español') {
+                                if (newValue == 'EspaÃ±ol') {
                                   context.setLocale(const Locale('es'));
-                                } else if (newValue == 'Inglés') {
+                                } else if (newValue == 'InglÃ©s') {
                                   context.setLocale(const Locale('en'));
                                 }
                               });
                             }
                           },
-                          items: ['Español', 'Inglés']
+                          items: ['EspaÃ±ol', 'InglÃ©s']
                               .map<DropdownMenuItem<String>>((String value) {
                             return DropdownMenuItem<String>(
                               value: value,
@@ -213,11 +213,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Sección de Privacidad
+                    // SecciÃ³n de Privacidad
                     _buildSectionTitle(context, 'privacy'.tr()),
                     SwitchListTile(
                       title: Text('approximate_location'.tr(), style: TextStyle(color: Colors.white)),
-                      subtitle: const Text('Muestra tu ubicación en las solicitudes que publiques.', style: TextStyle(color: Colors.white70)),
+                      subtitle: const Text('Muestra tu ubicaciÃ³n en las solicitudes que publiques.', style: TextStyle(color: Colors.white70)),
                       value: _approximateLocationEnabled,
                       onChanged: (bool value) => setState(() => _approximateLocationEnabled = value),
                       activeColor: Colors.amber,
@@ -244,7 +244,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Sección de Configuración avanzada
+                    // SecciÃ³n de ConfiguraciÃ³n avanzada
                     _buildSectionTitle(context, 'advanced_settings'.tr()),
                     _buildSettingsTile(
                       title: 'default_search_radius'.tr(),
@@ -296,12 +296,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.sort,
                       subtitle: Text('current_order'.tr() + ' $_selectedSorting', style: const TextStyle(color: Colors.white70)),
                       onTap: () {
-                        // Lógica para cambiar la prioridad
+                        // LÃ³gica para cambiar la prioridad
                       },
                     ),
                     const SizedBox(height: 24),
 
-                    // Sección de Sobre la app
+                    // SecciÃ³n de Sobre la app
                     _buildSectionTitle(context, 'about_app'.tr()),
                     _buildSettingsTile(
                       title: 'app_version'.tr(),
@@ -337,7 +337,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Botón para guardar cambios
+                    // BotÃ³n para guardar cambios
                     Center(
                       child: ElevatedButton(
                         onPressed: _saveUserSettings,

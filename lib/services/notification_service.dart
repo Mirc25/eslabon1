@@ -1,4 +1,4 @@
-// lib/services/notification_service.dart
+﻿// lib/services/notification_service.dart
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -57,31 +57,26 @@ class NotificationService {
   void handleNotificationNavigation(Map<String, dynamic> data) {
     print('DEBUG NOTIFICATION DATA: $data');
 
-    final notificationType = data['notificationType'] ?? data['type'] ?? data['data']?['type'];
-    final requestId = data['data']?['requestId'] as String?;
-    final helperId = data['data']?['helperId'] as String?;
-    final helperName = data['data']?['helperName'] as String?;
-    final requesterId = data['data']?['requesterId'] as String?;
-    final requesterName = data['data']?['requesterName'] as String?;
-    final chatPartnerId = data['chatPartnerId'] ?? data['data']?['chatPartnerId'];
-    final chatPartnerName = data['chatPartnerName'] ?? data['data']?['chatPartnerName'];
-    final chatRoomId = data['chatRoomId'] ?? data['data']?['chatRoomId'];
-    final chatPartnerAvatar = data['chatPartnerAvatar'] ?? data['data']?['chatPartnerAvatar'];
-    final userId = data['userId'] ?? data['data']?['userId'] as String?;
-    final userName = data['userName'] ?? data['data']?['userName'] as String?;
-    final messageText = data['notification']?['body'] as String?;
+    final notificationType = (data['notificationType'] ?? data['type'] ?? data['data']?['type'])?.toString();
+    final requestId = data['data']?['requestId']?.toString();
+    final helperId = data['data']?['helperId']?.toString();
+    final helperName = data['data']?['helperName']?.toString();
+    final requesterId = data['data']?['requesterId']?.toString();
+    final requesterName = data['data']?['requesterName']?.toString();
+    final chatPartnerId = (data['chatPartnerId'] ?? data['data']?['chatPartnerId'])?.toString();
+    final chatPartnerName = (data['chatPartnerName'] ?? data['data']?['chatPartnerName'])?.toString();
+    final chatRoomId = (data['chatRoomId'] ?? data['data']?['chatRoomId'])?.toString();
+    final chatPartnerAvatar = (data['chatPartnerAvatar'] ?? data['data']?['chatPartnerAvatar'])?.toString();
+    final userId = (data['userId'] ?? data['data']?['userId'])?.toString();
+    final userName = (data['userName'] ?? data['data']?['userName'])?.toString();
+    final messageText = (data['notification']?['body'] as String?) ?? (data['messageText'] as String?);
 
-    // ✅ CORRECCIÓN: Manejar primero las notificaciones específicas con un switch.
     switch (notificationType) {
       case 'offer_received':
         if (requestId != null && helperId != null && helperName != null) {
           _router.pushNamed(
-            'rate-helper',
+            'request_detail',
             pathParameters: {'requestId': requestId},
-            extra: {
-              'helperId': helperId,
-              'helperName': helperName,
-            },
           );
         }
         break;
@@ -104,7 +99,7 @@ class NotificationService {
             pathParameters: {'userId': helperId},
             extra: {
               'userName': helperName,
-              'message': 'Te ha calificado con ${data['data']?['rating']} estrellas.',
+              'message': 'Te ha calificado con ${data['data']?['rating']?.toStringAsFixed(1)} estrellas.',
             },
           );
         }
@@ -135,8 +130,7 @@ class NotificationService {
         }
         break;
       default:
-        // ✅ CORRECCIÓN: Si no hay un tipo específico, entonces se usa la navegación genérica.
-        final navigationPath = data['navigationPath'] ?? data['data']?['navigationPath'];
+        final navigationPath = (data['navigationPath'] ?? data['data']?['navigationPath'])?.toString();
         if (navigationPath != null) {
           _router.go(navigationPath);
           return;

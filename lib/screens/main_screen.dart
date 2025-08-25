@@ -11,8 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-
-
 import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/providers/user_provider.dart';
@@ -22,7 +20,7 @@ import 'package:eslabon_flutter/providers/help_requests_provider.dart';
 import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import 'package:eslabon_flutter/models/user_model.dart';
 import 'package:eslabon_flutter/widgets/banner_ad_widget.dart';
-
+import '../widgets/custom_app_bar.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -45,7 +43,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
 
   late AnimationController _blinkController;
   late Animation<double> _blinkAnimation;
-
 
   @override
   void initState() {
@@ -87,8 +84,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
       for (var doc in allRequests) {
         final request = doc.data() as Map<String, dynamic>;
         final String requestId = doc.id;
-        final double? requestLat = request['latitude'];
-        final double? requestLon = request['longitude'];
+        final double? requestLat = (request['latitude'] as num?)?.toDouble();
+        final double? requestLon = (request['longitude'] as num?)?.toDouble();
 
         if (requestLat != null && requestLon != null) {
           final distance = _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon);
@@ -104,7 +101,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
   double _degreesToRadians(double degrees) {
     return degrees * (pi / 180);
   }
-  
+
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     const R = 6371.0;
 
@@ -156,7 +153,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
               children: [
                 AppBar(
                   backgroundColor: Colors.grey[850],
-                  title: Text('comments_count_plural'.tr(), style: TextStyle(color: Colors.white)),
+                  title: Text('comments_count_plural'.tr(), style: const TextStyle(color: Colors.white)),
                   leading: IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.pop(modalContext),
@@ -186,7 +183,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         return Center(
                           child: Text(
                             'Sé el primero en comentar.'.tr(),
-                            style: TextStyle(color: Colors.white54, fontSize: 16),
+                            style: const TextStyle(color: Colors.white54, fontSize: 16),
                             textAlign: TextAlign.center,
                           ),
                         );
@@ -197,9 +194,9 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         reverse: true,
                         itemBuilder: (context, index) {
                           final comment = comments[index];
-                          final String commentUser = comment['userName'] ?? 'Usuario'.tr();
-                          final String commentText = comment['text'] ?? 'Sin comentario'.tr();
-                          final String? userAvatar = comment['userAvatar'] as String?;
+                          final String commentUser = comment['userName']?.toString() ?? 'Usuario'.tr();
+                          final String commentText = comment['text']?.toString() ?? 'Sin comentario'.tr();
+                          final String? userAvatar = comment['userAvatar']?.toString();
                           final dynamic commentTimestampData = comment['timestamp'];
                           final Timestamp? commentTimestamp = commentTimestampData is Timestamp ? commentTimestampData : null;
 
@@ -239,7 +236,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                                           ),
                                           Text(
                                             formattedTime,
-                                            style: TextStyle(fontSize: 10, color: Colors.white54),
+                                            style: const TextStyle(fontSize: 10, color: Colors.white54),
                                           ),
                                         ],
                                       ),
@@ -269,7 +266,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             style: const TextStyle(color: Colors.white, fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'enter_message_hint'.tr(),
-                              hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
+                              hintStyle: const TextStyle(color: Colors.white54, fontSize: 14),
                               filled: true,
                               fillColor: Colors.grey[800],
                               border: OutlineInputBorder(
@@ -299,10 +296,10 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   ),
                 if (currentUser == null)
                   Padding(
-                    padding: EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(16.0),
                     child: Text(
                       'Inicia sesión para comentar en esta publicación.'.tr(),
-                      style: TextStyle(color: Colors.white54, fontSize: 14),
+                      style: const TextStyle(color: Colors.white54, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -329,7 +326,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
           return const Row(children: [Icon(Icons.comment, color: Colors.grey, size: 24), SizedBox(width: 4), Text('...', style: TextStyle(fontSize: 10, color: Colors.grey))]);
         }
 
-        final int commentsCount = commentSnapshot.data!.docs.length;
+        final int commentsCount = commentSnapshot.data?.docs.length ?? 0;
 
         return GestureDetector(
           onTap: () => _showCommentsModal(requestId, currentUser),
@@ -374,10 +371,10 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
   Widget _buildHelpCard(BuildContext context, Map<String, dynamic> request, String requestId, firebase_auth.User? currentUser, {String? distanceText}) {
     final Map<String, dynamic> requestData = request;
 
-    final String requesterUserId = requestData['userId'] ?? '';
-    final String requesterName = requestData['requesterName'] ?? 'Usuario Anónimo'.tr();
-    final String requestDescription = requestData['descripcion'] ?? 'Sin descripción'.tr();
-    final String requestDetail = requestData['detalle'] ?? 'Sin detalles'.tr();
+    final String requesterUserId = requestData['userId']?.toString() ?? '';
+    final String requesterName = requestData['requesterName']?.toString() ?? 'Usuario Anónimo'.tr();
+    final String requestDescription = requestData['descripcion']?.toString() ?? 'Sin descripción'.tr();
+    final String requestDetail = requestData['detalle']?.toString() ?? 'Sin detalles'.tr();
 
     final dynamic timestampData = requestData['timestamp'];
     final Timestamp timestamp = timestampData is Timestamp ? timestampData : Timestamp.now();
@@ -396,7 +393,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     }
 
     Color priorityColor = Colors.grey;
-    switch (requestData['prioridad']) {
+    switch (requestData['prioridad']?.toString()) {
       case 'alta':
         priorityColor = Colors.redAccent;
         break;
@@ -412,24 +409,24 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     String? imageUrlPath = '';
     if (rawImages != null) {
       if (rawImages is List && rawImages.isNotEmpty) {
-        imageUrlPath = rawImages.first.toString();
+        imageUrlPath = rawImages.first?.toString();
       } else if (rawImages is String) {
         imageUrlPath = rawImages;
       }
     }
 
-    final double? latitude = requestData['latitude'];
-    final double? longitude = requestData['longitude'];
+    final double? latitude = (requestData['latitude'] as num?)?.toDouble();
+    final double? longitude = (requestData['longitude'] as num?)?.toDouble();
 
-    final bool hasDetails = requestDetail != null && requestDetail.isNotEmpty && requestDetail != 'Sin detalles';
+    final bool hasDetails = requestDetail.isNotEmpty && requestDetail != 'Sin detalles';
 
     return StreamBuilder<DocumentSnapshot>(
       stream: _firestore.collection('users').doc(requesterUserId).snapshots(),
       builder: (context, userSnapshot) {
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
-        final String? profilePictureUrl = userData?['profilePicture'] as String?;
-        final String requestPhone = userData?['phone'] as String? ?? 'N/A';
-        final bool showWhatsapp = requestData['showWhatsapp'] ?? false;
+        final String? profilePictureUrl = userData?['profilePicture']?.toString();
+        final String requestPhone = userData?['phone']?.toString() ?? 'N/A';
+        final bool showWhatsapp = (requestData['showWhatsapp'] as bool?) ?? false;
 
         final dynamic memberSinceTimestamp = userData?['createdAt'];
         String memberSince = memberSinceTimestamp != null ? DateFormat('dd/MM/yyyy').format((memberSinceTimestamp as Timestamp).toDate()) : 'N/A';
@@ -482,13 +479,13 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                                       fromRequesters: false,
                                     ),
                                     Text(
-                                      requestData['localidad'] ?? 'Desconocida'.tr(),
-                                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                                      requestData['localidad']?.toString() ?? 'Desconocida'.tr(),
+                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      'Categoría: ${requestData['categoria'] ?? 'N/A'}',
+                                      'Categoría: ${requestData['categoria']?.toString() ?? 'N/A'}',
                                       style: const TextStyle(
                                           color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.w600),
                                       maxLines: 1,
@@ -521,7 +518,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                 ),
-                                child: Text('help'.tr(), style: TextStyle(fontSize: 12, color: Colors.black)),
+                                child: Text('help'.tr(), style: const TextStyle(fontSize: 12, color: Colors.black)),
                               ),
                               const SizedBox(width: 8),
                               _buildCommentsButtonInCard(requestId, currentUser),
@@ -569,7 +566,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             borderRadius: BorderRadius.circular(5),
                           ),
                           child: Text(
-                                '${'priority'.tr()} ${requestData['prioridad'] ?? 'N/A'}',
+                                '${'priority'.tr()} ${requestData['prioridad']?.toString() ?? 'N/A'}',
                             style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -668,7 +665,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
 
                             Row(
                               children: [
-                                // Icono de eslabón chiquito para "Miembro desde"
                                 const ImageIcon(AssetImage('assets/time.png'), size: 12.0, color: Colors.white54),
                                 const SizedBox(width: 4),
                                 Text(
@@ -680,7 +676,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             ),
                             Row(
                               children: [
-                                // Icono de manos para "Ayudó a"
                                 const Icon(Icons.handshake_outlined, size: 12.0, color: Colors.white54),
                                 const SizedBox(width: 4),
                                 Text(
@@ -692,7 +687,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             ),
                             Row(
                               children: [
-                                // Icono de corazón para "Recibió ayuda de"
                                 const Icon(Icons.favorite_outline, size: 12.0, color: Colors.white54),
                                 const SizedBox(width: 4),
                                 Text(
@@ -730,18 +724,18 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             final userLocation = ref.watch(userLocationProvider);
             return AlertDialog(
               backgroundColor: Colors.grey[900],
-              title: Text('filter_requests'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('filter_requests'.tr(), style: const TextStyle(color: Colors.white)),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text('filter_by_scope'.tr(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('filter_by_scope'.tr(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ListTile(
                       title: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('nearby_gps'.tr(), style: TextStyle(color: Colors.white70)),
+                          Text('nearby_gps'.tr(), style: const TextStyle(color: Colors.white70)),
                           Text(
                             userLocation.statusMessage,
                             style: const TextStyle(color: Colors.grey, fontSize: 10),
@@ -784,7 +778,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             TextButton.icon(
                               onPressed: () => ref.read(userLocationProvider.notifier).determineAndSetUserLocation(),
                               icon: const Icon(Icons.refresh, color: Colors.blueAccent),
-                              label: Text('retry_location'.tr(), style: TextStyle(color: Colors.blueAccent)),
+                              label: Text('retry_location'.tr(), style: const TextStyle(color: Colors.blueAccent)),
                             ),
                         ],
                       ),
@@ -805,6 +799,19 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                       title: Text('national'.tr(), style: const TextStyle(color: Colors.white70)),
                       leading: Radio<String>(
                         value: 'Nacional',
+                        groupValue: _dialogSelectedFilterScope,
+                        onChanged: (String? value) {
+                          stfSetState(() {
+                            _dialogSelectedFilterScope = value!;
+                          });
+                        },
+                        activeColor: Colors.amber,
+                      ),
+                    ),
+                    ListTile(
+                      title: Text('international'.tr(), style: const TextStyle(color: Colors.white70)),
+                      leading: Radio<String>(
+                        value: 'Internacional',
                         groupValue: _dialogSelectedFilterScope,
                         onChanged: (String? value) {
                           stfSetState(() {
@@ -861,10 +868,10 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     );
 
     if (result != null) {
-      ref.read(filterScopeProvider.notifier).state = result['filterScope'];
-      ref.read(proximityRadiusProvider.notifier).state = result['proximityRadius'];
+      ref.read(filterScopeProvider.notifier).state = result['filterScope']?.toString() ?? 'Cercano';
+      ref.read(proximityRadiusProvider.notifier).state = (result['proximityRadius'] as num?)?.toDouble() ?? 3.0;
       setState(() {
-        _selectedCategory = result['selectedCategory'];
+        _selectedCategory = result['selectedCategory']?.toString() ?? 'Todas';
       });
       print('DEBUG DIALOG: Filtro aplicado desde diálogo a MainScreen: ${result['filterScope']} con radio: ${result['proximityRadius']} y categoría: $_selectedCategory');
     } else {
@@ -884,22 +891,22 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: Colors.black,
-          title: Text('¡Atención! Estás a punto de enviar una alerta de pánico'.tr(), style: TextStyle(color: Colors.white)),
+          title: Text('¡Atención! Estás a punto de enviar una alerta de pánico'.tr(), style: const TextStyle(color: Colors.white)),
           content: Text(
             'Al aceptar, se enviará a todos los usuarios cercanos a 1 kilómetro un aviso de que necesitas ayuda y se les enviarán tus datos para que se comuniquen contigo o vayan hasta tu ubicación.'.tr(),
-            style: TextStyle(color: Colors.white70),
+            style: const TextStyle(color: Colors.white70),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text('cancel'.tr(), style: TextStyle(color: Colors.white70)),
+              child: Text('cancel'.tr(), style: const TextStyle(color: Colors.white70)),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 _appServices.sendPanicAlert(context);
               },
-              child: Text('accept'.tr(), style: TextStyle(color: Colors.redAccent)),
+              child: Text('accept'.tr(), style: const TextStyle(color: Colors.redAccent)),
             ),
           ],
         );
@@ -981,7 +988,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                     icon: const Icon(Icons.filter_list, color: Colors.white, size: 24),
                     label: Text(
                       _selectedCategory == 'Todas'
-                          ? (currentFilterScope == 'Cercano' ? '${proximityRadiusKm.toStringAsFixed(1)}km' : currentFilterScope.tr())
+                          ? (currentFilterScope == 'Cercano' ? 'a ${proximityRadiusKm.toStringAsFixed(1)}km' : currentFilterScope.tr())
                           : _selectedCategory.tr(),
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
@@ -1064,15 +1071,15 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                 const SizedBox(height: 6),
                 Text(
                   'cadena_solidaria'.tr(),
-                  style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
                 ),
                 Text(
                   'made_in_argentina'.tr(),
-                  style: TextStyle(color: Colors.white, fontSize: 10),
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
                 ),
                 Text(
                   'powered_by'.tr(),
-                  style: TextStyle(color: Colors.grey, fontSize: 9),
+                  style: const TextStyle(color: Colors.grey, fontSize: 9),
                 ),
                 const SizedBox(height: 4),
               ],
@@ -1088,20 +1095,9 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                 data: (allHelpRequestDocs) {
                   _checkAndNotifyNearbyRequest(allHelpRequestDocs, userLocation, proximityRadiusKm);
 
-                  final filteredByProximity = allHelpRequestDocs.where((doc) {
+                  final filteredByCategory = allHelpRequestDocs.where((doc) {
                     final request = doc.data() as Map<String, dynamic>;
-                    final double? requestLat = request['latitude'];
-                    final double? requestLon = request['longitude'];
-                    if (currentFilterScope == 'Cercano' && userLocation.latitude != null && userLocation.longitude != null && requestLat != null && requestLon != null) {
-                      final distance = _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon);
-                      return distance <= proximityRadiusKm;
-                    }
-                    return true;
-                  }).toList();
-
-                  final filteredByCategory = filteredByProximity.where((doc) {
-                    final request = doc.data() as Map<String, dynamic>;
-                    final String requestCategory = request['categoria'] ?? '';
+                    final String requestCategory = request['categoria']?.toString() ?? '';
                     if (_selectedCategory == 'Todas') {
                       return true;
                     }
@@ -1114,11 +1110,12 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'No hay solicitudes de ayuda disponibles para el filtro: $currentFilterScope' +
-                            (currentFilterScope == 'Cercano' && userLocation.locality != 'No disponible'
+                            'No hay solicitudes de ayuda disponibles para el filtro: '
+                            '${currentFilterScope.tr()}' +
+                            (currentFilterScope == 'Cercano' && userLocation.locality.isNotEmpty
                               ? ' dentro de ${proximityRadiusKm.toStringAsFixed(1)} km de ${userLocation.locality}.'
                               : '.'),
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                            style: const TextStyle(color: Colors.white70, fontSize: 16),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 10),
@@ -1146,23 +1143,23 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                       itemBuilder: (context, index) {
                         final doc = filteredByCategory[index];
                         final requestData = doc.data() as Map<String, dynamic>;
-                        final double? requestLat = requestData['latitude'];
-                        final double? requestLon = requestData['longitude'];
+                        final double? requestLat = (requestData['latitude'] as num?)?.toDouble();
+                        final double? requestLon = (requestData['longitude'] as num?)?.toDouble();
 
                         String? distanceText;
                         if (userLocation.latitude != null && userLocation.longitude != null && requestLat != null && requestLon != null) {
                           final distance = _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon);
-                          distanceText = 'a ${distance.toStringAsFixed(1)} km';
+                          distanceText = 'a ${distance.toStringAsFixed(1)} km'.tr();
                         }
                         
                         final bool shouldShowAd = (index + 1) % 3 == 0;
                         return Column(
                           children: [
                             _buildHelpCard(context, requestData, doc.id, _auth.currentUser, distanceText: distanceText),
-                            if (true) // 🔧 Forzado para mostrar anuncio en cada tarjeta
+                            if (shouldShowAd)
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8.0),
-                                child: BannerAdWidget(), 
+                                child: BannerAdWidget(),
                               ),
                           ],
                         );
@@ -1200,8 +1197,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   : const Stream.empty(),
               builder: (context, snapshot) {
                 final userData = snapshot.hasData && snapshot.data!.exists ? snapshot.data!.data() as Map<String, dynamic>? : null;
-                final String? profilePictureUrl = userData?['profilePicture'] as String?;
-                final String userName = userData?['name'] ?? _auth.currentUser?.displayName ?? 'Usuario'.tr();
+                final String? profilePictureUrl = userData?['profilePicture']?.toString();
+                final String userName = userData?['name']?.toString() ?? _auth.currentUser?.displayName ?? 'Usuario'.tr();
                 final String userEmail = _auth.currentUser?.email ?? 'email@example.com';
 
                 return Container(
@@ -1230,7 +1227,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         ),
                         Text(
                           userEmail,
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -1241,7 +1238,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.home, color: Colors.white70),
-              title: Text('home'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('home'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 context.go('/main');
@@ -1249,7 +1246,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.person, color: Colors.white70),
-              title: Text('my_profile'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('my_profile'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 context.push('/profile');
@@ -1257,7 +1254,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.add_box, color: Colors.white70),
-              title: Text('create_request'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('create_request'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 context.pushNamed('create_request');
@@ -1265,7 +1262,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.list_alt, color: Colors.white70),
-              title: Text('my_requests'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('my_requests'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
                     context.push('/my_requests');
@@ -1273,7 +1270,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.chat_bubble_outline, color: Colors.white70),
-              title: Text('messages'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('messages'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
                     context.push('/messages');
@@ -1281,7 +1278,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.notifications_none, color: Colors.white70),
-              title: Text('notifications'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('notifications'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
                     context.push('/notifications');
@@ -1289,7 +1286,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.star, color: Colors.white70),
-              title: Text('my_ratings'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('my_ratings'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 context.pushNamed('ratings');
@@ -1297,7 +1294,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.history, color: Colors.white70),
-              title: Text('history'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('history'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
                     context.push('/history');
@@ -1305,7 +1302,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.search, color: Colors.white70),
-              title: Text('search_users'.tr(), style: TextStyle(color: Colors.white70)),
+              title: Text('search_users'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
                     context.push('/search_users');
@@ -1314,7 +1311,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             const Divider(color: Colors.white12),
             ListTile(
               leading: const Icon(Icons.settings, color: Colors.white70),
-              title: Text('settings'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('settings'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
                     context.push('/settings');
@@ -1322,7 +1319,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.help_outline, color: Colors.white70),
-              title: Text('help_and_faq'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('help_and_faq'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 context.push('/faq');
@@ -1330,7 +1327,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.report_problem_outlined, color: Colors.white70),
-              title: Text('report_problem'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('report_problem'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                     Navigator.pop(context);
                     context.push('/report_problem');
@@ -1338,7 +1335,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.info, color: Colors.white70),
-              title: Text('about'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('about'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 _showSnackBar(
@@ -1349,7 +1346,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.white70),
-              title: Text('logout'.tr(), style: TextStyle(color: Colors.white)),
+              title: Text('logout'.tr(), style: const TextStyle(color: Colors.white)),
               onTap: () async {
                 await _auth.signOut();
                 if (mounted) {
@@ -1367,7 +1364,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                 icon: const Icon(Icons.language, color: Colors.white54),
                 label: Text(
                   context.locale.languageCode == 'es' ? 'English' : 'Español',
-                  style: TextStyle(color: Colors.white54),
+                  style: const TextStyle(color: Colors.white54),
                 ),
               ),
             ),

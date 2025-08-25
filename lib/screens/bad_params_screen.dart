@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class BadParamsScreen extends StatelessWidget {
   const BadParamsScreen({super.key, required this.message});
@@ -7,7 +7,7 @@ class BadParamsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Parámetros inválidos')),
+      appBar: AppBar(title: const Text('ParÃ¡metros invÃ¡lidos')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(16),

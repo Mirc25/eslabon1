@@ -1,4 +1,4 @@
-// lib/screens/user_rating_details_screen.dart
+﻿// lib/screens/user_rating_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
-import '../reputation_utils.dart'; // 🔄 CORRECCIÓN: Usamos el archivo correcto
+import '../reputation_utils.dart'; // ðŸ”„ CORRECCIÃ“N: Usamos el archivo correcto
 import '../widgets/spinning_image_loader.dart';
 
 class UserRatingDetailsScreen extends StatelessWidget {
@@ -26,7 +26,7 @@ class UserRatingDetailsScreen extends StatelessWidget {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
-          title: 'Reseñas de ${userName ?? 'Usuario'}',
+          title: 'ReseÃ±as de ${userName ?? 'Usuario'}',
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () {
@@ -97,7 +97,7 @@ class UserRatingDetailsScreen extends StatelessWidget {
                         return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
                       }
                       if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(child: Text('Este usuario aún no tiene reseñas.', style: TextStyle(color: Colors.white70)));
+                        return const Center(child: Text('Este usuario aÃºn no tiene reseÃ±as.', style: TextStyle(color: Colors.white70)));
                       }
 
                       final ratings = snapshot.data!.docs;
@@ -109,7 +109,7 @@ class UserRatingDetailsScreen extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final ratingData = ratings[index].data() as Map<String, dynamic>;
                           final String sourceUserId = ratingData['sourceUserId'] as String? ?? 'Desconocido';
-                          final String comment = ratingData['comment'] as String? ?? 'Sin reseña';
+                          final String comment = ratingData['comment'] as String? ?? 'Sin reseÃ±a';
                           final double rating = (ratingData['rating'] as num? ?? 0.0).toDouble();
                           final Timestamp? timestamp = ratingData['timestamp'] as Timestamp?;
 
@@ -120,7 +120,7 @@ class UserRatingDetailsScreen extends StatelessWidget {
                                 return const SizedBox.shrink();
                               }
                               final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                              final String sourceUserName = userData['name'] ?? 'Usuario anónimo';
+                              final String sourceUserName = userData['name'] ?? 'Usuario anÃ³nimo';
 
                               return Card(
                                 margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),

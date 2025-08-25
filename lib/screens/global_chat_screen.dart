@@ -1,14 +1,13 @@
-// lib/screens/global_chat_screen.dart
+﻿// lib/screens/global_chat_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // ✅ Correcta
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:intl/intl.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
 import 'package:easy_localization/easy_localization.dart';
-
 import 'package:eslabon_flutter/providers/user_provider.dart';
 import 'package:eslabon_flutter/providers/location_provider.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
@@ -16,7 +15,7 @@ import 'package:eslabon_flutter/widgets/custom_app_bar.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import 'package:eslabon_flutter/models/user_model.dart';
-
+import 'package:eslabon_flutter/screens/bad_params_screen.dart';
 
 class GlobalChatScreen extends ConsumerStatefulWidget {
   const GlobalChatScreen({Key? key}) : super(key: key);
@@ -26,7 +25,7 @@ class GlobalChatScreen extends ConsumerStatefulWidget {
 }
 
 class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with TickerProviderStateMixin {
-  late GoogleMapController _mapController;
+  GoogleMapController? _mapController;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -41,7 +40,9 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
     super.initState();
     _appServices = AppServices(_firestore, firebase_auth.FirebaseAuth.instance);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(userProvider.notifier).updateLastGlobalChatRead();
+      if (mounted) {
+        ref.read(userProvider.notifier).updateLastGlobalChatRead();
+      }
     });
   }
 
@@ -49,6 +50,7 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -60,7 +62,6 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
     const R = 6371.0;
     var latDistance = (lat2 - lat1) * (pi / 180);
     var lonDistance = (lon2 - lon1) * (pi / 180);
-
     var a = sin(latDistance / 2) * sin(latDistance / 2) +
             cos(lat1 * (pi / 180)) * cos(lat2 * (pi / 180)) *
                 sin(lonDistance / 2) * sin(lonDistance / 2);
@@ -100,7 +101,9 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
         );
       }
     } catch (e) {
-      AppServices.showSnackBar(context, 'Error al enviar el mensaje: $e', Colors.red);
+      if (mounted) {
+        AppServices.showSnackBar(context, 'Error al enviar el mensaje: $e', Colors.red);
+      }
     }
   }
 
@@ -129,8 +132,8 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
       );
     }
 
-    final String userCountry = user.country['name'] ?? 'N/A';
-    final String userProvince = user.province ?? 'N/A';
+    final String userCountry = user.country['name']?.toString() ?? 'N/A';
+    final String userProvince = user.province?.toString() ?? 'N/A';
 
     return DefaultTabController(
       length: 4,
@@ -311,15 +314,15 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
 
         if (filterType == 'Cercano' && radius != null && userLocation.latitude != null && userLocation.longitude != null) {
           filteredMessages = allMessages.where((doc) {
-            final lat = doc['latitude'] as double?;
-            final lon = doc['longitude'] as double?;
+            final lat = (doc['latitude'] as num?)?.toDouble();
+            final lon = (doc['longitude'] as num?)?.toDouble();
             if (lat == null || lon == null) return false;
             return _calculateDistance(userLocation.latitude!, userLocation.longitude!, lat, lon) <= radius;
           }).toList();
         } else if (filterType == 'Provincial' && provinceFilter != null) {
-            filteredMessages = allMessages.where((doc) => doc['province'] == provinceFilter).toList();
+            filteredMessages = allMessages.where((doc) => doc['province']?.toString() == provinceFilter).toList();
         } else if (filterType == 'Nacional' && countryFilter != null) {
-            filteredMessages = allMessages.where((doc) => doc['country'] == countryFilter).toList();
+            filteredMessages = allMessages.where((doc) => doc['country']?.toString() == countryFilter).toList();
         } else {
           filteredMessages = allMessages;
         }
@@ -334,22 +337,21 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
           itemCount: filteredMessages.length,
           itemBuilder: (context, index) {
             final message = filteredMessages[index].data() as Map<String, dynamic>;
-            final bool isMe = message['userId'] == user.id;
+            final bool isMe = message['userId']?.toString() == user.id;
 
             return _buildMessageBubble(
-              message['text'] as String,
+              message['text']?.toString() ?? '',
               message['timestamp'] as Timestamp,
-              message['userName'] as String,
-              message['userAvatarUrl'] as String?,
+              message['userName']?.toString() ?? 'Usuario Anónimo',
+              message['userAvatarUrl']?.toString(),
               isMe,
               () {
                 context.pushNamed(
-                  'chat',
-                  pathParameters: {'chatId': '...'},
+                  'user_profile_view',
+                  pathParameters: {'userId': message['userId']?.toString() ?? 'error'},
                   extra: {
-                    'chatPartnerId': message['userId'],
-                    'chatPartnerName': message['userName'],
-                    'chatPartnerAvatar': message['userAvatarUrl'],
+                    'userName': message['userName']?.toString(),
+                    'userPhotoUrl': message['userAvatarUrl']?.toString(),
                   },
                 );
               },

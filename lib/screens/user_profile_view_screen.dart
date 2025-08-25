@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserProfileViewScreen extends StatefulWidget {
@@ -97,11 +97,11 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
                     style: const TextStyle(fontSize: 14, color: Colors.white70),
                   ),
                   Text(
-                    'Ayudó a: ${_userData['helpedCount'] ?? 0} personas',
+                    'AyudÃ³ a: ${_userData['helpedCount'] ?? 0} personas',
                     style: const TextStyle(fontSize: 14, color: Colors.white70),
                   ),
                   Text(
-                    'Recibió ayuda de: ${_userData['receivedHelpCount'] ?? 0} personas',
+                    'RecibiÃ³ ayuda de: ${_userData['receivedHelpCount'] ?? 0} personas',
                     style: const TextStyle(fontSize: 14, color: Colors.white70),
                   ),
                   const SizedBox(height: 30),
@@ -116,7 +116,7 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Mensaje de la notificación:',
+                              'Mensaje de la notificaciÃ³n:',
                               style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                             const SizedBox(height: 5),
@@ -131,7 +131,7 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
 
                   const SizedBox(height: 10),
                   const Text(
-                    'Más detalles del perfil irían aquí, cargados desde Firestore.',
+                    'MÃ¡s detalles del perfil irÃ­an aquÃ­, cargados desde Firestore.',
                     style: TextStyle(color: Colors.white54, fontSize: 12),
                     textAlign: TextAlign.center,
                   ),

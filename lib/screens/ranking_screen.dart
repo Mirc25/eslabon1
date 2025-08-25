@@ -1,4 +1,4 @@
-// lib/screens/ranking_screen.dart
+﻿// lib/screens/ranking_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -73,7 +73,7 @@ class _RankingScreenState extends ConsumerState<RankingScreen> {
                 final userData = users[index].data() as Map<String, dynamic>;
                 final int rank = index + 1;
 
-                final String name = userData['name'] ?? 'Usuario Anónimo'.tr();
+                final String name = userData['name'] ?? 'Usuario AnÃ³nimo'.tr();
                 final String? profilePicture = userData['profilePicture'] as String?;
                 final double averageRating = (userData['averageRating'] as num? ?? 0.0).toDouble();
                 final int helpedCount = (userData['helpedCount'] as num? ?? 0).toInt();

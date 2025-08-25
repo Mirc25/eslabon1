@@ -1,4 +1,4 @@
-// lib/screens/auth_screen.dart
+﻿// lib/screens/auth_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -95,7 +95,7 @@ class _AuthScreenState extends State<AuthScreen> {
       });
     } catch (e) {
       print('Error loading data: $e');
-      _showErrorDialog('Error al cargar datos de países/provincias. Intenta de nuevo.');
+      _showErrorDialog('Error al cargar datos de paÃ­ses/provincias. Intenta de nuevo.');
     }
   }
 
@@ -119,12 +119,12 @@ class _AuthScreenState extends State<AuthScreen> {
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
         });
-        debugPrint('✅ Token FCM guardado correctamente: $token');
+        debugPrint('âœ… Token FCM guardado correctamente: $token');
       } else {
-        debugPrint('⚠️ No se pudo obtener el token FCM.');
+        debugPrint('âš ï¸ No se pudo obtener el token FCM.');
       }
     } catch (e) {
-      debugPrint('❌ Error guardando token FCM: $e');
+      debugPrint('âŒ Error guardando token FCM: $e');
     }
   }
 
@@ -146,20 +146,20 @@ class _AuthScreenState extends State<AuthScreen> {
     } on FirebaseAuthException catch (e) {
       String message;
       if (e.code == 'user-not-found') {
-        message = 'No se encontró un usuario con ese correo.';
+        message = 'No se encontrÃ³ un usuario con ese correo.';
       } else if (e.code == 'wrong-password') {
-        message = 'Contraseña incorrecta.';
+        message = 'ContraseÃ±a incorrecta.';
       } else if (e.code == 'invalid-email') {
-        message = 'El formato del correo electrónico es inválido.';
+        message = 'El formato del correo electrÃ³nico es invÃ¡lido.';
       } else {
-        message = 'Error de autenticación: ${e.message}';
+        message = 'Error de autenticaciÃ³n: ${e.message}';
       }
       setState(() {
         _errorMessage = message;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Ocurrió un error inesperado: $e';
+        _errorMessage = 'OcurriÃ³ un error inesperado: $e';
       });
     } finally {
       setState(() {
@@ -188,7 +188,7 @@ class _AuthScreenState extends State<AuthScreen> {
     final int age = today.year - birthDate.year;
 
     if (age < 18 || (age == 18 && (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)))) {
-      _showErrorDialog('Para registrarte debes ser mayor de 18 años.');
+      _showErrorDialog('Para registrarte debes ser mayor de 18 aÃ±os.');
       return;
     }
 
@@ -218,7 +218,7 @@ class _AuthScreenState extends State<AuthScreen> {
           if (signInCredential.user != null && !signInCredential.user!.emailVerified) {
             _showReverifyModal();
           } else {
-            _showErrorDialog('Este correo ya está registrado y verificado. Por favor, inicia sesión.');
+            _showErrorDialog('Este correo ya estÃ¡ registrado y verificado. Por favor, inicia sesiÃ³n.');
             if (mounted) {
               setState(() {
                 _isLoginMode = true;
@@ -227,21 +227,21 @@ class _AuthScreenState extends State<AuthScreen> {
           }
         } on FirebaseAuthException catch (signInError) {
           if (signInError.code == 'wrong-password') {
-            _showErrorDialog('Este correo ya está registrado, pero la contraseña es incorrecta. Si es tuyo, inicia sesión con la contraseña correcta. De lo contrario, usa otro email.');
+            _showErrorDialog('Este correo ya estÃ¡ registrado, pero la contraseÃ±a es incorrecta. Si es tuyo, inicia sesiÃ³n con la contraseÃ±a correcta. De lo contrario, usa otro email.');
           } else {
-            _showErrorDialog('Error al intentar iniciar sesión con email existente: ${signInError.message}');
+            _showErrorDialog('Error al intentar iniciar sesiÃ³n con email existente: ${signInError.message}');
           }
         }
       } else if (e.code == 'weak-password') {
-        errorMessage = 'La contraseña es demasiado débil.';
+        errorMessage = 'La contraseÃ±a es demasiado dÃ©bil.';
       } else if (e.code == 'invalid-email') {
-        errorMessage = 'El formato del correo electrónico es inválido.';
+        errorMessage = 'El formato del correo electrÃ³nico es invÃ¡lido.';
       } else if (e.code == 'credential-already-in-use') {
-        errorMessage = 'Este correo electrónico ya está asociado a otra cuenta. Intenta iniciar sesión o usa otro email.';
+        errorMessage = 'Este correo electrÃ³nico ya estÃ¡ asociado a otra cuenta. Intenta iniciar sesiÃ³n o usa otro email.';
       }
       _showErrorDialog(errorMessage);
     } catch (e) {
-      _showErrorDialog('Ocurrió un error inesperado durante el registro: ${e.toString()}');
+      _showErrorDialog('OcurriÃ³ un error inesperado durante el registro: ${e.toString()}');
     } finally {
       setState(() {
         _isLoadingAuth = false;
@@ -256,9 +256,9 @@ class _AuthScreenState extends State<AuthScreen> {
         'name': nameController.text,
         'lowercaseName': nameController.text.toLowerCase(),
         'dni': dniController.text,
-        'birthDay': int.tryParse(_selectedDay!), // 🔄 CORRECCIÓN: Guardamos como int
-        'birthMonth': int.tryParse(_selectedMonth!), // 🔄 CORRECCIÓN: Guardamos como int
-        'birthYear': int.tryParse(_selectedYear!), // 🔄 CORRECCIÓN: Guardamos como int
+        'birthDay': int.tryParse(_selectedDay!), // ðŸ”„ CORRECCIÃ“N: Guardamos como int
+        'birthMonth': int.tryParse(_selectedMonth!), // ðŸ”„ CORRECCIÃ“N: Guardamos como int
+        'birthYear': int.tryParse(_selectedYear!), // ðŸ”„ CORRECCIÃ“N: Guardamos como int
         'address': addressController.text,
         'zip': postalCodeController.text,
         'country': selectedCountry != null ? {
@@ -279,7 +279,7 @@ class _AuthScreenState extends State<AuthScreen> {
       });
       _showSuccessDialog(emailController.text);
     } else {
-      _showErrorDialog('No se pudo guardar la información del usuario: usuario no autenticado.');
+      _showErrorDialog('No se pudo guardar la informaciÃ³n del usuario: usuario no autenticado.');
     }
   }
 
@@ -324,7 +324,7 @@ class _AuthScreenState extends State<AuthScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                '¡Bienvenido/a a Eslabon, una cadena solidaria!',
+                'Â¡Bienvenido/a a Eslabon, una cadena solidaria!',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
@@ -361,13 +361,13 @@ class _AuthScreenState extends State<AuthScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Parece que tu correo ya está registrado pero no ha sido verificado.',
+                'Parece que tu correo ya estÃ¡ registrado pero no ha sido verificado.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 15),
               const Text(
-                '¿Quieres que te reenviemos el email de verificación?',
+                'Â¿Quieres que te reenviemos el email de verificaciÃ³n?',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white),
               ),
@@ -391,7 +391,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       Navigator.of(context).pop();
                       context.go('/login');
                     },
-                    child: const Text('Ir a Iniciar Sesión', style: TextStyle(color: Colors.grey)),
+                    child: const Text('Ir a Iniciar SesiÃ³n', style: TextStyle(color: Colors.grey)),
                   ),
                 ],
               ),
@@ -410,15 +410,15 @@ class _AuthScreenState extends State<AuthScreen> {
         user = _auth.currentUser;
         if (user != null && !user.emailVerified) {
           await user.sendEmailVerification();
-          _showErrorDialog('Se ha enviado un nuevo correo de verificación. Por favor, revisa tu bandeja de entrada o SPAM.');
+          _showErrorDialog('Se ha enviado un nuevo correo de verificaciÃ³n. Por favor, revisa tu bandeja de entrada o SPAM.');
         } else if (user != null && user.emailVerified) {
-          _showErrorDialog('Tu correo ya ha sido verificado. Por favor, inicia sesión.');
+          _showErrorDialog('Tu correo ya ha sido verificado. Por favor, inicia sesiÃ³n.');
         }
       } else {
-        _showErrorDialog('No se pudo reenviar el correo. Asegúrate de que el email sea correcto y estés registrado.');
+        _showErrorDialog('No se pudo reenviar el correo. AsegÃºrate de que el email sea correcto y estÃ©s registrado.');
       }
     } catch (e) {
-      _showErrorDialog('Error al reenviar el correo de verificación: ${e.toString()}');
+      _showErrorDialog('Error al reenviar el correo de verificaciÃ³n: ${e.toString()}');
     }
   }
 
@@ -464,7 +464,7 @@ class _AuthScreenState extends State<AuthScreen> {
               const Center(child: Text('Powered by Oviedo', style: TextStyle(color: Colors.white54, fontSize: 12))),
               const SizedBox(height: 30),
               Text(
-                _isLoginMode ? 'Iniciar Sesión' : 'Registrarse',
+                _isLoginMode ? 'Iniciar SesiÃ³n' : 'Registrarse',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
               ),
@@ -472,14 +472,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
               CustomTextField(
                 controller: emailController,
-                labelText: 'Correo Electrónico',
+                labelText: 'Correo ElectrÃ³nico',
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Este campo es obligatorio';
                   }
                   if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                    return 'Introduce un email válido';
+                    return 'Introduce un email vÃ¡lido';
                   }
                   return null;
                 },
@@ -487,14 +487,14 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 12),
               CustomTextField(
                 controller: passwordController,
-                labelText: 'Contraseña',
+                labelText: 'ContraseÃ±a',
                 obscureText: true,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Este campo es obligatorio';
                   }
                   if (_isLoginMode == false && value.length < 6) {
-                    return 'La contraseña debe tener al menos 6 caracteres';
+                    return 'La contraseÃ±a debe tener al menos 6 caracteres';
                   }
                   return null;
                 },
@@ -504,14 +504,14 @@ class _AuthScreenState extends State<AuthScreen> {
               if (!_isLoginMode) ...[
                 CustomTextField(
                   controller: confirmPasswordController,
-                  labelText: 'Repetir Contraseña',
+                  labelText: 'Repetir ContraseÃ±a',
                   obscureText: true,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Este campo es obligatorio';
                     }
                     if (value != passwordController.text) {
-                      return 'Las contraseñas no coinciden';
+                      return 'Las contraseÃ±as no coinciden';
                     }
                     return null;
                   },
@@ -542,7 +542,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: addressController,
-                  labelText: 'Dirección (Lo más Completa Posible)',
+                  labelText: 'DirecciÃ³n (Lo mÃ¡s Completa Posible)',
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Este campo es obligatorio';
@@ -553,7 +553,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: postalCodeController,
-                  labelText: 'Código postal',
+                  labelText: 'CÃ³digo postal',
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -574,7 +574,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Expanded(child: DropdownButtonFormField<String>(
                     value: _selectedDay,
                     decoration: InputDecoration(
-                      labelText: 'Día',
+                      labelText: 'DÃ­a',
                       labelStyle: const TextStyle(color: Colors.white70),
                       enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
@@ -618,7 +618,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Expanded(child: DropdownButtonFormField<String>(
                     value: _selectedYear,
                     decoration: InputDecoration(
-                      labelText: 'Año',
+                      labelText: 'AÃ±o',
                       labelStyle: const TextStyle(color: Colors.white70),
                       enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
@@ -641,7 +641,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 DropdownButtonFormField<Country>(
                   value: selectedCountry,
                   decoration: const InputDecoration(
-                    labelText: 'Seleccionar país',
+                    labelText: 'Seleccionar paÃ­s',
                     labelStyle: TextStyle(color: Colors.white70),
                     enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
                     focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
@@ -695,7 +695,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: phoneController,
-                  labelText: 'Teléfono',
+                  labelText: 'TelÃ©fono',
                   keyboardType: TextInputType.phone,
                   hintText: phoneDialCode != null && phoneDialCode!.isNotEmpty ? '$phoneDialCode ' : '',
                   validator: (value) {
@@ -731,7 +731,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                       ),
                       child: Text(
-                        _isLoginMode ? 'Iniciar Sesión' : 'Registrarse',
+                        _isLoginMode ? 'Iniciar SesiÃ³n' : 'Registrarse',
                         style: const TextStyle(fontSize: 18),
                       ),
                     ),
@@ -746,8 +746,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 },
                 child: Text(
                   _isLoginMode
-                      ? '¿No tienes cuenta? Regístrate'
-                      : '¿Ya tienes cuenta? Iniciar Sesión',
+                      ? 'Â¿No tienes cuenta? RegÃ­strate'
+                      : 'Â¿Ya tienes cuenta? Iniciar SesiÃ³n',
                   style: const TextStyle(color: Colors.white70),
                 ),
               ),

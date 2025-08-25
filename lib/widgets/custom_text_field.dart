@@ -1,33 +1,33 @@
-// lib/widgets/custom_text_field.dart
+﻿// lib/widgets/custom_text_field.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para TextInputType
 
 class CustomTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String labelText;
-  final String? hintText; // ✅ AÑADIDO: hintText
+  final String? hintText; // âœ… AÃ‘ADIDO: hintText
   final bool obscureText;
   final TextInputType keyboardType;
   final String? Function(String?)? validator;
   final Widget? suffixIcon;
-  final bool readOnly; // ✅ AÑADIDO: readOnly
-  final int? maxLines; // ✅ AÑADIDO: maxLines
-  final Function(String)? onChanged; // ✅ AÑADIDO: onChanged
-  final bool enabled; // ✅ AÑADIDO: enabled
+  final bool readOnly; // âœ… AÃ‘ADIDO: readOnly
+  final int? maxLines; // âœ… AÃ‘ADIDO: maxLines
+  final Function(String)? onChanged; // âœ… AÃ‘ADIDO: onChanged
+  final bool enabled; // âœ… AÃ‘ADIDO: enabled
 
   const CustomTextField({
     Key? key,
     this.controller,
     required this.labelText,
-    this.hintText, // ✅ AÑADIDO: hintText en constructor
+    this.hintText, // âœ… AÃ‘ADIDO: hintText en constructor
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
     this.validator,
     this.suffixIcon,
-    this.readOnly = false, // ✅ AÑADIDO: readOnly en constructor con valor por defecto
-    this.maxLines = 1, // ✅ AÑADIDO: maxLines en constructor con valor por defecto
-    this.onChanged, // ✅ AÑADIDO: onChanged en constructor
-    this.enabled = true, // ✅ AÑADIDO: enabled en constructor
+    this.readOnly = false, // âœ… AÃ‘ADIDO: readOnly en constructor con valor por defecto
+    this.maxLines = 1, // âœ… AÃ‘ADIDO: maxLines en constructor con valor por defecto
+    this.onChanged, // âœ… AÃ‘ADIDO: onChanged en constructor
+    this.enabled = true, // âœ… AÃ‘ADIDO: enabled en constructor
   }) : super(key: key);
 
   @override
@@ -37,14 +37,14 @@ class CustomTextField extends StatelessWidget {
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,
-      readOnly: readOnly, // ✅ PASADO: readOnly al TextFormField
-      maxLines: maxLines, // ✅ PASADO: maxLines al TextFormField
-      onChanged: onChanged, // ✅ PASADO: onChanged al TextFormField
-      enabled: enabled, // ✅ PASADO: enabled al TextFormField
+      readOnly: readOnly, // âœ… PASADO: readOnly al TextFormField
+      maxLines: maxLines, // âœ… PASADO: maxLines al TextFormField
+      onChanged: onChanged, // âœ… PASADO: onChanged al TextFormField
+      enabled: enabled, // âœ… PASADO: enabled al TextFormField
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: labelText,
-        hintText: hintText, // ✅ PASADO: hintText al InputDecoration
+        hintText: hintText, // âœ… PASADO: hintText al InputDecoration
         labelStyle: const TextStyle(color: Colors.white70),
         hintStyle: const TextStyle(color: Colors.white54),
         enabledBorder: const OutlineInputBorder(

@@ -1,4 +1,4 @@
-// lib/screens/chat_list_screen.dart
+﻿// lib/screens/chat_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -47,7 +47,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           backgroundColor: Colors.transparent,
           body: Center(
             child: Text(
-              'Debes iniciar sesión para ver tus mensajes.'.tr(),
+              'Debes iniciar sesiÃ³n para ver tus mensajes.'.tr(),
               style: const TextStyle(color: Colors.white, fontSize: 18),
             ),
           ),

@@ -1,11 +1,11 @@
-// lib/services/app_services.dart
+﻿// lib/services/app_services.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'package:geolocator/geolocator.dart'; // Importado para obtener la ubicación
+import 'package:geolocator/geolocator.dart'; // Importado para obtener la ubicaciÃ³n
 
 class AppServices {
   final FirebaseFirestore _firestore;
@@ -27,11 +27,11 @@ class AppServices {
     final User? currentUser = _auth.currentUser;
 
     if (currentUser == null) {
-      AppServices.showSnackBar(context, 'Debes iniciar sesión para comentar.', Colors.red);
+      AppServices.showSnackBar(context, 'Debes iniciar sesiÃ³n para comentar.', Colors.red);
       return;
     }
 
-    String userName = currentUser.displayName ?? 'Usuario Anónimo';
+    String userName = currentUser.displayName ?? 'Usuario AnÃ³nimo';
     String? userAvatar = currentUser.photoURL;
 
     if (currentUser.displayName == null || currentUser.displayName!.isEmpty || currentUser.photoURL == null) {
@@ -118,9 +118,9 @@ class AppServices {
       );
 
       if (response.statusCode == 200) {
-        print('Oferta creada y notificación HTTP enviada con éxito.');
+        print('Oferta creada y notificaciÃ³n HTTP enviada con Ã©xito.');
       } else {
-        throw Exception('Error al enviar la notificación HTTP: ${response.body}');
+        throw Exception('Error al enviar la notificaciÃ³n HTTP: ${response.body}');
       }
     } catch (e) {
       print('Error al crear oferta y notificar: $e');
@@ -146,7 +146,7 @@ class AppServices {
         'data': data ?? {},
       });
     } catch (e) {
-      print('Error al añadir notificación: $e');
+      print('Error al aÃ±adir notificaciÃ³n: $e');
     }
   }
 
@@ -164,8 +164,8 @@ class AppServices {
       await addNotification(
         recipientId: helperId,
         type: 'helper_rated',
-        title: '¡Tienes una nueva calificación!',
-        body: '¡Excelente trabajo! $requesterName te ha calificado con ${rating.toStringAsFixed(1)} estrellas.',
+        title: 'Â¡Tienes una nueva calificaciÃ³n!',
+        body: 'Â¡Excelente trabajo! $requesterName te ha calificado con ${rating.toStringAsFixed(1)} estrellas.',
         data: {
           'notificationType': 'helper_rated',
           'navigationPath': '/rate-requester/$requestId',
@@ -176,10 +176,10 @@ class AppServices {
           'reviewComment': reviewComment,
         },
       );
-      print('Notificación de calificación enviada al ayudador.');
+      print('NotificaciÃ³n de calificaciÃ³n enviada al ayudador.');
     } catch (e) {
-      print('Error al notificar al ayudador sobre la calificación: $e');
-      AppServices.showSnackBar(context, 'Error al enviar notificación de calificación.', Colors.red);
+      print('Error al notificar al ayudador sobre la calificaciÃ³n: $e');
+      AppServices.showSnackBar(context, 'Error al enviar notificaciÃ³n de calificaciÃ³n.', Colors.red);
     }
   }
 
@@ -197,7 +197,7 @@ class AppServices {
       await addNotification(
         recipientId: requesterId,
         type: 'requester_rated',
-        title: '¡Has recibido una nueva calificación!',
+        title: 'Â¡Has recibido una nueva calificaciÃ³n!',
         body: '$helperName te ha calificado con ${rating.toStringAsFixed(1)} estrellas por tu solicitud.',
         data: {
           'notificationType': 'requester_rated',
@@ -208,10 +208,10 @@ class AppServices {
           'reviewComment': reviewComment,
         },
       );
-      print('Notificación de calificación enviada al solicitante.');
+      print('NotificaciÃ³n de calificaciÃ³n enviada al solicitante.');
     } catch (e) {
-      print('Error al notificar al solicitante sobre la calificación: $e');
-      AppServices.showSnackBar(context, 'Error al enviar notificación de calificación.', Colors.red);
+      print('Error al notificar al solicitante sobre la calificaciÃ³n: $e');
+      AppServices.showSnackBar(context, 'Error al enviar notificaciÃ³n de calificaciÃ³n.', Colors.red);
     }
   }
 
@@ -239,19 +239,19 @@ class AppServices {
         body: jsonEncode(notificationPayload),
       );
       if (response.statusCode == 200) {
-        print('Notificación de chat enviada con éxito.');
+        print('NotificaciÃ³n de chat enviada con Ã©xito.');
       } else {
-        print('Error al enviar la notificación de chat: ${response.body}');
+        print('Error al enviar la notificaciÃ³n de chat: ${response.body}');
       }
     } catch (e) {
-      print('Error de conexión al enviar notificación de chat: $e');
+      print('Error de conexiÃ³n al enviar notificaciÃ³n de chat: $e');
     }
   }
 
   Future<void> sendPanicAlert(BuildContext context) async {
     final User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      showSnackBar(context, 'Debes iniciar sesión para enviar una alerta.', Colors.red);
+      showSnackBar(context, 'Debes iniciar sesiÃ³n para enviar una alerta.', Colors.red);
       return;
     }
 
@@ -285,16 +285,16 @@ class AppServices {
       );
       
       if (response.statusCode == 200) {
-        print('Alerta de pánico enviada con éxito. Respuesta: ${response.body}');
-        showSnackBar(context, '¡Alerta de pánico enviada a usuarios cercanos!', Colors.green);
+        print('Alerta de pÃ¡nico enviada con Ã©xito. Respuesta: ${response.body}');
+        showSnackBar(context, 'Â¡Alerta de pÃ¡nico enviada a usuarios cercanos!', Colors.green);
       } else {
-        print('Error al enviar la alerta de pánico: ${response.body}');
+        print('Error al enviar la alerta de pÃ¡nico: ${response.body}');
         showSnackBar(context, 'Error al enviar la alerta. Intenta de nuevo.', Colors.red);
       }
       
     } catch (e) {
-      print("Error al enviar la alerta de pánico: $e");
-      showSnackBar(context, 'Ocurrió un error al enviar la alerta.', Colors.red);
+      print("Error al enviar la alerta de pÃ¡nico: $e");
+      showSnackBar(context, 'OcurriÃ³ un error al enviar la alerta.', Colors.red);
     }
   }
 
@@ -313,7 +313,7 @@ class AppServices {
     if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
       await launchUrl(Uri.parse(whatsappUrl));
     } else {
-      AppServices.showSnackBar(context, 'No se pudo abrir WhatsApp. Asegúrate de tener la aplicación instalada.', Colors.red);
+      AppServices.showSnackBar(context, 'No se pudo abrir WhatsApp. AsegÃºrate de tener la aplicaciÃ³n instalada.', Colors.red);
     }
   }
 }

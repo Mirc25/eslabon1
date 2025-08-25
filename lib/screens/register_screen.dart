@@ -1,4 +1,4 @@
-// lib/screens/register_screen.dart
+﻿// lib/screens/register_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -94,7 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (e) {
       if (!mounted) return;
       print('Error loading data: $e');
-      _showErrorDialog('Error al cargar datos de países/provincias. Intenta de nuevo.'.tr());
+      _showErrorDialog('Error al cargar datos de paÃ­ses/provincias. Intenta de nuevo.'.tr());
     }
   }
 
@@ -119,12 +119,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-        debugPrint('✅ Token FCM guardado correctamente: $token');
+        debugPrint('âœ… Token FCM guardado correctamente: $token');
       } else {
-        debugPrint('⚠️ No se pudo obtener el token FCM.');
+        debugPrint('âš ï¸ No se pudo obtener el token FCM.');
       }
     } catch (e) {
-      debugPrint('❌ Error guardando token FCM: $e');
+      debugPrint('âŒ Error guardando token FCM: $e');
     }
   }
 
@@ -172,13 +172,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return 'Este campo es obligatorio'.tr();
           }
           if (isEmail && !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-            return 'Introduce un email válido'.tr();
+            return 'Introduce un email vÃ¡lido'.tr();
           }
           if (isPassword && value.length < 6) {
-            return 'La contraseña debe tener al menos 6 caracteres'.tr();
+            return 'La contraseÃ±a debe tener al menos 6 caracteres'.tr();
           }
           if (isConfirm && value != passwordController.text) {
-            return 'Las contraseñas no coinciden'.tr();
+            return 'Las contraseÃ±as no coinciden'.tr();
           }
           return null;
         },
@@ -239,7 +239,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final int age = today.year - birthDate.year;
 
       if (age < 18 || (age == 18 && (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)))) {
-        _showErrorDialog('Para registrarte debes ser mayor de 18 años.'.tr());
+        _showErrorDialog('Para registrarte debes ser mayor de 18 aÃ±os.'.tr());
         return;
       }
     }
@@ -294,11 +294,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on FirebaseAuthException catch (e) {
       String errorMessage;
       if (e.code == 'email-already-in-use') {
-        errorMessage = 'Este correo ya está registrado. Por favor, inicia sesión.'.tr();
+        errorMessage = 'Este correo ya estÃ¡ registrado. Por favor, inicia sesiÃ³n.'.tr();
       } else if (e.code == 'weak-password') {
-        errorMessage = 'La contraseña es demasiado débil.'.tr();
+        errorMessage = 'La contraseÃ±a es demasiado dÃ©bil.'.tr();
       } else if (e.code == 'invalid-email') {
-        errorMessage = 'El formato del correo electrónico no es válido.'.tr();
+        errorMessage = 'El formato del correo electrÃ³nico no es vÃ¡lido.'.tr();
       } else {
         errorMessage = 'Error al registrar: ${e.message}'.tr();
       }
@@ -307,7 +307,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       print("Firebase Auth Error: ${e.code} - ${e.message}");
     } catch (e) {
       if (!mounted) return;
-      _showErrorDialog('Ocurrió un error inesperado durante el registro: ${e.toString()}'.tr());
+      _showErrorDialog('OcurriÃ³ un error inesperado durante el registro: ${e.toString()}'.tr());
       print("General Error during registration: $e");
     } finally {
       if (mounted) {
@@ -331,7 +331,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '¡Bienvenido/a a Eslabon, una cadena solidaria!'.tr(),
+                'Â¡Bienvenido/a a Eslabon, una cadena solidaria!'.tr(),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
@@ -379,7 +379,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               _buildTextField(
                 'address'.tr(),
                 addressController,
-                customLabelText: 'Dirección (Lo más Completa Posible)'.tr(),
+                customLabelText: 'DirecciÃ³n (Lo mÃ¡s Completa Posible)'.tr(),
               ),
               _buildTextField('postal_code'.tr(), postalCodeController, keyboardType: TextInputType.number),
               const SizedBox(height: 12),

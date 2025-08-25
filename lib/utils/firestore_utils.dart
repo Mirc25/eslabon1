@@ -1,4 +1,4 @@
-// lib/utils/firestore_utils.dart
+﻿// lib/utils/firestore_utils.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FirestoreUtils {
@@ -28,9 +28,9 @@ class FirestoreUtils {
 
       await _updateUserAverageRating(batch, targetUserId, rating);
 
-      // AÑADIDO: Lógica para actualizar los contadores de ayuda.
-      // - Si es una calificación de ayudador (helper_rating), el 'targetUserId' es el ayudador.
-      // - Si es una calificación de solicitante (requester_rating), el 'targetUserId' es el solicitante.
+      // AÃ‘ADIDO: LÃ³gica para actualizar los contadores de ayuda.
+      // - Si es una calificaciÃ³n de ayudador (helper_rating), el 'targetUserId' es el ayudador.
+      // - Si es una calificaciÃ³n de solicitante (requester_rating), el 'targetUserId' es el solicitante.
       if (type == 'helper_rating') {
         _updateUserStats(batch, targetUserId, 'helpedCount');
         _updateUserStats(batch, sourceUserId, 'receivedHelpCount');
@@ -73,7 +73,7 @@ class FirestoreUtils {
     }
   }
 
-  // AÑADIDO: Nueva función para actualizar un contador específico.
+  // AÃ‘ADIDO: Nueva funciÃ³n para actualizar un contador especÃ­fico.
   static void _updateUserStats(WriteBatch batch, String userId, String fieldName) {
     final userRef = _firestore.collection('users').doc(userId);
     batch.update(userRef, {
