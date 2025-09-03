@@ -1,0 +1,1 @@
+{"functions":{"source":"functions","runtime":"nodejs20"},"flutter":{"platforms":{"android":{"default":{"projectId":"eslabon-app","appId":"1:548781604480:android:91fd1f50679905ea96f065","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"eslabon-app","configurations":{"android":"1:548781604480:android:91fd1f50679905ea96f065"}}}}}}
