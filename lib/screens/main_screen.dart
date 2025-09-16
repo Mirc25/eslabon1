@@ -37,6 +37,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
 
   final Map<String, TextEditingController> _commentControllers = {};
   final Set<String> _notifiedRequestIds = {};
+  final Map<String, String> _profilePictureUrlCache = {}; // ✅ Añadido: Cache para las URLs de las fotos de perfil
 
   final List<String> _categories = ['Todas', 'Personas', 'Animales', 'Objetos', 'Servicios', 'Otros'];
   String _selectedCategory = 'Todas';
@@ -424,7 +425,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
       stream: _firestore.collection('users').doc(requesterUserId).snapshots(),
       builder: (context, userSnapshot) {
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
-        final String? profilePictureUrl = userData?['profilePicture']?.toString();
+        final String? profilePicturePath = userData?['profilePicture']?.toString();
         final String requestPhone = userData?['phone']?.toString() ?? 'N/A';
         final bool showWhatsapp = (requestData['showWhatsapp'] as bool?) ?? false;
 
@@ -453,12 +454,20 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         children: [
                           Row(
                             children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundImage: (profilePictureUrl != null && profilePictureUrl.startsWith('http'))
-                                    ? NetworkImage(profilePictureUrl)
-                                    : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                                backgroundColor: Colors.grey[700],
+                              FutureBuilder<String>(
+                                future: profilePicturePath != null
+                                    ? _storage.ref().child(profilePicturePath).getDownloadURL()
+                                    : Future.value(''),
+                                builder: (context, urlSnapshot) {
+                                  final String? finalImageUrl = urlSnapshot.data;
+                                  return CircleAvatar(
+                                    radius: 20,
+                                    backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
+                                        ? NetworkImage(finalImageUrl)
+                                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                                    backgroundColor: Colors.grey[700],
+                                  );
+                                },
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -1190,7 +1199,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   : const Stream.empty(),
               builder: (context, snapshot) {
                 final userData = snapshot.hasData && snapshot.data!.exists ? snapshot.data!.data() as Map<String, dynamic>? : null;
-                final String? profilePictureUrl = userData?['profilePicture']?.toString();
+                final String? profilePicturePath = userData?['profilePicture']?.toString();
                 final String userName = userData?['name']?.toString() ?? _auth.currentUser?.displayName ?? 'Usuario'.tr();
                 final String userEmail = _auth.currentUser?.email ?? 'email@example.com';
 
@@ -1205,13 +1214,37 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                       crossAxisAlignment: CrossAxisAlignment.center,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircleAvatar(
-                          radius: 40,
-                          backgroundColor: Colors.grey[700],
-                          backgroundImage: (profilePictureUrl != null && profilePictureUrl.startsWith('http'))
-                              ? NetworkImage(profilePictureUrl)
-                              : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                        ),
+                        // ✅ CORRECCIÓN: Lógica para la imagen del perfil con caché.
+                        if (profilePicturePath != null && _profilePictureUrlCache.containsKey(profilePicturePath))
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundImage: NetworkImage(_profilePictureUrlCache[profilePicturePath]!),
+                            backgroundColor: Colors.grey[700],
+                          )
+                        else
+                          FutureBuilder<String>(
+                            future: profilePicturePath != null
+                                ? _storage.ref().child(profilePicturePath).getDownloadURL()
+                                : Future.value(''),
+                            builder: (context, urlSnapshot) {
+                              if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
+                                final String? finalImageUrl = urlSnapshot.data;
+                                if (finalImageUrl != null && finalImageUrl.isNotEmpty) {
+                                  _profilePictureUrlCache[profilePicturePath!] = finalImageUrl;
+                                  return CircleAvatar(
+                                    radius: 40,
+                                    backgroundImage: NetworkImage(finalImageUrl),
+                                    backgroundColor: Colors.grey[700],
+                                  );
+                                }
+                              }
+                              return CircleAvatar(
+                                radius: 40,
+                                backgroundColor: Colors.grey[700],
+                                backgroundImage: const AssetImage('assets/default_avatar.png'),
+                              );
+                            },
+                          ),
                         const SizedBox(height: 10),
                         Text(
                           userName,

@@ -23,6 +23,7 @@ import 'package:eslabon_flutter/screens/rate_helper_screen.dart';
 import 'package:eslabon_flutter/screens/rate_requester_screen.dart';
 import 'package:eslabon_flutter/screens/ranking_screen.dart';
 import 'package:eslabon_flutter/screens/push_notification_test_screen.dart';
+import 'package:eslabon_flutter/screens/global_chat_screen.dart'; // Importado
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -95,6 +96,13 @@ class AppRouter {
         name: 'messages',
         builder: (BuildContext context, GoRouterState state) {
           return const ChatListScreen();
+        },
+      ),
+      GoRoute(
+        path: '/global_chat', // ✅ Añadido: Ruta para el chat global
+        name: 'global_chat',
+        builder: (BuildContext context, GoRouterState state) {
+          return const GlobalChatScreen();
         },
       ),
       GoRoute(

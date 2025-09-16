@@ -1,0 +1,1 @@
+ C:\\Users\\stefa\\Desktop\\eslabon_nuevo\\.dart_tool\\flutter_build\\38b3856196fe5574eb0cc582362d2143\\native_assets.json: 

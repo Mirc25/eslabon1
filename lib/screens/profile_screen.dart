@@ -210,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<String?> _uploadImage() async {
     if (currentUser == null) {
-      _showErrorDialog('Debes iniciar sesiÃƒÂ³n para subir una imagen de perfil.');
+      _showErrorDialog('Debes iniciar sesión para subir una imagen de perfil.');
       return null;
     }
     
@@ -219,8 +219,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final String fileName = 'users/${currentUser!.uid}/profile_picture.jpg';
       final UploadTask uploadTask = _storage.ref().child(fileName).putFile(_newProfileImage!);
-      await uploadTask;
-      return fileName;
+      
+      final TaskSnapshot taskSnapshot = await uploadTask;
+      
+      final String uploadedPath = taskSnapshot.ref.fullPath;
+      
+      return uploadedPath;
     } on FirebaseException catch (e) {
       print("Error uploading image: ${e.code} - ${e.message}");
       _showErrorDialog('Error al subir la imagen de perfil: ${e.message}');
@@ -569,4 +573,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-
