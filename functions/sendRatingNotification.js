@@ -1,49 +1,45 @@
-import { initializeApp } from "firebase-admin/app";
-import { getApps } from "firebase-admin/app";
-if (!getApps().length) {
-  initializeApp();
+﻿import { onRequest } from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
+import cors from "cors";
+import express from "express";
+
+const app = express();
+const corsMiddleware = cors({ origin: true });
+app.use(corsMiddleware);
+app.use(express.json());
+app.options("*", corsMiddleware);
+
+function validarCampos(body) {
+  const requeridos = [
+    "type","requestId","requestTitle","rating","reviewComment",
+    "raterName","requesterId","helperId","ratedUserId"
+  ];
+  return requeridos.filter(k => body?.[k] === undefined || body?.[k] === null || body?.[k] === "");
 }
 
-import { onRequest } from "firebase-functions/v2/https";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import * as logger from "firebase-functions/logger";
-
-const db = getFirestore();
-
-export const sendRatingNotification = onRequest(async (req, res) => {
-  logger.log("INICIO sendRatingNotification", { body: req.body });
-
-  const { ratedUserId = "", requestId = "", raterName = "", rating, type = "", requestTitle = "", requesterId = "", helperId = "", reviewComment = "" } = req.body;
-
-  if (!ratedUserId || !requestId || !raterName || rating === undefined || !type || !requestTitle) {
-    logger.error("Faltan parÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡metros obligatorios en la solicitud:", { body: req.body });
-    return res.status(400).send("Faltan parÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡metros obligatorios.");
+app.post("/", async (req, res) => {
+  logger.info("INICIO sendRatingNotification", { body: req.body || {} });
+  let body = req.body;
+  if (!body || (typeof body === "object" && Object.keys(body).length === 0)) {
+    try { if (req.rawBody?.length) body = JSON.parse(Buffer.from(req.rawBody).toString("utf8")); } catch {}
   }
-
-  const notification = {
-    title: `ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡Tienes una nueva calificaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n!`,
-    body: `${raterName} te ha calificado con ${rating} estrellas.`,
-    type,
-    data: {
-      notificationType: type,
-      requestId,
-      requesterId,
-      requesterName: raterName,
-      helperId,
-      rating: rating.toString(),
-      reviewComment,
-      requestTitle,
-    },
-    timestamp: FieldValue.serverTimestamp(),
-    read: false,
-    recipientId: ratedUserId,
-  };
-
+  const faltantes = validarCampos(body);
+  if (faltantes.length) {
+    logger.warn("Faltan parámetros obligatorios", { faltantes });
+    return res.status(400).json({ ok:false, error:"Faltan parámetros obligatorios", faltantes });
+  }
   try {
-    await db.collection("users").doc(ratedUserId).collection("notifications").add(notification);
-    res.status(200).send("OK");
-  } catch (error) {
-    logger.error("Error al guardar la notificaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n de calificaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n:", { error });
-    res.status(500).send("Error interno.");
+    logger.info("sendRatingNotification OK", { requestId: body.requestId, ratedUserId: body.ratedUserId });
+    return res.status(200).json({ ok: true, requestId: body.requestId });
+  } catch (err) {
+    logger.error("Error interno en sendRatingNotification", { err: String(err) });
+    return res.status(500).json({ ok:false, error:"Error interno" });
   }
 });
+
+app.all("*", (_req, res) => res.status(405).send("Method Not Allowed"));
+
+export const sendRatingNotification = onRequest(
+  { region: "us-central1", cors: true, timeoutSeconds: 30, memory: "256MiB" },
+  app
+);
