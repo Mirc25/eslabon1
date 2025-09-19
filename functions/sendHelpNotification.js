@@ -1,7 +1,9 @@
 import { onRequest } from "firebase-functions/v2/https";
-import admin from "firebase-admin";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-if (!admin.apps.length) admin.initializeApp();
+if (!getApps().length) initializeApp();
+const db = getFirestore();
 
 export const sendHelpNotification = onRequest({ cors: true }, async (req, res) => {
   try {
@@ -17,15 +19,15 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
     } = req.body || {};
 
     if (!requestId || !receiverId || !helperId || !helperName) {
-      return res.status(400).send("Faltan parÃƒÆ’Ã‚Â¡metros obligatorios.");
+      return res.status(400).send("Faltan parámetros obligatorios.");
     }
     const safeTitle = requestTitle || requestData?.title || "Nueva solicitud";
 
     const notification = {
       type: "offer_received",
-      title: Ãƒâ€šÃ‚Â¡ quiere ayudarte!,
-      body: Toca para ver los detalles de \"\".,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      title: `¡${helperName} quiere ayudarte!`,
+      body: `Toca para ver los detalles de "${safeTitle}".`,
+      timestamp: FieldValue.serverTimestamp(),
       read: false,
       recipientId: receiverId,
       data: {
@@ -40,8 +42,7 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
       },
     };
 
-    await admin
-      .firestore()
+    await db
       .collection("users")
       .doc(receiverId)
       .collection("notifications")

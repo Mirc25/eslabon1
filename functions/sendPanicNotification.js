@@ -1,17 +1,16 @@
-import { initializeApp } from "firebase-admin/app";
-import { getApps } from "firebase-admin/app";
-if (!getApps().length) {
-  initializeApp();
-}
-
+import { initializeApp, getApps } from "firebase-admin/app";
 import { onRequest } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import * as logger from "firebase-functions/logger";
 
+if (!getApps().length) {
+  initializeApp();
+}
+
 const db = getFirestore();
 
-export const sendPanicNotification = onRequest(async (req, res) => {
+export const sendPanicNotification = onRequest({ cors: true }, async (req, res) => {
   const { userId, userName, userPhone, userEmail, userPhotoUrl, latitude, longitude } = req.body;
 
   if (!userId || !latitude || !longitude) {
@@ -19,12 +18,12 @@ export const sendPanicNotification = onRequest(async (req, res) => {
   }
 
   const getDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371e3;
-    const ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 1 = lat1 * Math.PI / 180;
-    const ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 2 = lat2 * Math.PI / 180;
-    const ÃƒÆ’Ã…Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â  = (lat2 - lat1) * Math.PI / 180;
-    const ÃƒÆ’Ã…Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â» = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(ÃƒÆ’Ã…Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â  / 2) ** 2 + Math.cos(ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 1) * Math.cos(ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 2) * Math.sin(ÃƒÆ’Ã…Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â» / 2) ** 2;
+    const R = 6371e3; // metros
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const dLambda = ((lon2 - lon1) * Math.PI) / 180;
+    const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
@@ -46,7 +45,7 @@ export const sendPanicNotification = onRequest(async (req, res) => {
 
   const payload = {
     notification: {
-      title: `ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡Alerta de pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡nico de ${userName}!`,
+      title: `¡Alerta de pánico de ${userName}!`,
       body: `Este usuario necesita ayuda urgente.`,
       sound: 'panic_alert.mp3',
     },

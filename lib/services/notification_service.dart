@@ -27,14 +27,15 @@ class NotificationService {
       if (initialMessage != null) {
         _handleMessageOpenedApp(initialMessage);
       }
-      
+
       const androidInitializationSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
       const initializationSettings =
           InitializationSettings(android: androidInitializationSettings);
       await _flutterLocalNotificationsPlugin.initialize(
         initializationSettings,
-        onDidReceiveNotificationResponse: (NotificationResponse response) async {
+        onDidReceiveNotificationResponse:
+            (NotificationResponse response) async {
           if (response.payload != null) {
             handleNotificationNavigation(jsonDecode(response.payload!));
           }
@@ -57,19 +58,28 @@ class NotificationService {
   void handleNotificationNavigation(Map<String, dynamic> data) {
     print('DEBUG NOTIFICATION DATA: $data');
 
-    final notificationType = (data['notificationType'] ?? data['type'] ?? data['data']?['type'])?.toString();
+    final notificationType =
+        (data['notificationType'] ?? data['type'] ?? data['data']?['type'])
+            ?.toString();
     final requestId = data['data']?['requestId']?.toString();
     final helperId = data['data']?['helperId']?.toString();
     final helperName = data['data']?['helperName']?.toString();
     final requesterId = data['data']?['requesterId']?.toString();
     final requesterName = data['data']?['requesterName']?.toString();
-    final chatPartnerId = (data['chatPartnerId'] ?? data['data']?['chatPartnerId'])?.toString();
-    final chatPartnerName = (data['chatPartnerName'] ?? data['data']?['chatPartnerName'])?.toString();
-    final chatRoomId = (data['chatRoomId'] ?? data['data']?['chatRoomId'])?.toString();
-    final chatPartnerAvatar = (data['chatPartnerAvatar'] ?? data['data']?['chatPartnerAvatar'])?.toString();
+    final chatPartnerId =
+        (data['chatPartnerId'] ?? data['data']?['chatPartnerId'])?.toString();
+    final chatPartnerName =
+        (data['chatPartnerName'] ?? data['data']?['chatPartnerName'])
+            ?.toString();
+    final chatRoomId =
+        (data['chatRoomId'] ?? data['data']?['chatRoomId'])?.toString();
+    final chatPartnerAvatar =
+        (data['chatPartnerAvatar'] ?? data['data']?['chatPartnerAvatar'])
+            ?.toString();
     final userId = (data['userId'] ?? data['data']?['userId'])?.toString();
     final userName = (data['userName'] ?? data['data']?['userName'])?.toString();
-    final messageText = (data['notification']?['body'] as String?) ?? (data['messageText'] as String?);
+    final messageText = (data['notification']?['body'] as String?) ??
+        (data['messageText'] as String?);
 
     switch (notificationType) {
       case 'offer_received':
@@ -99,13 +109,16 @@ class NotificationService {
             pathParameters: {'userId': helperId},
             extra: {
               'userName': helperName,
-              'message': 'Te ha calificado con ${data['data']?['rating']?.toStringAsFixed(1)} estrellas.',
+              'message':
+                  'Te ha calificado con ${data['data']?['rating']?.toString()} estrellas.',
             },
           );
         }
         break;
       case 'chat_message':
-        if (chatRoomId != null && chatPartnerId != null && chatPartnerName != null) {
+        if (chatRoomId != null &&
+            chatPartnerId != null &&
+            chatPartnerName != null) {
           _router.pushNamed(
             'chat',
             pathParameters: {'chatId': chatRoomId},
@@ -119,18 +132,20 @@ class NotificationService {
         break;
       case 'panic_alert':
         if (userId != null && userName != null && messageText != null) {
-            _router.pushNamed(
-                'user_profile_view',
-                pathParameters: {'userId': userId},
-                extra: {
-                  'userName': userName,
-                  'message': messageText,
-                },
-            );
+          _router.pushNamed(
+            'user_profile_view',
+            pathParameters: {'userId': userId},
+            extra: {
+              'userName': userName,
+              'message': messageText,
+            },
+          );
         }
         break;
       default:
-        final navigationPath = (data['navigationPath'] ?? data['data']?['navigationPath'])?.toString();
+        final navigationPath =
+            (data['navigationPath'] ?? data['data']?['navigationPath'])
+                ?.toString();
         if (navigationPath != null) {
           _router.go(navigationPath);
           return;
@@ -151,7 +166,9 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.high,
       sound: soundFile != 'default'
-          ? RawResourceAndroidNotificationSound(soundFile.split('.').first)
+          ? RawResourceAndroidNotificationSound(
+              soundFile.split('.').first,
+            )
           : null,
     );
     final platformDetails = NotificationDetails(android: androidDetails);
@@ -168,4 +185,10 @@ class NotificationService {
   Future<String?> getToken() async {
     return await _messaging.getToken();
   }
+}
+
+/// Utilidad para imprimir el token en consola
+Future<void> printFcmToken() async {
+  String? token = await FirebaseMessaging.instance.getToken();
+  print("🔑 FCM Token: $token");
 }

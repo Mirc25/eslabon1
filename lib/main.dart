@@ -16,18 +16,17 @@ import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // ðŸ”‘ Activar App Check en modo debug (background handler)
+
   await FirebaseAppCheck.instance.activate(
-  androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-  appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
-);
+    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+    appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
+  );
 
   try {
     final t = await FirebaseAppCheck.instance.getToken(true);
-    // No imprimo el token completo por seguridad; con la longitud basta
-    print('ðŸ”’ [BG] AppCheck token length: ${t?.length}');
+    print('🔐 [BG] AppCheck token length: ${t?.length}');
   } catch (e) {
-    print('âŒ [BG] AppCheck getToken error: $e');
+    print('❌ [BG] AppCheck getToken error: $e');
   }
 
   if (message == null) return;
@@ -38,27 +37,28 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
 
+  // 👉 Inicializar Firebase ANTES de pedir el FCM token
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // ðŸ”‘ Activar App Check en modo debug
+  // 👉 Ahora sí, imprime el FCM token en consola
+  await printFcmToken();
+
   await FirebaseAppCheck.instance.activate(
-  androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-  appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
-);
+    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+    appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
+  );
 
-  // DiagnÃ³stico rÃ¡pido de proyecto/app
   final opts = DefaultFirebaseOptions.currentPlatform;
-  print('ðŸ”¥ projectId: ${opts.projectId}');
-  print('ðŸ”¥ appId    : ${opts.appId}');
-  print('ðŸ”¥ package  : com.example.eslabon_flutter');
+  print('🔥 projectId: ${opts.projectId}');
+  print('🔥 appId    : ${opts.appId}');
+  print('🔥 package  : com.example.eslabon_flutter');
 
-  // Forzar emisiÃ³n del token App Check y loguear resultado
   try {
     final t = await FirebaseAppCheck.instance.getToken(true);
-    print('ðŸ”’ AppCheck token length: ${t?.length}');
-    print('ðŸ”‘ AppCheck debug token: $t');
+    print('🔐 AppCheck token length: ${t?.length}');
+    print('🔑 AppCheck debug token: $t');
   } catch (e) {
-    print('âŒ AppCheck getToken error: $e');
+    print('❌ AppCheck getToken error: $e');
   }
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -96,7 +96,7 @@ class _MyAppState extends ConsumerState<MyApp> {
     final GoRouter router = AppRouter.router;
 
     return MaterialApp.router(
-      title: 'EslabÃ³n',
+      title: 'Eslabón',
       theme: ThemeData(
         brightness: Brightness.dark,
         primaryColor: Colors.deepPurple,

@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "697376338964-ppjmlddr4pcl3n1pqn1mbv30p2apr8ng.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.eslabon_flutter",
+            "certificate_hash": "2c513ae9c3cee0187291680ab4071093a9c992ee"
+          }
+        },
+        {
           "client_id": "697376338964-04jfuqf3vibja4300bbnmju5j8ive23k.apps.googleusercontent.com",
           "client_type": 3
         }

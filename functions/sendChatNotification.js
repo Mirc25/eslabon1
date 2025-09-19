@@ -1,21 +1,23 @@
 import { onRequest } from "firebase-functions/v2/https";
-import admin from "firebase-admin";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-if (!admin.apps.length) admin.initializeApp();
+if (!getApps().length) initializeApp();
+const db = getFirestore();
 
 export const sendChatNotification = onRequest({ cors: true }, async (req, res) => {
   try {
     const { chatRoomId, senderId, senderName, recipientId, messageText = "" } = req.body || {};
     if (!chatRoomId || !senderId || !senderName || !recipientId) {
-      return res.status(400).send("Faltan parÃƒÆ’Ã‚Â¡metros.");
+      return res.status(400).send("Faltan parámetros.");
     }
 
     const isNewChat = !messageText?.trim();
     const notification = {
       type: isNewChat ? "chat_started" : "chat_message",
-      title: isNewChat ? ${senderName} iniciÃƒÆ’Ã‚Â³ un chat contigo : ${senderName} dice:,
+      title: isNewChat ? `¡${senderName} inició un chat contigo!` : `${senderName} dice:`,
       body: isNewChat ? "Toca para abrir el chat" : messageText,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
       read: false,
       recipientId,
       data: {
@@ -26,8 +28,7 @@ export const sendChatNotification = onRequest({ cors: true }, async (req, res) =
       },
     };
 
-    await admin
-      .firestore()
+    await db
       .collection("users")
       .doc(recipientId)
       .collection("notifications")
