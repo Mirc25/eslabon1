@@ -1,4 +1,4 @@
-package com.example.eslabon_nuevo
+package com.example.eslabon_flutter
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:697376338964:android:b310fc604941fc9f82a301",
         "android_client_info": {
-          "package_name": "com.example.eslabon_nuevo"
+          "package_name": "com.example.eslabon_flutter"
         }
       },
       "oauth_client": [
@@ -17,7 +17,7 @@
           "client_id": "697376338964-765ucdrrvu5usjeb3u6aeqivgv92tge3.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.eslabon_nuevo",
+            "package_name": "com.example.eslabon_flutter",
             "certificate_hash": "239e6600114fe29a9ca9de34cb7de7bd287de665"
           }
         },
