@@ -26,3 +26,6 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+android.zip
+android_backup/
+
