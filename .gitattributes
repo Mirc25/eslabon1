@@ -1,0 +1,8 @@
+﻿*.dart  text eol=lf
+*.kt    text eol=lf
+*.java  text eol=lf
+*.gradle text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.arb   text eol=lf
