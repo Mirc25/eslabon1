@@ -1,4 +1,4 @@
-// lib/screens/request_detail_screen.dart
+﻿// lib/screens/request_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
@@ -19,6 +19,7 @@ import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/widgets/banner_ad_widget.dart';
 import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import '../widgets/custom_app_bar.dart';
+import 'package:eslabon_flutter/services/inapp_notification_service.dart';
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -81,7 +82,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               ad.dispose();
               _rewardedAd = null;
               _isRewardedAdLoaded = false;
-              print('�O Error al mostrar RewardedAd: $error');
+              print('❌ Error al mostrar RewardedAd: $error');
               if (widget.requestData != null) {
                 _goToChat(widget.requestData!['userId']?.toString() ?? 'error', widget.requestData!['requesterName']?.toString() ?? 'Usuario Anónimo', widget.requestData!['profilePicture']?.toString());
               }
@@ -94,7 +95,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               _isRewardedAdLoaded = false;
             });
           }
-          print('�O Error al cargar RewardedAd: $error');
+          print('❌ Error al cargar RewardedAd: $error');
         },
       ),
     );
@@ -328,9 +329,16 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         chatId = newChat.id;
       }
       
+      // ✅ MODIFICACIÓN: Se añade la llamada al servicio de notificación in-app.
+      await InAppNotificationService.createChatNotification(
+        recipientUid: chatPartnerId,
+        chatId: chatId,
+        senderUid: currentUser.uid,
+        senderName: chatPartnerName,
+      );
+
       if (mounted) {
-        context.pushNamed(
-          'chat',
+        context.pushNamed('chat_screen',
           pathParameters: {'chatId': chatId},
           extra: {
             'chatPartnerId': chatPartnerId,

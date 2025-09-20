@@ -1,8 +1,9 @@
 // lib/screens/notifications_screen.dart
+import '../notifications_nav.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // ï¿½o. CORREGIDO: Agregado alias para evitar conflicto de tipos
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -24,7 +25,7 @@ class NotificationsScreen extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(title: Text('notifications'.tr())),
         body: Center(
-          child: Text('Debes iniciar sesiÃ³n para ver tus notificaciones.'.tr(), style: const TextStyle(color: Colors.white)),
+          child: Text('Debes iniciar sesión para ver tus notificaciones.'.tr(), style: const TextStyle(color: Colors.white)),
         ),
       );
     }
@@ -51,12 +52,12 @@ class NotificationsScreen extends ConsumerWidget {
               .orderBy('timestamp', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
-            debugPrint('DEBUG NOTIFICATIONS: ConnectionState: ${snapshot.connectionState}');
-            debugPrint('DEBUG NOTIFICATIONS: HasError: ${snapshot.hasError}');
+            debugPrint('DEBUG NOTIFICATIONS: ConnectionState: ');
+            debugPrint('DEBUG NOTIFICATIONS: HasError: ');
 
             if (snapshot.hasError) {
-              debugPrint('DEBUG NOTIFICATIONS ERROR: ${snapshot.error}');
-              return Center(child: Text('Error al cargar notificaciones: ${snapshot.error}'.tr(), style: const TextStyle(color: Colors.red)));
+              debugPrint('DEBUG NOTIFICATIONS ERROR: ');
+              return Center(child: Text('Error al cargar notificaciones: '.tr(), style: const TextStyle(color: Colors.red)));
             }
 
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -64,7 +65,7 @@ class NotificationsScreen extends ConsumerWidget {
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              debugPrint('DEBUG NOTIFICATIONS: No hay notificaciones para el usuario: $userId');
+              debugPrint('DEBUG NOTIFICATIONS: No hay notificaciones para el usuario: ');
               return Center(
                 child: Text(
                   'No tienes notificaciones en este momento.'.tr(),
@@ -75,7 +76,7 @@ class NotificationsScreen extends ConsumerWidget {
             }
 
             final notifications = snapshot.data!.docs;
-            debugPrint('DEBUG NOTIFICATIONS: Total de notificaciones cargadas: ${notifications.length}');
+            debugPrint('DEBUG NOTIFICATIONS: Total de notificaciones cargadas: ');
 
             return ListView.builder(
               padding: const EdgeInsets.all(8.0),
@@ -89,11 +90,7 @@ class NotificationsScreen extends ConsumerWidget {
                   notificationId: notificationId,
                   notificationData: notificationData,
                   onTap: () {
-                    final Map<String, dynamic> payload = {
-                      ...notificationData,
-                      'notificationId': notificationId,
-                    };
-                    ref.read(notificationServiceProvider).handleNotificationNavigation(payload);
+                    openNotificationAndMarkRead(context, doc);
                   },
                 );
               },
@@ -104,4 +101,3 @@ class NotificationsScreen extends ConsumerWidget {
     );
   }
 }
-

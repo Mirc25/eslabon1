@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when Dark Mode is off -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- Splash screen (removed when Flutter draws first frame) -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+
+    <!-- Theme used once the process has started (behind Flutter UI) -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+
+    <!-- ANDROID API KEY para Maps/Places (no la del google-services.json) -->
+    <string name="google_maps_key">AIzaSyBLye2J6V23mTsoAkWQPgZtZIsW6xG_ZJk</string>
+</resources>

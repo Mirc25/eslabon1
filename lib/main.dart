@@ -37,11 +37,18 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
 
-  // 👉 Inicializar Firebase ANTES de pedir el FCM token
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // 👉 Ahora sí, imprime el FCM token en consola
-  await printFcmToken();
+  // Inicializar Firebase Messaging
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // 👉 Obtener y loguear el token FCM
+  try {
+    final token = await FirebaseMessaging.instance.getToken();
+    print('🔑 FCM Token: $token');
+  } catch (e) {
+    print('❌ Error obteniendo FCM token: $e');
+  }
 
   await FirebaseAppCheck.instance.activate(
     androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
@@ -55,17 +62,17 @@ Future<void> main() async {
 
   try {
     final t = await FirebaseAppCheck.instance.getToken(true);
-    print('🔐 AppCheck token length: ${t?.length}');
     print('🔑 AppCheck debug token: $t');
   } catch (e) {
     print('❌ AppCheck getToken error: $e');
   }
 
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
   final GoRouter appRouterInstance = AppRouter.router;
   final NotificationService notificationService =
       NotificationService(appRouter: appRouterInstance);
+
+  // ✅ MODIFICACIÓN: Inicializar el servicio de notificaciones
+  await notificationService.initialize();
 
   runApp(
     ProviderScope(
@@ -140,4 +147,3 @@ class _MyAppState extends ConsumerState<MyApp> {
     );
   }
 }
-

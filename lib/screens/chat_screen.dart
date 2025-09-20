@@ -10,6 +10,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/app_services.dart';
+import '../services/inapp_notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -121,7 +122,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadChatPartnerAvatarUrl() async {
     if (widget.chatPartnerAvatar != null) {
       try {
-        // CORRECCI�"N: Evitar usar una URL completa como ruta
+        // CORRECCIÓN: Evitar usar una URL completa como ruta
         final String imagePath = Uri.parse(widget.chatPartnerAvatar!).pathSegments.sublist(2).join('/');
         final url = await _storage.ref().child(imagePath).getDownloadURL();
         setState(() {
@@ -173,13 +174,13 @@ class _ChatScreenState extends State<ChatScreen> {
           'senderId': _currentUser!.uid,
         },
       });
-      // �o. LLamada para enviar notificación push al otro usuario
-      await _appServices.sendChatNotification(
-        chatRoomId: widget.chatId,
-        senderId: _currentUser!.uid,
+
+      // ✅ MODIFICACIÓN: Se añade la llamada al servicio de notificación in-app.
+      await InAppNotificationService.createChatNotification(
+        recipientUid: widget.chatPartnerId,
+        chatId: widget.chatId,
+        senderUid: _currentUser!.uid,
         senderName: _currentUserName ?? 'Usuario',
-        recipientId: widget.chatPartnerId,
-        messageText: messageText,
       );
     } catch (e) {
       print('Error sending message: $e');
@@ -379,4 +380,3 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 }
-

@@ -1,4 +1,4 @@
-﻿// lib/screens/profile_screen.dart
+// lib/screens/profile_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -115,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userLongitude = position.longitude;
       });
     } catch (e) {
-      print("Error al obtener ubicaciÃƒÂ³n: $e");
+      print("Error al obtener ubicaciÃ³n: $e");
     }
   }
 
@@ -153,8 +153,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _selectedYear = birthYear;
           }
 
-          final String countryData = await rootBundle.loadString('lib/data/countries.json');
-          final String provinceData = await rootBundle.loadString('lib/data/provinces.json');
+          final String countryData = await rootBundle.loadString('assets/countries.json');
+          final String provinceData = await rootBundle.loadString('assets/provinces.json');
 
           countries = (json.decode(countryData) as List)
               .map((e) => Country.fromJson(e))
@@ -176,7 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       print("Error loading profile data: $e");
-      _showErrorDialog('Error al cargar la informaciÃƒÂ³n de tu perfil. Intenta de nuevo.');
+      _showErrorDialog('Error al cargar la informaciÃ³n de tu perfil. Intenta de nuevo.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -210,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<String?> _uploadImage() async {
     if (currentUser == null) {
-      _showErrorDialog('Debes iniciar sesión para subir una imagen de perfil.');
+      _showErrorDialog('Debes iniciar sesi�n para subir una imagen de perfil.');
       return null;
     }
     
@@ -231,7 +231,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return null;
     } catch (e) {
       print("Unexpected error uploading image: $e");
-      _showErrorDialog('OcurriÃƒÂ³ un error inesperado al subir la imagen.');
+      _showErrorDialog('OcurriÃ³ un error inesperado al subir la imagen.');
       return null;
     }
   }
@@ -290,13 +290,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
     } on FirebaseAuthException catch (e) {
-        _showErrorDialog('Error de autenticaciÃƒÂ³n: ${e.message}. Por favor, vuelve a iniciar sesiÃƒÂ³n si el problema persiste.');
+        _showErrorDialog('Error de autenticaciÃ³n: ${e.message}. Por favor, vuelve a iniciar sesiÃ³n si el problema persiste.');
     } on FirebaseException catch (e) {
       print("Error saving profile: $e");
       _showErrorDialog('Error al guardar el perfil: ${e.message}');
     } catch (e) {
       print("Unexpected error saving profile: $e");
-      _showErrorDialog('OcurriÃƒÂ³ un error inesperado al guardar el perfil.');
+      _showErrorDialog('OcurriÃ³ un error inesperado al guardar el perfil.');
     } finally {
       setState(() {
         _isLoading = false;

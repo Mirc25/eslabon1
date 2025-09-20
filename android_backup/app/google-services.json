@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "697376338964",
+    "project_id": "pablo-oviedo",
+    "storage_bucket": "pablo-oviedo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:697376338964:android:b310fc604941fc9f82a301",
+        "android_client_info": {
+          "package_name": "com.example.eslabon_flutter"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "697376338964-765ucdrrvu5usjeb3u6aeqivgv92tge3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.eslabon_flutter",
+            "certificate_hash": "239e6600114fe29a9ca9de34cb7de7bd287de665"
+          }
+        },
+        {
+          "client_id": "697376338964-ppjmlddr4pcl3n1pqn1mbv30p2apr8ng.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.eslabon_flutter",
+            "certificate_hash": "2c513ae9c3cee0187291680ab4071093a9c992ee"
+          }
+        },
+        {
+          "client_id": "697376338964-04jfuqf3vibja4300bbnmju5j8ive23k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDmfEd-MGg4ZCZwr9yEnIPSK5DPBIp3deo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "697376338964-04jfuqf3vibja4300bbnmju5j8ive23k.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

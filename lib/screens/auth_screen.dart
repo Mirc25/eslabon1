@@ -86,8 +86,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _loadLocationData() async {
     try {
-      final String countryData = await rootBundle.loadString('lib/data/countries.json');
-      final String provinceData = await rootBundle.loadString('lib/data/provinces.json');
+      final String countryData = await rootBundle.loadString('assets/countries.json');
+      final String provinceData = await rootBundle.loadString('assets/provinces.json');
 
       setState(() {
         countries = (json.decode(countryData) as List).map((e) => Country.fromJson(e)).toList();
@@ -119,12 +119,12 @@ class _AuthScreenState extends State<AuthScreen> {
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
         });
-        debugPrint('�o. Token FCM guardado correctamente: $token');
+        debugPrint('✅ Token FCM guardado correctamente: $token');
       } else {
-        debugPrint('�s�️ No se pudo obtener el token FCM.');
+        debugPrint('⚠️ No se pudo obtener el token FCM.');
       }
     } catch (e) {
-      debugPrint('�O Error guardando token FCM: $e');
+      debugPrint('❌ Error guardando token FCM: $e');
     }
   }
 
@@ -256,9 +256,9 @@ class _AuthScreenState extends State<AuthScreen> {
         'name': nameController.text,
         'lowercaseName': nameController.text.toLowerCase(),
         'dni': dniController.text,
-        'birthDay': int.tryParse(_selectedDay!), // �Y"" CORRECCI�"N: Guardamos como int
-        'birthMonth': int.tryParse(_selectedMonth!), // �Y"" CORRECCI�"N: Guardamos como int
-        'birthYear': int.tryParse(_selectedYear!), // �Y"" CORRECCI�"N: Guardamos como int
+        'birthDay': int.tryParse(_selectedDay!),
+        'birthMonth': int.tryParse(_selectedMonth!),
+        'birthYear': int.tryParse(_selectedYear!),
         'address': addressController.text,
         'zip': postalCodeController.text,
         'country': selectedCountry != null ? {
@@ -759,4 +759,3 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 }
-

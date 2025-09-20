@@ -52,6 +52,6 @@ flutter:
     - assets/selfie4.png
     - assets/default_avatar.png
     - assets/time.png
-    - lib/data/countries.json
-    - lib/data/provinces.json
+    - assets/countries.json
+    - assets/provinces.json
     - assets/translations/
