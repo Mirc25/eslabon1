@@ -29,3 +29,5 @@ Thumbs.db
 android.zip
 android_backup/
 
+
+.dart_tool/
