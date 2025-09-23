@@ -1,23 +1,14 @@
-﻿import "package:firebase_messaging/firebase_messaging.dart";
-import "../local_notifs.dart";
+﻿// lib/services/fcm_foreground.dart
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:eslabon_flutter/services/notification_service.dart';
 
-void bindForegroundFCM() {
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    final notification = message.notification;
-    if (notification == null) return;
+final _fm = FirebaseMessaging.instance;
 
-    flnp.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          "default_channel",
-          "Default",
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-      ),
-    );
-  });
+Future<void> initFcmForeground() async {
+  await _fm.requestPermission();
+}
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage m) async {
+  await NotificationService.handleBackgroundMessage(m);
 }

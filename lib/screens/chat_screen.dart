@@ -5,12 +5,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-
+import 'package:easy_localization/easy_localization.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/app_services.dart';
 import '../services/inapp_notification_service.dart';
+import '../services/notification_service.dart'; // Importado
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -54,6 +55,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadChatPartnerAvatarUrl();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     _markChatNotificationsAsRead();
+    NotificationService.setActiveChatId(widget.chatId);
   }
 
   @override
@@ -61,6 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _updateUserPresence(null);
     _messageController.dispose();
     _scrollController.dispose();
+    NotificationService.setActiveChatId(null);
     super.dispose();
   }
 
@@ -120,21 +123,23 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadChatPartnerAvatarUrl() async {
-    if (widget.chatPartnerAvatar != null) {
+    if (widget.chatPartnerAvatar != null && widget.chatPartnerAvatar!.isNotEmpty) {
       try {
-        // CORRECCIÓN: Evitar usar una URL completa como ruta
-        final String imagePath = Uri.parse(widget.chatPartnerAvatar!).pathSegments.sublist(2).join('/');
-        final url = await _storage.ref().child(imagePath).getDownloadURL();
-        setState(() {
-          _chatPartnerAvatarUrl = url;
-        });
-      } catch (e) {
-        // Si no es una URL de Firebase, usarla directamente
         if (widget.chatPartnerAvatar!.startsWith('http')) {
-          _chatPartnerAvatarUrl = widget.chatPartnerAvatar;
+          setState(() {
+            _chatPartnerAvatarUrl = widget.chatPartnerAvatar!;
+          });
         } else {
-          print('Error loading chat partner avatar URL: $e');
+          final url = await _storage.ref().child(widget.chatPartnerAvatar!).getDownloadURL();
+          setState(() {
+            _chatPartnerAvatarUrl = url;
+          });
         }
+      } catch (e) {
+        print('Error loading chat partner avatar URL: $e');
+        setState(() {
+          _chatPartnerAvatarUrl = null;
+        });
       }
     }
   }
@@ -159,14 +164,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final chatDocRef = _firestore.collection('chats').doc(widget.chatId);
-      // Guardar el mensaje en la subcolección de mensajes
+      // Guardar el mensaje en la subcolecciÃ³n de mensajes
       await chatDocRef.collection('messages').add({
         'senderId': _currentUser!.uid,
         'receiverId': widget.chatPartnerId,
         'text': messageText,
         'timestamp': FieldValue.serverTimestamp(),
       });
-      // Actualizar el último mensaje en el documento principal del chat
+      // Actualizar el Ãºltimo mensaje en el documento principal del chat
       await chatDocRef.update({
         'lastMessage': {
           'text': messageText,
@@ -175,12 +180,14 @@ class _ChatScreenState extends State<ChatScreen> {
         },
       });
 
-      // ✅ MODIFICACIÓN: Se añade la llamada al servicio de notificación in-app.
+      // Se agregó la llamada al servicio de notificación in-app.
       await InAppNotificationService.createChatNotification(
         recipientUid: widget.chatPartnerId,
         chatId: widget.chatId,
         senderUid: _currentUser!.uid,
         senderName: _currentUserName ?? 'Usuario',
+        messageText: messageText,
+        senderAvatar: _currentUserAvatarUrl,
       );
     } catch (e) {
       print('Error sending message: $e');

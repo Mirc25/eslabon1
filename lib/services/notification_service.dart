@@ -1,194 +1,164 @@
 ﻿// lib/services/notification_service.dart
-import 'dart:convert';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:eslabon_flutter/services/inapp_notification_service.dart';
 
 class NotificationService {
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
   final GoRouter _router;
 
   NotificationService({required GoRouter appRouter}) : _router = appRouter;
 
-  Future<void> initialize() async {
-    NotificationSettings settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+  static bool _initialized = false;
+  static final Set<String> _seen = <String>{};
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      FirebaseMessaging.onMessage.listen(_handleMessage);
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
-      RemoteMessage? initialMessage = await _messaging.getInitialMessage();
-      if (initialMessage != null) {
-        _handleMessageOpenedApp(initialMessage);
+  static String? _activeChatId;
+  static void setActiveChatId(String? chatId) => _activeChatId = chatId;
+
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  
+  static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+    if (message == null) return;
+    print("Handling a background message: ${message.messageId}");
+
+    if (await _checkIfNotificationExists(message.messageId)) {
+      print('Notification with ID ${message.messageId} already exists. Skipping persistence.');
+      return;
+    }
+
+    await _persistNotification(
+        uid: (message.data['recipientId'] as String?) ?? (FirebaseAuth.instance.currentUser?.uid ?? ''),
+        title: message.notification?.title ?? message.data['title'] ?? 'Notificación',
+        body: message.notification?.body ?? message.data['body'] ?? '',
+        type: (message.data['type'] ?? message.data['notificationType'] ?? 'generic').toString(),
+        route: message.data['route'] as String?,
+        chatRoomId: (message.data['chatRoomId'] ?? message.data['data']?['chatRoomId'])?.toString(),
+        read: false,
+        extra: message.data,
+      );
+  }
+
+  Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
+
+    await _messaging.requestPermission();
+    await initLocalNotifs();
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage m) async {
+      await _showNotification(m);
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage m) async {
+      final data = m.data;
+      final route = data['route'] as String?;
+      if (route != null && route.isNotEmpty) {
+        _handleNavigation(route);
+      }
+    });
+  }
+
+  void _handleNavigation(String route) {
+    _router.go(route);
+  }
+
+  Future<void> _showNotification(RemoteMessage message) async {
+    final data = message.data;
+    final mid = message.messageId ?? (data['messageId']?.toString() ?? '') + ':' + data.hashCode.toString();
+    if (mid.isNotEmpty) {
+      if (_seen.contains(mid)) return;
+      _seen.add(mid);
+    }
+    
+    final String type = (data['type'] ?? data['notificationType'] ?? 'generic').toString();
+    final String? chatRoomId = (data['chatRoomId'] ?? data['data']?['chatRoomId'])?.toString();
+    
+    if (type == 'chat_message') {
+      final bool chatAbierto = (chatRoomId != null && _activeChatId == chatRoomId);
+      if (chatAbierto) return;
+
+      await showChatMessageNotif(data);
+    }
+
+    final notification = message.notification;
+    final String title = notification?.title ?? data['title'] ?? 'Notificación';
+    final String body  = notification?.body  ?? data['body']  ?? '';
+
+    final String? uid = (data['recipientId'] as String?) ?? FirebaseAuth.instance.currentUser?.uid;
+    final String? route = (data['route'] as String?);
+
+    if (uid != null && uid.isNotEmpty) {
+      if (await _checkIfNotificationExists(message.messageId)) {
+        print('Notification with ID ${message.messageId} already exists. Skipping persistence.');
+        return;
       }
 
-      const androidInitializationSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
-      const initializationSettings =
-          InitializationSettings(android: androidInitializationSettings);
-      await _flutterLocalNotificationsPlugin.initialize(
-        initializationSettings,
-        onDidReceiveNotificationResponse:
-            (NotificationResponse response) async {
-          if (response.payload != null) {
-            handleNotificationNavigation(jsonDecode(response.payload!));
-          }
-        },
+      await _persistNotification(
+        uid: uid,
+        title: title,
+        body: body,
+        type: type,
+        route: route,
+        chatRoomId: chatRoomId,
+        read: false,
+        extra: data,
       );
     }
   }
 
-  void _handleMessage(RemoteMessage message) {
-    if (message.notification != null) {
-      _showNotification(message);
+  static Future<bool> _checkIfNotificationExists(String? messageId) async {
+    if (messageId == null || messageId.isEmpty) return false;
+    
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return false;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('notifications')
+          .where('extra.messageId', isEqualTo: messageId)
+          .limit(1)
+          .get();
+
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking for existing notification: $e');
+      return false;
     }
   }
 
-  void _handleMessageOpenedApp(RemoteMessage message) {
-    final data = message.data;
-    handleNotificationNavigation(data);
-  }
-
-  void handleNotificationNavigation(Map<String, dynamic> data) {
-    print('DEBUG NOTIFICATION DATA: $data');
-
-    final notificationType =
-        (data['notificationType'] ?? data['type'] ?? data['data']?['type'])
-            ?.toString();
-    final requestId = data['data']?['requestId']?.toString();
-    final helperId = data['data']?['helperId']?.toString();
-    final helperName = data['data']?['helperName']?.toString();
-    final requesterId = data['data']?['requesterId']?.toString();
-    final requesterName = data['data']?['requesterName']?.toString();
-    final chatPartnerId =
-        (data['chatPartnerId'] ?? data['data']?['chatPartnerId'])?.toString();
-    final chatPartnerName =
-        (data['chatPartnerName'] ?? data['data']?['chatPartnerName'])
-            ?.toString();
-    final chatRoomId =
-        (data['chatRoomId'] ?? data['data']?['chatRoomId'])?.toString();
-    final chatPartnerAvatar =
-        (data['chatPartnerAvatar'] ?? data['data']?['chatPartnerAvatar'])
-            ?.toString();
-    final userId = (data['userId'] ?? data['data']?['userId'])?.toString();
-    final userName = (data['userName'] ?? data['data']?['userName'])?.toString();
-    final messageText = (data['notification']?['body'] as String?) ??
-        (data['messageText'] as String?);
-
-    switch (notificationType) {
-      case 'offer_received':
-        if (requestId != null && helperId != null && helperName != null) {
-          _router.pushNamed(
-            'request_detail',
-            pathParameters: {'requestId': requestId},
-          );
-        }
-        break;
-      case 'helper_rated':
-        if (requestId != null && requesterId != null && requesterName != null) {
-          _router.pushNamed(
-            'rate-requester',
-            pathParameters: {'requestId': requestId},
-            extra: {
-              'requesterId': requesterId,
-              'requesterName': requesterName,
-            },
-          );
-        }
-        break;
-      case 'requester_rated':
-        if (helperId != null && helperName != null) {
-          _router.goNamed(
-            'user_profile_view',
-            pathParameters: {'userId': helperId},
-            extra: {
-              'userName': helperName,
-              'message':
-                  'Te ha calificado con ${data['data']?['rating']?.toString()} estrellas.',
-            },
-          );
-        }
-        break;
-      case 'chat_message':
-        if (chatRoomId != null &&
-            chatPartnerId != null &&
-            chatPartnerName != null) {
-          _router.pushNamed(
-            'chat',
-            pathParameters: {'chatId': chatRoomId},
-            extra: {
-              'chatPartnerId': chatPartnerId,
-              'chatPartnerName': chatPartnerName,
-              'chatPartnerAvatar': chatPartnerAvatar,
-            },
-          );
-        }
-        break;
-      case 'panic_alert':
-        if (userId != null && userName != null && messageText != null) {
-          _router.pushNamed(
-            'user_profile_view',
-            pathParameters: {'userId': userId},
-            extra: {
-              'userName': userName,
-              'message': messageText,
-            },
-          );
-        }
-        break;
-      default:
-        final navigationPath =
-            (data['navigationPath'] ?? data['data']?['navigationPath'])
-                ?.toString();
-        if (navigationPath != null) {
-          _router.go(navigationPath);
-          return;
-        }
-        _router.go('/main');
-        break;
+  static Future<void> _persistNotification({
+    required String uid,
+    required String title,
+    required String body,
+    required String type,
+    String? route,
+    String? chatRoomId,
+    bool read = false,
+    Map<String, dynamic>? extra,
+  }) async {
+    try {
+      final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      await docRef.collection('notifications').add({
+        'clientWrite': true,
+        'type': type,
+        'title': title,
+        'body': body,
+        'read': read,
+        'route': route,
+        'chatRoomId': chatRoomId,
+        'extra': extra ?? {},
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('persistNotification error: $e');
     }
   }
 
-  void _showNotification(RemoteMessage message) async {
-    final notification = message.notification;
-    final String soundFile = message.data['sound'] ?? 'default';
-
-    final androidDetails = AndroidNotificationDetails(
-      'eslabon_channel',
-      'Eslabón Notificaciones',
-      channelDescription: 'Canal de notificaciones para la app Eslabon.',
-      importance: Importance.max,
-      priority: Priority.high,
-      sound: soundFile != 'default'
-          ? RawResourceAndroidNotificationSound(
-              soundFile.split('.').first,
-            )
-          : null,
-    );
-    final platformDetails = NotificationDetails(android: androidDetails);
-
-    await _flutterLocalNotificationsPlugin.show(
-      notification.hashCode,
-      notification?.title,
-      notification?.body,
-      platformDetails,
-      payload: jsonEncode(message.data),
-    );
-  }
-
-  Future<String?> getToken() async {
-    return await _messaging.getToken();
-  }
-}
-
-/// Utilidad para imprimir el token en consola
-Future<void> printFcmToken() async {
-  String? token = await FirebaseMessaging.instance.getToken();
-  print("🔑 FCM Token: $token");
+  Future<String?> getDeviceToken() async => _messaging.getToken();
 }

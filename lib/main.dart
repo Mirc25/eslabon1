@@ -16,21 +16,7 @@ import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
-  );
-
-  try {
-    final t = await FirebaseAppCheck.instance.getToken(true);
-    print('🔐 [BG] AppCheck token length: ${t?.length}');
-  } catch (e) {
-    print('❌ [BG] AppCheck getToken error: $e');
-  }
-
-  if (message == null) return;
-  print("Handling a background message: ${message.messageId}");
+  await NotificationService.handleBackgroundMessage(message);
 }
 
 Future<void> main() async {
@@ -38,47 +24,24 @@ Future<void> main() async {
   await EasyLocalization.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // Inicializar Firebase Messaging
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // 👉 Obtener y loguear el token FCM
-  try {
-    final token = await FirebaseMessaging.instance.getToken();
-    print('🔑 FCM Token: $token');
-  } catch (e) {
-    print('❌ Error obteniendo FCM token: $e');
-  }
 
   await FirebaseAppCheck.instance.activate(
     androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
     appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
   );
 
-  final opts = DefaultFirebaseOptions.currentPlatform;
-  print('🔥 projectId: ${opts.projectId}');
-  print('🔥 appId    : ${opts.appId}');
-  print('🔥 package  : com.example.eslabon_flutter');
-
-  try {
-    final t = await FirebaseAppCheck.instance.getToken(true);
-    print('🔑 AppCheck debug token: $t');
-  } catch (e) {
-    print('❌ AppCheck getToken error: $e');
-  }
-
   final GoRouter appRouterInstance = AppRouter.router;
   final NotificationService notificationService =
       NotificationService(appRouter: appRouterInstance);
 
-  // ✅ MODIFICACIÓN: Inicializar el servicio de notificaciones
   await notificationService.initialize();
 
   runApp(
     ProviderScope(
       overrides: [
         notificationServiceProvider.overrideWith(
-          (ref) => NotificationService(appRouter: AppRouter.router),
+          (ref) => notificationService,
         ),
       ],
       child: EasyLocalization(

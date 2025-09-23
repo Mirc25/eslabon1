@@ -1,8 +1,8 @@
-﻿import 'package:flutter/material.dart';
+﻿// lib/router/app_router.dart
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// Importa tus pantallas
 import 'package:eslabon_flutter/screens/auth_gate.dart';
 import 'package:eslabon_flutter/screens/auth_screen.dart';
 import 'package:eslabon_flutter/screens/main_screen.dart';
@@ -23,7 +23,7 @@ import 'package:eslabon_flutter/screens/rate_helper_screen.dart';
 import 'package:eslabon_flutter/screens/rate_requester_screen.dart';
 import 'package:eslabon_flutter/screens/ranking_screen.dart';
 import 'package:eslabon_flutter/screens/push_notification_test_screen.dart';
-import 'package:eslabon_flutter/screens/global_chat_screen.dart'; // Importado
+import 'package:eslabon_flutter/screens/global_chat_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -99,7 +99,7 @@ class AppRouter {
         },
       ),
       GoRoute(
-        path: '/global_chat', // ✅ Añadido: Ruta para el chat global
+        path: '/global_chat',
         name: 'global_chat',
         builder: (BuildContext context, GoRouterState state) {
           return const GlobalChatScreen();
