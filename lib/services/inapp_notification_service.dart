@@ -177,14 +177,42 @@ class InAppNotificationService {
     final id = (threadId ?? chatId ?? '').trim();
     final safeId = id.isEmpty ? 'general' : id;
 
+    // Obtener contador de mensajes no leídos
+    final unreadCount = await _getUnreadCount(safeId, myUid ?? '');
+    
     await showChatMessageNotif({
       'threadId': safeId,
-      'senderName': senderName,
-      'messageText': messageText,
+      'senderName': 'Chat $senderName',
+      'messageText': unreadCount > 1 ? '$unreadCount mensajes nuevos' : messageText,
+      'unreadCount': unreadCount,
       if ((senderId ?? senderUid) != null) 'senderId': (senderId ?? senderUid)!,
       if (senderAvatar != null) 'senderAvatar': senderAvatar,
       if (sentAt != null) 'sentAt': sentAt,
       if (recipientUid != null) 'recipientUid': recipientUid,
     });
+  }
+
+  static Future<int> _getUnreadCount(String chatId, String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final userData = userDoc.data() as Map<String, dynamic>? ?? {};
+      final lastReadTimestamps = userData['lastReadTimestamps'] as Map<String, dynamic>? ?? {};
+      final lastReadTimestamp = lastReadTimestamps[chatId] as Timestamp?;
+
+      Query query = FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('receiverId', isEqualTo: userId);
+
+      if (lastReadTimestamp != null) {
+        query = query.where('timestamp', isGreaterThan: lastReadTimestamp);
+      }
+
+      final unreadMessages = await query.get();
+      return unreadMessages.docs.length;
+    } catch (e) {
+      return 1; // Default to 1 if error
+    }
   }
 }

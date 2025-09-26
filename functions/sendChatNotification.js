@@ -1,42 +1,85 @@
-import { onRequest } from "firebase-functions/v2/https";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+// functions/sendChatNotification.js
 
-if (!getApps().length) initializeApp();
-const db = getFirestore();
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import admin from 'firebase-admin';
 
-export const sendChatNotification = onRequest({ cors: true }, async (req, res) => {
-  try {
-    const { chatRoomId, senderId, senderName, recipientId, messageText = "" } = req.body || {};
-    if (!chatRoomId || !senderId || !senderName || !recipientId) {
-      return res.status(400).send("Faltan parámetros.");
+// Asegúrate de inicializar Firebase Admin SDK si aún no lo has hecho
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
+
+export const sendChatNotification = onDocumentCreated('chats/{chatId}/messages/{messageId}', async (event) => {
+    const snap = event.data;
+    const context = event.params;
+    const message = snap.data();
+    const senderId = message.senderId;
+    const receiverId = message.receiverId;
+    const chatId = context.chatId;
+
+    if (!message.text) {
+      return null;
     }
 
-    const isNewChat = !messageText?.trim();
-    const notification = {
-      type: isNewChat ? "chat_started" : "chat_message",
-      title: isNewChat ? `¡${senderName} inició un chat contigo!` : `${senderName} dice:`,
-      body: isNewChat ? "Toca para abrir el chat" : messageText,
-      timestamp: FieldValue.serverTimestamp(),
-      read: false,
-      recipientId,
+    // Obtener los datos del receptor, incluyendo el chat actual y el token FCM
+    const receiverDoc = await admin.firestore().collection('users').doc(receiverId).get();
+    if (!receiverDoc.exists) {
+      console.log('Receiver user not found.');
+      return null;
+    }
+    const receiverData = receiverDoc.data();
+    const receiverToken = receiverData.fcmToken;
+
+    // Verificar si el receptor está en el chat activo. Si lo está, no se envía la notificación.
+    if (receiverData.currentChatId === chatId) {
+      console.log('User is in the active chat, not sending push notification.');
+      return null;
+    }
+
+    // Obtener los datos del remitente para la notificación
+    const senderDoc = await admin.firestore().collection('users').doc(senderId).get();
+    if (!senderDoc.exists) {
+      console.log('Sender user not found.');
+      return null;
+    }
+    const senderData = senderDoc.data();
+    const senderName = senderData.name || senderData.displayName || senderData.email || 'Usuario';
+    const senderAvatarUrl = senderData.profilePicture || ''; // Usar un valor predeterminado si no hay URL
+    
+    console.log('Sender data:', { senderId, senderName, senderData });
+
+    // Construir la carga útil de la notificación
+    const payload = {
+      notification: {
+        title: `Mensaje de ${senderName}`,
+        body: message.text,
+      },
       data: {
-        notificationType: isNewChat ? "chat_started" : "chat_message",
+        notificationType: 'chat_message',
         chatPartnerId: senderId,
         chatPartnerName: senderName,
-        chatRoomId,
+        chatPartnerAvatar: senderAvatarUrl,
+        chatRoomId: chatId,
+        // La ruta a la que la aplicación navegará al hacer clic en la notificación
+        route: `/chat/${chatId}?partnerId=${senderId}&partnerName=${senderName}&partnerAvatar=${encodeURIComponent(senderAvatarUrl)}`,
+      },
+      android: {
+        notification: {
+          // Usar la URL de la imagen como ícono
+          imageUrl: senderAvatarUrl,
+          // La configuración para agrupar notificaciones podría ir aquí si fuera necesario
+          // tag: chatId,
+        },
       },
     };
 
-    await db
-      .collection("users")
-      .doc(recipientId)
-      .collection("notifications")
-      .add(notification);
+    try {
+      if (receiverToken) {
+        await admin.messaging().sendToDevice(receiverToken, payload);
+        console.log('Notification sent successfully to:', receiverId);
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+    }
 
-    return res.status(200).send("OK");
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send("Error interno.");
-  }
+    return null;
 });

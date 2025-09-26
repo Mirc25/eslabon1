@@ -20,10 +20,25 @@ export const sendRatingNotification = onRequest(async (req, res) => {
     return res.status(400).send("Faltan parÃ¡metros obligatorios.");
   }
 
+  // Determinar la ruta según el tipo de calificación
+  let route = '';
+  if (type === 'rate_helper') {
+    route = `/rate-helper/${requestId}`;
+    if (helperId && raterName) {
+      route += `?helperId=${helperId}&helperName=${encodeURIComponent(raterName)}`;
+    }
+  } else if (type === 'rate_requester') {
+    route = `/rate-requester/${requestId}`;
+    if (requesterId && raterName) {
+      route += `?requesterId=${requesterId}&requesterName=${encodeURIComponent(raterName)}`;
+    }
+  }
+
   const notification = {
-    title: `Â¡Tienes una nueva calificaciÃ³n!`,
+    title: `¡Tienes una nueva calificación!`,
     body: `${raterName} te ha calificado con ${rating} estrellas.`,
     type,
+    route, // Agregar el campo route para navegación correcta
     data: {
       notificationType: type,
       requestId,

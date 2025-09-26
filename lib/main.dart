@@ -1,5 +1,6 @@
-﻿// lib/main.dart
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +17,7 @@ import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await NotificationService.handleBackgroundMessage(message);
+  await NotificationService().handleBackgroundMessage(message);
 }
 
 Future<void> main() async {
@@ -24,6 +25,7 @@ Future<void> main() async {
   await EasyLocalization.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   await FirebaseAppCheck.instance.activate(
@@ -32,17 +34,13 @@ Future<void> main() async {
   );
 
   final GoRouter appRouterInstance = AppRouter.router;
-  final NotificationService notificationService =
-      NotificationService(appRouter: appRouterInstance);
-
-  await notificationService.initialize();
+  final NotificationService notificationService = NotificationService();
+  await notificationService.initialize(appRouterInstance);
 
   runApp(
     ProviderScope(
       overrides: [
-        notificationServiceProvider.overrideWith(
-          (ref) => notificationService,
-        ),
+        notificationServiceProvider.overrideWithValue(notificationService),
       ],
       child: EasyLocalization(
         supportedLocales: const [Locale('es'), Locale('en')],
@@ -60,7 +58,45 @@ class MyApp extends ConsumerStatefulWidget {
   ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends ConsumerState<MyApp> {
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Inicialmente la app está en primer plano
+    NotificationService.setAppInForeground(true);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App en primer plano
+        NotificationService.setAppInForeground(true);
+        debugPrint('App en primer plano');
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // App en segundo plano o cerrada
+        NotificationService.setAppInForeground(false);
+        debugPrint('App en segundo plano');
+        break;
+      case AppLifecycleState.hidden:
+        // App oculta
+        NotificationService.setAppInForeground(false);
+        debugPrint('App oculta');
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final GoRouter router = AppRouter.router;

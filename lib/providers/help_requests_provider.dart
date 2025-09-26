@@ -15,17 +15,20 @@ final rawHelpRequestsStreamProvider = StreamProvider<QuerySnapshot>((ref) {
 });
 
 // Proveedor para las solicitudes de ayuda filtradas
-final filteredHelpRequestsProvider = StreamProvider<List<QueryDocumentSnapshot>>((ref) {
-  final AsyncValue<QuerySnapshot> rawRequests = ref.watch(rawHelpRequestsStreamProvider);
+final filteredHelpRequestsProvider = Provider<AsyncValue<List<QueryDocumentSnapshot>>>((ref) {
+  final AsyncValue<QuerySnapshot> rawRequestsAsyncValue = ref.watch(rawHelpRequestsStreamProvider);
   final String currentFilterScope = ref.watch(filterScopeProvider);
   final double proximityRadiusKm = ref.watch(proximityRadiusProvider);
   final UserLocationData userLocation = ref.watch(userLocationProvider);
 
-  return rawRequests.when(
+  return rawRequestsAsyncValue.when(
     data: (snapshot) {
       final List<QueryDocumentSnapshot> allHelpRequestDocs = snapshot.docs;
-      print('DEBUG FILTER_PROVIDER: Total de solicitudes cargadas de Firestore (antes de filtrar): ${allHelpRequestDocs.length}');
-
+      print('DEBUG PROVIDER: Total solicitudes cargadas: ${allHelpRequestDocs.length}');
+      print('DEBUG PROVIDER: Filtro actual: $currentFilterScope');
+      print('DEBUG PROVIDER: Ubicación usuario: lat=${userLocation.latitude}, lon=${userLocation.longitude}');
+      print('DEBUG PROVIDER: Radio proximidad: ${proximityRadiusKm}km');
+      
       final List<QueryDocumentSnapshot> filteredList = allHelpRequestDocs.where((doc) {
         final request = doc.data() as Map<String, dynamic>;
         final String requestProvincia = request['provincia'] ?? '';
@@ -42,6 +45,14 @@ final filteredHelpRequestsProvider = StreamProvider<List<QueryDocumentSnapshot>>
         bool passesFilter = false;
         if (currentFilterScope == 'Cercano') {
           passesFilter = isNearbyLocal;
+          if (requestLat != null && requestLon != null) {
+            final distance = userLocation.latitude != null && userLocation.longitude != null 
+              ? _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon)
+              : -1;
+            print('DEBUG FILTRO: Solicitud lat=$requestLat, lon=$requestLon, distancia=${distance.toStringAsFixed(1)}km, pasa filtro: $passesFilter');
+          } else {
+            print('DEBUG FILTRO: Solicitud sin coordenadas válidas');
+          }
         } else if (currentFilterScope == 'Provincial') {
           const String userProvincia = 'San Juan'; // Asumo 'San Juan' como provincia fija del usuario
           passesFilter = (requestProvincia == userProvincia);
@@ -53,13 +64,16 @@ final filteredHelpRequestsProvider = StreamProvider<List<QueryDocumentSnapshot>>
         return passesFilter;
       }).toList();
 
-      print('DEBUG FILTER_PROVIDER: Total de solicitudes filtradas a mostrar: ${filteredList.length}');
-      return Stream.value(filteredList); // Devuelve un stream con la lista filtrada
+      print('DEBUG PROVIDER: Solicitudes que pasaron el filtro: ${filteredList.length}');
+      return AsyncValue.data(filteredList);
     },
-    loading: () => const Stream.empty(), // Devuelve un stream vacío mientras carga
-    error: (err, stack) {
-      print('DEBUG FILTER_PROVIDER ERROR: Error al cargar o filtrar solicitudes: $err');
-      return Stream.error(err); // Propaga el error
+    loading: () {
+      print('DEBUG PROVIDER: Cargando solicitudes...');
+      return const AsyncValue.loading();
+    },
+    error: (error, stack) {
+      print('DEBUG PROVIDER: Error al cargar solicitudes: $error');
+      return AsyncValue.error(error, stack);
     },
   );
 });

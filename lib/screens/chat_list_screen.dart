@@ -1,4 +1,4 @@
-﻿// lib/screens/chat_list_screen.dart
+// lib/screens/chat_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,12 +20,21 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TextEditingController _searchController = TextEditingController();
   User? _currentUser;
+  List<DocumentSnapshot> _searchResults = [];
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
     _currentUser = _auth.currentUser;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<int> _getUnreadMessagesCount(String chatId) async {
@@ -37,6 +46,93 @@ class _ChatListScreenState extends State<ChatListScreen> {
         .where('read', isEqualTo: false)
         .get();
     return unreadNotifications.docs.length;
+  }
+
+  void _searchUsers(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      // Buscar usuarios por nombre (case insensitive)
+      final QuerySnapshot result = await _firestore
+          .collection('users')
+          .where('name', isGreaterThanOrEqualTo: query)
+          .where('name', isLessThan: query + 'z')
+          .limit(10)
+          .get();
+
+      // Filtrar para excluir al usuario actual
+      final filteredResults = result.docs.where((doc) => doc.id != _currentUser!.uid).toList();
+
+      setState(() {
+        _searchResults = filteredResults;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+    }
+  }
+
+  Future<void> _startChatWithUser(String userId, String userName, String? userAvatar) async {
+    try {
+      // Verificar si ya existe un chat entre estos usuarios
+      final QuerySnapshot existingChats = await _firestore
+          .collection('chats')
+          .where('participants', arrayContains: _currentUser!.uid)
+          .get();
+
+      String? existingChatId;
+       for (var doc in existingChats.docs) {
+         final chatData = doc.data() as Map<String, dynamic>;
+         final participants = List<String>.from(chatData['participants'] ?? []);
+         if (participants.contains(userId)) {
+           existingChatId = doc.id;
+           break;
+         }
+       }
+
+      if (existingChatId != null) {
+        // Navegar al chat existente
+        context.go('/chat/$existingChatId?partnerId=$userId&partnerName=${Uri.encodeComponent(userName)}&partnerAvatar=${userAvatar ?? ''}');
+      } else {
+        // Crear nuevo chat
+        final DocumentReference newChatRef = await _firestore.collection('chats').add({
+          'participants': [_currentUser!.uid, userId],
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastMessage': {
+            'text': '',
+            'senderId': '',
+            'timestamp': FieldValue.serverTimestamp(),
+          },
+        });
+
+        // Navegar al nuevo chat
+        context.go('/chat/${newChatRef.id}?partnerId=$userId&partnerName=${Uri.encodeComponent(userName)}&partnerAvatar=${userAvatar ?? ''}');
+      }
+
+      // Limpiar búsqueda
+      _searchController.clear();
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al iniciar chat: $e')),
+      );
+    }
   }
 
   @override
@@ -65,12 +161,84 @@ class _ChatListScreenState extends State<ChatListScreen> {
             onPressed: () => context.go('/main'),
           ),
         ),
-        body: StreamBuilder<QuerySnapshot>(
-          stream: _firestore
-              .collection('chats')
-              .where('participants', arrayContains: _currentUser!.uid)
-              .orderBy('lastMessage.timestamp', descending: true)
-              .snapshots(),
+        body: Column(
+          children: [
+            // Campo de búsqueda
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Buscar usuarios para chatear...',
+                  hintStyle: const TextStyle(color: Colors.white54),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.white54),
+                          onPressed: () {
+                            _searchController.clear();
+                            _searchUsers('');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.grey[800],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: _searchUsers,
+              ),
+            ),
+            
+            // Resultados de búsqueda
+            if (_searchResults.isNotEmpty)
+              Container(
+                height: 200,
+                child: ListView.builder(
+                  itemCount: _searchResults.length,
+                  itemBuilder: (context, index) {
+                    final userDoc = _searchResults[index];
+                    final userData = userDoc.data() as Map<String, dynamic>;
+                    final userName = userData['name'] ?? 'Usuario';
+                    final userAvatar = userData['profilePicture'];
+
+                    return Card(
+                      color: Colors.grey[700],
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: userAvatar != null && userAvatar.startsWith('http')
+                              ? NetworkImage(userAvatar)
+                              : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                          backgroundColor: Colors.grey[600],
+                        ),
+                        title: Text(
+                          userName,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          'Toca para chatear',
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chat, color: Colors.amber),
+                        onTap: () => _startChatWithUser(userDoc.id, userName, userAvatar),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            
+            // Lista de chats existentes
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _firestore
+                    .collection('chats')
+                    .where('participants', arrayContains: _currentUser!.uid)
+                    .orderBy('lastMessage.timestamp', descending: true)
+                    .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: SpinningImageLoader());
@@ -165,14 +333,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               ],
                             ),
                             onTap: () {
-                              context.pushNamed('chat_screen',
-                                pathParameters: {'chatId': chatDoc.id},
-                                extra: {
-                                  'chatPartnerId': otherUserId,
-                                  'chatPartnerName': otherUserName,
-                                  'chatPartnerAvatar': otherUserAvatar,
-                                },
-                              );
+                              context.go('/chat/${chatDoc.id}?partnerId=$otherUserId&partnerName=${Uri.encodeComponent(otherUserName)}&partnerAvatar=${otherUserAvatar ?? ''}');
                             },
                           ),
                         );
@@ -182,7 +343,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 );
               },
             );
-          },
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

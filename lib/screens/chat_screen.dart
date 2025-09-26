@@ -6,14 +6,15 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:eslabon_flutter/providers/notification_service_provider.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/app_services.dart';
 import '../services/inapp_notification_service.dart';
-import '../services/notification_service.dart'; // Importado
 
-class ChatScreen extends StatefulWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
   final String chatPartnerId;
   final String chatPartnerName;
@@ -28,10 +29,10 @@ class ChatScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -44,6 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _currentUserAvatarPath;
   String? _chatPartnerAvatarUrl;
   String? _currentUserAvatarUrl;
+  String? _chatPartnerToken;
 
   @override
   void initState() {
@@ -53,9 +55,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _updateUserPresence(widget.chatId);
     _loadCurrentUserData();
     _loadChatPartnerAvatarUrl();
+    _loadChatPartnerToken();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     _markChatNotificationsAsRead();
-    NotificationService.setActiveChatId(widget.chatId);
+    _markMessagesAsRead();
+    _clearNotifications();
+    
+    // NOTA: se eliminaron las llamadas a NotificationService.setActiveChatId
   }
 
   @override
@@ -63,7 +69,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _updateUserPresence(null);
     _messageController.dispose();
     _scrollController.dispose();
-    NotificationService.setActiveChatId(null);
     super.dispose();
   }
 
@@ -144,6 +149,77 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _loadChatPartnerToken() async {
+    print('🔑 CARGANDO TOKEN DEL CHAT PARTNER');
+    print('🔑 Chat Partner ID: ${widget.chatPartnerId}');
+    
+    try {
+      final userDoc = await _firestore.collection('users').doc(widget.chatPartnerId).get();
+      print('🔑 User doc exists: ${userDoc.exists}');
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final fcmToken = userData['fcmToken'];
+        
+        print('🔑 FCM Token found: ${fcmToken != null ? "Sí (${fcmToken.toString().length} chars)" : "No"}');
+        print('🔑 FCM Token value: ${fcmToken ?? "NULL"}');
+        
+        setState(() {
+          _chatPartnerToken = fcmToken;
+        });
+        
+        print('🔑 Token guardado en _chatPartnerToken: ${_chatPartnerToken ?? "NULL"}');
+      } else {
+        print('❌ Usuario no encontrado en Firestore');
+      }
+    } catch (e) {
+      print('❌ Error loading chat partner token: $e');
+    }
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    if (_currentUser == null) return;
+    
+    try {
+      print('📖 Marcando mensajes como leídos para chat: ${widget.chatId}');
+      
+      // Actualizar el timestamp de última lectura
+      await _firestore.collection('users').doc(_currentUser!.uid).update({
+        'lastReadTimestamps.${widget.chatId}': FieldValue.serverTimestamp(),
+      });
+      
+      print('✅ Mensajes marcados como leídos');
+    } catch (e) {
+      print('❌ Error marking messages as read: $e');
+    }
+  }
+
+  Future<void> _clearNotifications() async {
+    if (_currentUser == null) return;
+    
+    try {
+      print('🗑️ Limpiando notificaciones para chat: ${widget.chatId}');
+      
+      // Marcar notificaciones de este chat como leídas
+      final notifications = await _firestore
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .collection('notifications')
+          .where('type', isEqualTo: 'chat_message')
+          .where('chatId', isEqualTo: widget.chatId)
+          .where('read', isEqualTo: false)
+          .get();
+
+      for (final doc in notifications.docs) {
+        await doc.reference.update({'read': true});
+      }
+      
+      print('✅ ${notifications.docs.length} notificaciones marcadas como leídas');
+    } catch (e) {
+      print('❌ Error clearing notifications: $e');
+    }
+  }
+
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -164,14 +240,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final chatDocRef = _firestore.collection('chats').doc(widget.chatId);
-      // Guardar el mensaje en la subcolecciÃ³n de mensajes
       await chatDocRef.collection('messages').add({
         'senderId': _currentUser!.uid,
         'receiverId': widget.chatPartnerId,
         'text': messageText,
         'timestamp': FieldValue.serverTimestamp(),
       });
-      // Actualizar el Ãºltimo mensaje en el documento principal del chat
       await chatDocRef.update({
         'lastMessage': {
           'text': messageText,
@@ -180,7 +254,7 @@ class _ChatScreenState extends State<ChatScreen> {
         },
       });
 
-      // Se agregó la llamada al servicio de notificación in-app.
+      // Crear notificación local
       await InAppNotificationService.createChatNotification(
         recipientUid: widget.chatPartnerId,
         chatId: widget.chatId,
@@ -188,6 +262,17 @@ class _ChatScreenState extends State<ChatScreen> {
         senderName: _currentUserName ?? 'Usuario',
         messageText: messageText,
         senderAvatar: _currentUserAvatarUrl,
+      );
+
+      // Enviar notificación push usando la función HTTP callable
+      await _appServices.sendChatNotification(
+        receiverToken: _chatPartnerToken ?? '',
+        senderName: _currentUserName ?? 'Usuario',
+        message: messageText,
+        chatId: widget.chatId,
+        senderId: _currentUser!.uid,
+        receiverId: widget.chatPartnerId,
+        senderPhotoUrl: _currentUserAvatarUrl,
       );
     } catch (e) {
       print('Error sending message: $e');

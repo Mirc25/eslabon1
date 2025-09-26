@@ -47,6 +47,12 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // ⭐ DEBUGGING: Logging IDs al recibir argumentos
+    final currentUser = _auth.currentUser;
+    print('⭐ currentUser=${currentUser?.uid}');
+    print('⭐ args: requestId=${widget.requestId} helperId=${widget.helperId} helperName=${widget.helperName}');
+    
     _loadRequesterAndRequestData();
   }
 
@@ -59,6 +65,9 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   Future<void> _loadRequesterAndRequestData() async {
     try {
       final currentUser = _auth.currentUser;
+      print('[RATE_HELPER] uid=${currentUser?.uid} requestId=${widget.requestId}');
+      print('[RATE_HELPER] helperId=${widget.helperId} helperName=${widget.helperName}');
+      
       if (currentUser == null) {
         _snack('Debes iniciar sesión para calificar.'.tr(), Colors.red);
         if (mounted) {
@@ -76,6 +85,40 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
       _requestTitle = (currentRequestData['titulo']?.toString() ??
               currentRequestData['descripcion']?.toString() ??
               'Solicitud de ayuda'.tr());
+              
+      // 🧪 ASSERT LOG: Validación antes del auto-rating
+      assert(() {
+        print('🧪 VALIDACION: current=${currentUser.uid} '
+              'vs helperId=${widget.helperId} type=rate_helper');
+        return true;
+      }());
+      
+      // CRITICAL VALIDATION: Check for self-rating
+      // En RateHelperScreen, el SOLICITANTE (currentUser) califica al AYUDADOR (helperId)
+      // Solo debe impedir si el usuario intenta calificarse a sí mismo
+      print('[RATE_HELPER] VALIDATION: currentUser.uid=${currentUser.uid} vs helperId=${widget.helperId}');
+      if (currentUser.uid == widget.helperId) {
+        print('[RATE_HELPER] ERROR: Self-rating detected! User trying to rate themselves');
+        _snack('No puedes calificarte a ti mismo.'.tr(), Colors.red);
+        if (mounted) {
+          context.pop();
+        }
+        return;
+      }
+      
+      // VALIDACIÓN ADICIONAL: Verificar que el currentUser sea realmente el solicitante
+      // Usar los datos de la solicitud ya obtenidos
+      final String requestOwnerId = currentRequestData['userId']?.toString() ?? '';
+      print('[RATE_HELPER] VALIDATION: currentUser.uid=${currentUser.uid} vs requestOwnerId=$requestOwnerId');
+      
+      if (currentUser.uid != requestOwnerId) {
+        print('[RATE_HELPER] ERROR: User is not the request owner, cannot rate helper');
+        _snack('Solo el solicitante puede calificar al ayudador.'.tr(), Colors.red);
+        if (mounted) {
+          context.pop();
+        }
+        return;
+      }
 
       final helperDoc =
           await _firestore.collection('users').doc(widget.helperId).get();

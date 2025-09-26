@@ -1,0 +1,400 @@
+﻿// lib/services/notification_service.dart
+import 'dart:async';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+import 'package:flutter/material.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+import 'package:go_router/go_router.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+import 'package:firebase_messaging/firebase_messaging.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+import 'package:cloud_firestore/cloud_firestore.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+import 'package:firebase_auth/firebase_auth.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+import 'package:eslabon_flutter/services/inapp_notification_service.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+class NotificationService {
+  final GoRouter _router;
+
+  NotificationService({required GoRouter appRouter}) : _router = appRouter;
+
+  static bool _initialized = false;
+  static final Set<String> _seen = <String>{};
+
+  static String? _activeChatId;
+  static void setActiveChatId(String? chatId) => _activeChatId = chatId;
+
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  
+  static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+    if (message == null) return;
+    print("Handling a background message: ${message.messageId}");
+
+    if (await _checkIfNotificationExists(message.messageId)) {
+      print('Notification with ID ${message.messageId} already exists. Skipping persistence.');
+      return;
+    }
+
+    await _persistNotification(
+        uid: (message.data['recipientId'] as String?) ?? (FirebaseAuth.instance.currentUser?.uid ?? ''),
+        title: message.notification?.title ?? message.data['title'] ?? 'Notificación',
+        body: message.notification?.body ?? message.data['body'] ?? '',
+        type: (message.data['type'] ?? message.data['notificationType'] ?? 'generic').toString(),
+        route: message.data['route'] as String?,
+        chatRoomId: (message.data['chatRoomId'] ?? message.data['data']?['chatRoomId'])?.toString(),
+        read: false,
+        extra: message.data,
+      );
+  }
+
+  Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
+
+    await _messaging.requestPermission();
+    await initLocalNotifs();
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage m) async {
+      await _showNotification(m);
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage m) async {
+      final data = m.data;
+      final route = data['route'] as String?;
+      if (route != null && route.isNotEmpty) {
+        _handleNavigation(route);
+      }
+    });
+  }
+
+  void _handleNavigation(String route) {
+    _router.go(route);
+  }
+
+  Future<void> _showNotification(RemoteMessage message) async {
+    final data = message.data;
+    final mid = message.messageId ?? (data['messageId']?.toString() ?? '') + ':' + data.hashCode.toString();
+    if (mid.isNotEmpty) {
+      if (_seen.contains(mid)) return;
+      _seen.add(mid);
+    }
+    
+    final String type = (data['type'] ?? data['notificationType'] ?? 'generic').toString();
+    final String? chatRoomId = (data['chatRoomId'] ?? data['data']?['chatRoomId'])?.toString();
+    
+    if (type == 'chat_message') {
+      final bool chatAbierto = (chatRoomId != null && _activeChatId == chatRoomId);
+      if (chatAbierto) return;
+
+      await showChatMessageNotif(data);
+    }
+
+    final notification = message.notification;
+    final String title = notification?.title ?? data['title'] ?? 'Notificación';
+    final String body  = notification?.body  ?? data['body']  ?? '';
+
+    final String? uid = (data['recipientId'] as String?) ?? FirebaseAuth.instance.currentUser?.uid;
+    final String? route = (data['route'] as String?);
+
+    if (uid != null && uid.isNotEmpty) {
+      if (await _checkIfNotificationExists(message.messageId)) {
+        print('Notification with ID ${message.messageId} already exists. Skipping persistence.');
+        return;
+      }
+
+      await _persistNotification(
+        uid: uid,
+        title: title,
+        body: body,
+        type: type,
+        route: route,
+        chatRoomId: chatRoomId,
+        read: false,
+        extra: data,
+      );
+    }
+  }
+
+  static Future<bool> _checkIfNotificationExists(String? messageId) async {
+    if (messageId == null || messageId.isEmpty) return false;
+    
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return false;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('notifications')
+          .where('extra.messageId', isEqualTo: messageId)
+          .limit(1)
+          .get();
+
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking for existing notification: $e');
+      return false;
+    }
+  }
+
+  static Future<void> _persistNotification({
+    required String uid,
+    required String title,
+    required String body,
+    required String type,
+    String? route,
+    String? chatRoomId,
+    bool read = false,
+    Map<String, dynamic>? extra,
+  }) async {
+    try {
+      final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      await docRef.collection('notifications').add({
+        'clientWrite': true,
+        'type': type,
+        'title': title,
+        'body': body,
+        'read': read,
+        'route': route,
+        'chatRoomId': chatRoomId,
+        'extra': extra ?? {},
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('persistNotification error: $e');
+    }
+  }
+
+  Future<String?> getDeviceToken() async => _messaging.getToken();
+}
+import 'package:shared_preferences/shared_preferences.dart';
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+Future<bool> _eslHandledOnce(RemoteMessage m) async {
+  final Map<String, dynamic> data = (m.data ?? const <String,dynamic>{}) as Map<String,dynamic>;
+  final String chatId = (data['chatId'] ?? '').toString();
+  final String msgId  = (data['msgId']  ?? m.messageId ?? '').toString();
+  final String k = ((data['dedupeKey']?.toString() ?? '').isNotEmpty)
+      ? data['dedupeKey'].toString()
+      : ((chatId.isNotEmpty && msgId.isNotEmpty) ? '\-\' : msgId);
+
+  final prefs = await SharedPreferences.getInstance();
+  final now = DateTime.now();
+
+  if (now.difference(_eslPurge).inMinutes >= 10) { _eslSeen.clear(); _eslPurge = now; }
+
+  // rate-limit por chat: 1 cada 5s
+  if (_lastPerChatId == chatId && _lastPerChatTs != null && now.difference(_lastPerChatTs!).inSeconds < 5) {
+    return true;
+  }
+  _lastPerChatId = chatId; _lastPerChatTs = now;
+
+  if (k.isNotEmpty) {
+    if (_eslSeen.contains(k)) return true;
+    if ((prefs.getInt('esl_dk_\') ?? 0) > 0) return true;
+    _eslSeen.add(k);
+    await prefs.setInt('esl_dk_\', now.millisecondsSinceEpoch);
+  }
+  return false;
+}
+
+

@@ -1,5 +1,6 @@
-﻿// lib/services/fcm_foreground.dart
+// lib/services/fcm_foreground.dart
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eslabon_flutter/services/notification_service.dart';
 
 final _fm = FirebaseMessaging.instance;
@@ -10,5 +11,44 @@ Future<void> initFcmForeground() async {
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage m) async {
-  await NotificationService.handleBackgroundMessage(m);
+  await NotificationService().handleBackgroundMessage(m);
 }
+
+DateTime _eslPurge = DateTime.fromMillisecondsSinceEpoch(0);
+final Set<String> _eslSeen = <String>{};
+DateTime? _lastPerChatTs;
+String? _lastPerChatId;
+
+Future<bool> _eslHandledOnce(RemoteMessage m) async {
+  final Map<String, dynamic> data = (m.data ?? const <String,dynamic>{}) as Map<String,dynamic>;
+  final String chatId = (data['chatId'] ?? '').toString();
+  final String msgId  = (data['msgId']  ?? m.messageId ?? '').toString();
+  final String k = ((data['dedupeKey']?.toString() ?? '').isNotEmpty)
+      ? data['dedupeKey'].toString()
+      : ((chatId.isNotEmpty && msgId.isNotEmpty) ? '$chatId-$msgId' : msgId);
+
+  final prefs = await SharedPreferences.getInstance();
+  final now = DateTime.now();
+
+  if (now.difference(_eslPurge).inMinutes >= 10) { 
+    _eslSeen.clear(); 
+    _eslPurge = now; 
+  }
+
+  // rate-limit por chat: 1 cada 5s
+  if (_lastPerChatId == chatId && _lastPerChatTs != null && now.difference(_lastPerChatTs!).inSeconds < 5) {
+    return true;
+  }
+  _lastPerChatId = chatId; 
+  _lastPerChatTs = now;
+
+  if (k.isNotEmpty) {
+    if (_eslSeen.contains(k)) return true;
+    if ((prefs.getInt('esl_dk_$k') ?? 0) > 0) return true;
+    _eslSeen.add(k);
+    await prefs.setInt('esl_dk_$k', now.millisecondsSinceEpoch);
+  }
+  return false;
+}
+
+

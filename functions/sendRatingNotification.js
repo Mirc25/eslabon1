@@ -1,4 +1,4 @@
-﻿import { onRequest } from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import cors from "cors";
 import express from "express";
@@ -46,13 +46,23 @@ app.post("/", async (req, res) => {
 
     const isHelper = body.type === "rate_helper";
 
-    // Ruta por type (sin declarar variables duplicadas)
-    const routeFromType =
-      body.type === "chat" ? "/chat" :
-      body.type === "rate_helper" ? "/helper-profile" :
-      body.type === "rate_requester" ? "/rate-requester" :
-      body.type === "ranking" ? "/ranking" :
-      "/";
+    // Ruta por type con requestId incluido
+    let routeFromType = "/";
+    if (body.type === "chat") {
+      routeFromType = "/chat";
+    } else if (body.type === "rate_helper") {
+      routeFromType = `/rate-helper/${body.requestId}`;
+      if (body.helperId && body.raterName) {
+        routeFromType += `?helperId=${body.helperId}&helperName=${encodeURIComponent(body.raterName)}`;
+      }
+    } else if (body.type === "rate_requester") {
+      routeFromType = `/rate-requester/${body.requestId}`;
+      if (body.requesterId && body.raterName) {
+        routeFromType += `?requesterId=${body.requesterId}&requesterName=${encodeURIComponent(body.raterName)}`;
+      }
+    } else if (body.type === "ranking") {
+      routeFromType = "/ranking";
+    }
 
     const notification = {
       title: isHelper ? "¡Te calificaron como ayudador!" : "¡Te calificaron como solicitante!",

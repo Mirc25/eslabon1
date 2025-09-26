@@ -1,4 +1,4 @@
-﻿// lib/screens/request_detail_screen.dart
+// lib/screens/request_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
@@ -204,33 +204,46 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   }
 
   Future<void> _handleOfferHelp(Map<String, dynamic> requestData) async {
+    print('🚀 INICIO _handleOfferHelp: Iniciando proceso de ofrecer ayuda');
+    print('🚀 RequestData recibido: $requestData');
+    
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null) {
+      print('❌ ERROR: Usuario no autenticado');
       _showSnackBar('Debes iniciar sesión para ofrecer ayuda.'.tr(), Colors.red);
       return;
     }
+    print('✅ Usuario autenticado: ${currentUser.uid}');
 
     final String requesterUserId = requestData['userId']?.toString() ?? '';
+    print('🔍 RequesterUserId: $requesterUserId');
 
     if (currentUser.uid == requesterUserId) {
+      print('❌ ERROR: Usuario intentando ayudarse a sí mismo');
       _showSnackBar('No puedes ofrecerte ayuda a ti mismo.'.tr(), Colors.orange);
       return;
     }
 
     if (_hasOfferedHelp) {
+      print('❌ ERROR: Ya ha ofrecido ayuda anteriormente');
       _showSnackBar('Ya has ofrecido ayuda para esta solicitud.'.tr(), Colors.orange);
       return;
     }
 
     try {
+      print('📝 PASO A: Obteniendo perfil del ayudador...');
       final DocumentSnapshot helperProfile = await _firestore.collection('users').doc(currentUser.uid).get();
       final Map<String, dynamic> helperData = (helperProfile.data() as Map<String, dynamic>?) ?? {};
+      print('✅ PASO A: Perfil obtenido: $helperData');
 
       final String helperName = helperData['name']?.toString() ?? currentUser.displayName ?? 'Ayudador';
       final String? helperAvatarPath = helperData['profilePicture']?.toString();
+      print('📋 HelperName: $helperName, HelperAvatar: $helperAvatarPath');
 
       final String requestTitle = requestData['titulo']?.toString() ?? requestData['descripcion']?.toString() ?? 'Solicitud de ayuda';
+      print('📋 RequestTitle: $requestTitle');
 
+      print('📝 PASO B: Agregando oferta a Firestore (request_detail_screen)...');
       await _firestore
           .collection('solicitudes-de-ayuda')
           .doc(widget.requestId)
@@ -243,11 +256,15 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         'helperAvatarUrl': helperAvatarPath,
         'requesterId': requesterUserId,
       });
+      print('✅ PASO B: Oferta agregada exitosamente');
 
+      print('📝 PASO C: Incrementando contador de ofertas...');
       await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
         'offersCount': FieldValue.increment(1),
       });
+      print('✅ PASO C: Contador incrementado exitosamente');
 
+      print('📝 PASO D: Llamando a createOfferAndNotifyRequester...');
       await _appServices.createOfferAndNotifyRequester(
         context: context,
         requestId: widget.requestId,
@@ -258,20 +275,40 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         requestTitle: requestTitle,
         requestData: requestData,
       );
+      print('✅ PASO D: createOfferAndNotifyRequester completado exitosamente');
 
       if (mounted) {
         setState(() {
           _hasOfferedHelp = true;
         });
       }
+      print('🎉 ÉXITO TOTAL: Proceso de ofrecer ayuda completado');
       _showSnackBar('¡Has ofrecido ayuda con éxito! El solicitante ha sido notificado.'.tr(), Colors.green);
 
     } on FirebaseException catch (e) {
-      print("Error al ofrecer ayuda: $e");
-      _showSnackBar('Error de Firebase al ofrecer ayuda: ${e.message}'.tr(), Colors.red);
+      print("Error de Firebase al ofrecer ayuda: ${e.code} - ${e.message}");
+      String errorMessage = 'Error de Firebase: ';
+      switch (e.code) {
+        case 'permission-denied':
+          errorMessage += 'Sin permisos para realizar esta acción.';
+          break;
+        case 'network-request-failed':
+          errorMessage += 'Error de conexión. Verifica tu internet.';
+          break;
+        case 'unavailable':
+          errorMessage += 'Servicio no disponible. Intenta más tarde.';
+          break;
+        default:
+          errorMessage += e.message ?? 'Error desconocido';
+      }
+      _showSnackBar(errorMessage.tr(), Colors.red);
+    } on FormatException catch (e) {
+      print("Error de formato al ofrecer ayuda: $e");
+      _showSnackBar('Error de formato de datos. Intenta nuevamente.'.tr(), Colors.red);
     } catch (e) {
       print("Error inesperado al ofrecer ayuda: $e");
-      _showSnackBar('Ocurrió un error inesperado al ofrecer ayuda.'.tr(), Colors.red);
+      print("Tipo de error: ${e.runtimeType}");
+      _showSnackBar('Error inesperado: ${e.toString()}'.tr(), Colors.red);
     }
   }
   
@@ -338,14 +375,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       );
 
       if (mounted) {
-        context.pushNamed('chat_screen',
-          pathParameters: {'chatId': chatId},
-          extra: {
-            'chatPartnerId': chatPartnerId,
-            'chatPartnerName': chatPartnerName,
-            'chatPartnerAvatar': chatPartnerAvatar,
-          },
-        );
+        context.go('/chat/$chatId?partnerId=$chatPartnerId&partnerName=${Uri.encodeComponent(chatPartnerName)}&partnerAvatar=${chatPartnerAvatar ?? ''}');
       }
     } catch (e) {
       print("Error starting chat: $e");

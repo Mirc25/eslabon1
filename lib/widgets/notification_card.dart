@@ -19,7 +19,20 @@ class NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String type = notificationData['type'] ?? 'general';
-    final String title = notificationData['title'] ?? 'Nueva Notificación';
+    
+    // Manejar título para notificaciones de chat
+    String title = notificationData['title'] ?? '';
+    if (title.isEmpty && (type == 'chat_message' || type == 'chat')) {
+      final String senderName = notificationData['senderName'] ?? 
+                               notificationData['data']?['senderName'] ?? 
+                               notificationData['data']?['chatPartnerName'] ?? 
+                               'Usuario';
+      title = 'Chat $senderName';
+    }
+    if (title.isEmpty) {
+      title = 'Nueva Notificación';
+    }
+    
     final String body = notificationData['body'] ?? 'No hay contenido para esta notificación.';
     final Timestamp? timestamp = notificationData['timestamp'] as Timestamp?;
     final bool read = notificationData['read'] ?? false;
@@ -47,7 +60,11 @@ class NotificationCard extends StatelessWidget {
         break;
       case 'chat_message':
         icon = Icons.chat_bubble;
-        iconColor = Colors.blue;
+        iconColor = Colors.amber;
+        break;
+      case 'chat':
+        icon = Icons.chat_bubble;
+        iconColor = Colors.amber;
         break;
       default:
         icon = Icons.info;

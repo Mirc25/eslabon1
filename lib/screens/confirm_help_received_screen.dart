@@ -53,18 +53,24 @@ class _ConfirmHelpReceivedScreenState extends State<ConfirmHelpReceivedScreen> {
   }
 
   void _navigateToRateScreen() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => RateHelperScreen(
-        requestId: widget.requestData['requestId'],
-        requestData: widget.requestData,
-        helperId: widget.requestData['helperId'],                 // <- nombre correcto
-        helperName: widget.requestData['helperName'] ?? 'el usuario', // <- requerido
+    // 🚀 NAVIGATION LOG: Argumentos antes del push
+    final requestId = widget.requestData['requestId'];
+    final helperId = widget.requestData['helperId'];
+    final helperName = widget.requestData['helperName'] ?? 'el usuario';
+    print('🚀 PUSH RateHelperScreen: requestId=$requestId helperId=$helperId helperName=$helperName');
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RateHelperScreen(
+          requestId: requestId,
+          requestData: widget.requestData,
+          helperId: helperId,                 // <- nombre correcto
+          helperName: helperName, // <- requerido
+        ),
       ),
-    ),
-  ).then((_) => _loadProfilesAndRatingStatus());
-}
+    ).then((_) => _loadProfilesAndRatingStatus());
+  }
 
   @override
   Widget build(BuildContext context) {

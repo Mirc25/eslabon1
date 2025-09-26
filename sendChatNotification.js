@@ -13,7 +13,7 @@ export const sendChatNotification = onRequest({ cors: true }, async (req, res) =
     const isNewChat = !messageText?.trim();
     const notification = {
       type: isNewChat ? "chat_started" : "chat_message",
-      title: isNewChat ? ${senderName} inició un chat contigo : ${senderName} dice:,
+      title: isNewChat ? `${senderName} inició un chat contigo` : `Mensaje de ${senderName}`,
       body: isNewChat ? "Toca para abrir el chat" : messageText,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       read: false,
@@ -23,6 +23,7 @@ export const sendChatNotification = onRequest({ cors: true }, async (req, res) =
         chatPartnerId: senderId,
         chatPartnerName: senderName,
         chatRoomId,
+        route: `/chat/${chatRoomId}?partnerId=${senderId}&partnerName=${encodeURIComponent(senderName)}&partnerAvatar=`,
       },
     };
 

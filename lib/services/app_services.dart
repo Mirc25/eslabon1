@@ -1,5 +1,7 @@
 // lib/services/app_services.dart
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -75,6 +77,11 @@ class AppServices {
     required Map<String, dynamic> requestData,
   }) async {
     try {
+      print('🔄 INICIO: Creando oferta para requestId: $requestId');
+      print('🔄 Datos: helperId=$helperId, helperName=$helperName');
+      
+      // Agregar la oferta a Firestore
+      print('📝 PASO 1: Agregando oferta a Firestore...');
       await _firestore
           .collection('solicitudes-de-ayuda')
           .doc(requestId)
@@ -88,11 +95,17 @@ class AppServices {
         'helperAvatarUrl': helperAvatarUrl,
         'requestId': requestId,
       });
+      print('✅ PASO 1: Oferta agregada a Firestore exitosamente');
 
+      // Incrementar el contador de ofertas
+      print('📝 PASO 2: Incrementando contador de ofertas...');
       await _firestore.collection('solicitudes-de-ayuda').doc(requestId).update({
         'offersCount': FieldValue.increment(1),
       });
+      print('✅ PASO 2: Contador incrementado exitosamente');
 
+      // Preparar datos para la notificación HTTP
+      print('📝 PASO 3: Preparando datos para notificación HTTP...');
       final notificationPayload = {
         'requestId': requestId,
         'requestTitle': requestData['titulo'],
@@ -108,23 +121,48 @@ class AppServices {
           'longitude': requestData['longitude'],
         },
       };
+      print('✅ PASO 3: Datos preparados: ${jsonEncode(notificationPayload)}');
 
-      final Uri uri = Uri.parse('https://us-central1-eslabon-app.cloudfunctions.net/sendHelpNotification');
+      final Uri uri = Uri.parse('https://sendhelpnotification-eeejjqorja-uc.a.run.app');
+      print('📝 PASO 4: Enviando petición HTTP a: $uri');
 
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(notificationPayload),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          print('❌ TIMEOUT: La petición HTTP tardó más de 30 segundos');
+          throw TimeoutException('La petición tardó demasiado tiempo', const Duration(seconds: 30));
+        },
       );
 
+      print('📨 RESPUESTA HTTP: Status ${response.statusCode}');
+      print('📨 RESPUESTA BODY: ${response.body}');
+
       if (response.statusCode == 200) {
-        print('Oferta creada y notificación HTTP enviada con éxito.');
+        print('✅ ÉXITO COMPLETO: Oferta creada y notificación HTTP enviada con éxito.');
       } else {
-        throw Exception('Error al enviar la notificación HTTP: ${response.body}');
+        print('❌ ERROR HTTP ${response.statusCode}: ${response.body}');
+        throw Exception('Error al enviar la notificación HTTP (${response.statusCode}): ${response.body}');
       }
+    } on SocketException catch (e) {
+      print('Error de conexión de red: $e');
+      AppServices.showSnackBar(context, 'Error de conexión. Verifica tu internet.', Colors.red);
+      rethrow;
+    } on TimeoutException catch (e) {
+      print('Timeout al enviar notificación: $e');
+      AppServices.showSnackBar(context, 'Tiempo de espera agotado. Intenta nuevamente.', Colors.red);
+      rethrow;
+    } on FormatException catch (e) {
+      print('Error de formato en la respuesta: $e');
+      AppServices.showSnackBar(context, 'Error de formato en la respuesta del servidor.', Colors.red);
+      rethrow;
     } catch (e) {
       print('Error al crear oferta y notificar: $e');
-      AppServices.showSnackBar(context, 'Error al ofrecer ayuda.', Colors.red);
+      print('Tipo de error: ${e.runtimeType}');
+      AppServices.showSnackBar(context, 'Error al ofrecer ayuda: ${e.toString()}', Colors.red);
       rethrow;
     }
   }
@@ -216,35 +254,129 @@ class AppServices {
   }
 
   Future<void> sendChatNotification({
-    required String chatRoomId,
-    required String senderId,
+    required String receiverToken,
     required String senderName,
-    required String recipientId,
-    required String messageText,
+    required String message,
+    required String chatId,
+    required String senderId,
+    required String receiverId,
+    String? senderPhotoUrl,
   }) async {
-    final notificationPayload = {
-      'chatRoomId': chatRoomId,
-      'senderId': senderId,
-      'senderName': senderName,
-      'recipientId': recipientId,
-      'messageText': messageText,
-    };
-
-    final Uri uri = Uri.parse('https://us-central1-eslabon-app.cloudfunctions.net/sendChatNotification');
-
+    print('🔔 INICIANDO ENVÍO DE NOTIFICACIÓN');
+    print('🔔 Receiver Token: ${receiverToken.isEmpty ? "VACÍO" : "Disponible (${receiverToken.length} chars)"}');
+    print('🔔 Sender Name: $senderName');
+    print('🔔 Message: $message');
+    print('🔔 Chat ID: $chatId');
+    
+    if (receiverToken.isEmpty) {
+      print('❌ ERROR: Token del receptor está vacío, no se puede enviar notificación');
+      return;
+    }
+    
     try {
+      // Obtener el contador de mensajes no leídos
+      final unreadCount = await _getUnreadMessagesCount(chatId, receiverId);
+      
+      final requestBody = {
+        'receiverToken': receiverToken,
+        'title': 'Chat $senderName',
+        'body': unreadCount > 1 
+            ? '$unreadCount mensajes nuevos' 
+            : message,
+        'data': {
+          'chatId': chatId,
+          'senderId': senderId,
+          'receiverId': receiverId,
+          'senderName': senderName,
+          'senderPhotoUrl': senderPhotoUrl ?? '',
+          'route': '/chat/$chatId?partnerId=$senderId&partnerName=$senderName&partnerAvatar=${senderPhotoUrl ?? ''}',
+          'type': 'chat_message',
+          'unreadCount': unreadCount,
+        }
+      };
+      
+      print('🔔 Request Body: ${json.encode(requestBody)}');
+      
       final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(notificationPayload),
+        Uri.parse('https://us-central1-pablo-oviedo.cloudfunctions.net/sendChatNotificationHTTP2'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode(requestBody),
       );
+
+      print('🔔 Response Status Code: ${response.statusCode}');
+      print('🔔 Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
-        print('Notificación de chat enviada con éxito.');
+        print('✅ Chat notification sent successfully');
+        // Guardar la notificación en Firestore para tracking
+        await _saveNotificationToFirestore(receiverId, chatId, senderName, message, unreadCount, senderId, senderPhotoUrl);
       } else {
-        print('Error al enviar la notificación de chat: ${response.body}');
+        print('❌ Error sending chat notification: ${response.statusCode}');
+        print('❌ Response body: ${response.body}');
       }
     } catch (e) {
-      print('Error de conexión al enviar notificación de chat: $e');
+      print('❌ Exception sending chat notification: $e');
+    }
+  }
+
+  Future<int> _getUnreadMessagesCount(String chatId, String receiverId) async {
+    try {
+      // Obtener el último timestamp de lectura del usuario
+      final userDoc = await _firestore.collection('users').doc(receiverId).get();
+      final userData = userDoc.data() as Map<String, dynamic>? ?? {};
+      final lastReadTimestamps = userData['lastReadTimestamps'] as Map<String, dynamic>? ?? {};
+      final lastReadTimestamp = lastReadTimestamps[chatId] as Timestamp?;
+
+      // Contar mensajes no leídos
+      Query query = _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('receiverId', isEqualTo: receiverId);
+
+      if (lastReadTimestamp != null) {
+        query = query.where('timestamp', isGreaterThan: lastReadTimestamp);
+      }
+
+      final unreadMessages = await query.get();
+      return unreadMessages.docs.length;
+    } catch (e) {
+      print('Error getting unread messages count: $e');
+      return 1; // Default to 1 if error
+    }
+  }
+
+  Future<void> _saveNotificationToFirestore(String receiverId, String chatId, String senderName, String message, int unreadCount, String senderId, String? senderPhotoUrl) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(receiverId)
+          .collection('notifications')
+          .add({
+        'type': 'chat_message',
+        'title': 'Chat $senderName',
+        'body': message,
+        'chatId': chatId,
+        'senderName': senderName,
+        'unreadCount': unreadCount,
+        'timestamp': FieldValue.serverTimestamp(),
+        'read': false,
+        'route': '/chat/$chatId?partnerId=$senderId&partnerName=$senderName&partnerAvatar=${senderPhotoUrl ?? ''}',
+        'data': {
+          'chatId': chatId,
+          'senderId': senderId,
+          'senderName': senderName,
+          'senderPhotoUrl': senderPhotoUrl ?? '',
+          'chatRoomId': chatId,
+          'chatPartnerId': senderId,
+          'chatPartnerName': senderName,
+        },
+      });
+    } catch (e) {
+      print('Error saving notification to Firestore: $e');
     }
   }
 
