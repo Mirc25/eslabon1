@@ -1,4 +1,4 @@
-﻿// lib/screens/ratings_screen.dart
+// lib/screens/ratings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +10,9 @@ import 'my_ratings_section.dart';
 import 'ranking_section.dart';
 
 class RatingsScreen extends ConsumerStatefulWidget {
-  const RatingsScreen({Key? key}) : super(key: key);
+  final int initialTabIndex;
+  
+  const RatingsScreen({Key? key, this.initialTabIndex = 0}) : super(key: key);
 
   @override
   ConsumerState<RatingsScreen> createState() => _RatingsScreenState();
@@ -22,6 +24,7 @@ class _RatingsScreenState extends ConsumerState<RatingsScreen> {
     return CustomBackground(
       child: DefaultTabController(
         length: 2,
+        initialIndex: widget.initialTabIndex,
         child: Scaffold(
           backgroundColor: Colors.transparent,
           appBar: CustomAppBar(

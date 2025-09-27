@@ -1,3 +1,4 @@
+// functions/sendHelpNotification.js - CÓDIGO COMPLETO (Ya corregido)
 import { onRequest } from "firebase-functions/v2/https";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";

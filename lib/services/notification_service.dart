@@ -96,12 +96,16 @@ class NotificationService {
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       // 📨 DEBUGGING: Capturar exactamente lo que llega al teléfono
+      print('📨 === FCM onMessage RECEIVED ===');
+      print('📨 Message ID: ${message.messageId}');
       print('📨 FCM.data: ${message.data}');
       print('📨 FCM.route: ${message.data['route']}');
+      print('📨 FCM.type: ${message.data['type']}');
       print('📨 FCM.notificationType: ${message.data['notificationType']}');
       print('📨 FCM.requestId: ${message.data['requestId']}');
       print('📨 FCM.helperId: ${message.data['helperId']}');
       print('📨 FCM.requesterId: ${message.data['requesterId']}');
+      print('📨 === END FCM onMessage ===');
       
       final String? chatRoomId = message.data['chatRoomId']?.toString();
       final String? notificationType = message.data['notificationType']?.toString();
@@ -125,12 +129,16 @@ class NotificationService {
       print('🚀 Message ID: ${message.messageId}');
       
       // 📨 DEBUGGING: Capturar exactamente lo que llega al teléfono (onMessageOpenedApp)
+      print('📨 === FCM onMessageOpenedApp RECEIVED ===');
+      print('📨 Message ID: ${message.messageId}');
       print('📨 FCM.data: ${message.data}');
       print('📨 FCM.route: ${message.data['route']}');
+      print('📨 FCM.type: ${message.data['type']}');
       print('📨 FCM.notificationType: ${message.data['notificationType']}');
       print('📨 FCM.requestId: ${message.data['requestId']}');
       print('📨 FCM.helperId: ${message.data['helperId']}');
       print('📨 FCM.requesterId: ${message.data['requesterId']}');
+      print('📨 === END FCM onMessageOpenedApp ===');
       
       print('[FCM] onMessageOpenedApp data=${message.data}');
       print('[FCM] route=${message.data['route']} requestId=${message.data['requestId'] ?? message.data['solicitudId']} type=${message.data['type']}');
@@ -407,16 +415,9 @@ class NotificationService {
     switch (notificationType) {
       case 'offer_received':
         if (requestId != null) {
-          String route = '/rate-helper/$requestId';
-          if (helperId != null) {
-            final helperName = data['helperName']?.toString();
-            if (helperName != null) {
-              route += '?helperId=$helperId&helperName=$helperName';
-            } else {
-              route += '?helperId=$helperId';
-            }
-          }
-          print('🔧 [FALLBACK] ✅ Ruta generada: $route');
+          // FIX: offer_received debe ir a la pantalla de detalles, no a rating
+          String route = '/request/$requestId';
+          print('🔧 [FALLBACK] ✅ Ruta generada (CORREGIDA): $route');
           return route;
         }
         break;

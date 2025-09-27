@@ -12,7 +12,9 @@ import '../screens/request_detail_screen.dart';
 import '../screens/create_request_screen.dart';
 import '../screens/rate_requester_screen.dart';
 import '../screens/rate_helper_screen.dart';
+import '../screens/rating_confirmation_screen.dart';
 import '../screens/push_notification_test_screen.dart';
+import '../screens/ratings_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -107,9 +109,9 @@ class AppRouter {
           print('🔍 [ROUTER] === END RATE_REQUESTER ROUTE DEBUGGING ===');
           
           return RateRequesterScreen(
-            requestId: requestId,
-            requesterId: requesterId,
-            requesterName: requesterName,
+            requestId: requestId ?? '',
+            requesterId: requesterId ?? '',
+            requesterName: requesterName ?? 'Usuario',
           );
         },
       ),
@@ -138,11 +140,34 @@ class AppRouter {
           );
         },
       ),
+      // Ruta para confirmación de calificación
+      GoRoute(
+        name: 'rating_confirmation',
+        path: '/rating-confirmation',
+        builder: (BuildContext context, GoRouterState state) {
+          final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+          return RatingConfirmationScreen(
+            helperName: extra['helperName'] ?? 'Usuario',
+            rating: extra['rating'] ?? 5,
+            isHelper: extra['isHelper'] ?? true,
+          );
+        },
+      ),
       // Ruta para pruebas de notificaciones
       GoRoute(
         name: 'notification_test',
         path: '/notification-test',
         builder: (BuildContext context, GoRouterState state) => const PushNotificationTestScreen(),
+      ),
+      // Ruta para el ranking/calificaciones
+      GoRoute(
+        name: 'ratings',
+        path: '/ratings',
+        builder: (BuildContext context, GoRouterState state) {
+          final String? tab = state.uri.queryParameters['tab'];
+          final int initialTabIndex = tab == 'ranking' ? 1 : 0;
+          return RatingsScreen(initialTabIndex: initialTabIndex);
+        },
       ),
     ],
   );

@@ -273,6 +273,30 @@ export const ratingNotificationTrigger = onDocumentCreated(
         notificationType: notificationData.type
       });
 
+      // Enviar notificación adicional para ver el ranking actualizado
+      const rankingMessage = {
+        token: fcmToken,
+        notification: {
+          title: "🏆 ¡Tu ranking se actualizó!",
+          body: `Recibiste ${ratingValue} estrellas de ${raterName}. ¡Ve tu nueva posición en el ranking!`
+        },
+        data: {
+          type: 'view_ranking',
+          route: '/ratings?tab=ranking',
+          raterName,
+          rating: ratingValue.toString(),
+          click_action: 'FLUTTER_NOTIFICATION_CLICK'
+        }
+      };
+
+      const rankingResponse = await getMessaging().send(rankingMessage);
+      logger.log("✅ Notificación de ranking enviada", { 
+        ratedUserId, 
+        raterName, 
+        rating: ratingValue, 
+        messageId: rankingResponse
+      });
+
     } catch (error) {
       logger.error("🚨 Error enviando notificación de rating", { 
         error: error.message,
