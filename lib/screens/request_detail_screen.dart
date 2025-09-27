@@ -43,9 +43,11 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
   final Map<String, TextEditingController> _commentControllers = {};
   
-  bool _hasOfferedHelp = false; 
+  bool _hasOfferedHelp = false;
   bool _isLoading = true;
-  
+  bool _canRate = false;
+  String? _acceptedHelperId;
+  String? _acceptedHelperName;
   RewardedAd? _rewardedAd;
   bool _isRewardedAdLoaded = false;
 
@@ -141,6 +143,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
   }
 
+  void _navigateToRateHelper() {
+    if (_acceptedHelperId != null && _acceptedHelperName != null) {
+      context.push('/rate-helper/${widget.requestId}?helperId=$_acceptedHelperId&helperName=${Uri.encodeComponent(_acceptedHelperName!)}');
+    }
+  }
+
   Future<void> _loadDataAndCheckOfferStatus() async {
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -149,6 +157,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
 
     try {
+      // Verificar si el usuario ha ofrecido ayuda
       final offersSnapshot = await _firestore
           .collection('solicitudes-de-ayuda')
           .doc(widget.requestId)
@@ -157,14 +166,63 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           .limit(1)
           .get();
 
+      // Obtener datos de la solicitud para verificar el estado
+      final requestDoc = await _firestore
+          .collection('solicitudes-de-ayuda')
+          .doc(widget.requestId)
+          .get();
+
+      bool canRate = false;
+      String? acceptedHelperId;
+      String? acceptedHelperName;
+
+      if (requestDoc.exists) {
+        final requestData = requestDoc.data() as Map<String, dynamic>;
+        final String requestStatus = requestData['estado'] ?? 'activa';
+        final String requestOwnerId = requestData['userId'] ?? '';
+
+        // Si el usuario es el dueño de la solicitud y la solicitud está "aceptada"
+        if (currentUser.uid == requestOwnerId && requestStatus == 'aceptada') {
+          // Buscar el ayudador aceptado
+          final acceptedOfferSnapshot = await _firestore
+              .collection('solicitudes-de-ayuda')
+              .doc(widget.requestId)
+              .collection('offers')
+              .where('status', isEqualTo: 'accepted')
+              .limit(1)
+              .get();
+
+          if (acceptedOfferSnapshot.docs.isNotEmpty) {
+            final acceptedOffer = acceptedOfferSnapshot.docs.first.data();
+            acceptedHelperId = acceptedOffer['helperId'];
+            acceptedHelperName = acceptedOffer['helperName'];
+
+            // Verificar si ya calificó a este ayudador
+            final existingRating = await _firestore
+                .collection('ratings')
+                .where('requestId', isEqualTo: widget.requestId)
+                .where('sourceUserId', isEqualTo: currentUser.uid)
+                .where('ratedUserId', isEqualTo: acceptedHelperId)
+                .where('type', isEqualTo: 'helper_rating')
+                .limit(1)
+                .get();
+
+            canRate = existingRating.docs.isEmpty;
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
           _hasOfferedHelp = offersSnapshot.docs.isNotEmpty;
+          _canRate = canRate;
+          _acceptedHelperId = acceptedHelperId;
+          _acceptedHelperName = acceptedHelperName;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print("Error checking if user offered help: $e");
+      print("Error checking offer status and rating eligibility: $e");
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -1059,6 +1117,25 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       ),
                     ),
                   ],
+                ),
+
+              // Botón de calificación para el solicitante cuando la ayuda ha sido completada
+              if (_canRate && currentUser?.uid == requesterUserId)
+                Padding(
+                  padding: const EdgeInsets.only(top: 20),
+                  child: Center(
+                    child: ElevatedButton.icon(
+                      onPressed: _navigateToRateHelper,
+                      icon: const Icon(Icons.star_rate, color: Colors.white),
+                      label: Text('Calificar Ayudador'.tr(), style: const TextStyle(fontSize: 16, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                    ),
+                  ),
                 ),
             ],
           ),

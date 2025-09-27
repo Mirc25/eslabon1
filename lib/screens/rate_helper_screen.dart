@@ -38,7 +38,6 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   String? _helperAvatarUrl;
   String? _helperPhone;
   
-  bool _isLoading = false;
   Map<String, dynamic> currentRequestData = {};
 
   double _currentRating = 0.0;
@@ -118,7 +117,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
-          title: 'Calificar Ayudador'.tr(),
+          title: 'rate_helper_title'.tr(),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => context.pop(),
@@ -141,7 +140,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
                             : null,
                       ),
                       title: Text(widget.helperName),
-                      subtitle: Text(_helperPhone ?? 'Sin teléfono'.tr()),
+                      subtitle: Text(_helperPhone ?? 'no_phone'.tr()),
                       tileColor: Colors.white.withOpacity(.1),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -149,7 +148,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _requestTitle ?? 'Solicitud de ayuda'.tr(),
+                      _requestTitle ?? 'help_request'.tr(),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -181,7 +180,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
                       controller: _reviewController,
                       maxLines: 4,
                       decoration: InputDecoration(
-                        hintText: 'Deja un comentario (opcional)'.tr(),
+                        hintText: 'optional_comment'.tr(),
                         filled: true,
                         fillColor: Colors.white.withOpacity(.08),
                         border: OutlineInputBorder(
@@ -196,7 +195,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: _hasRated ? null : _submitRating,
-                      child: Text('Enviar calificación'.tr()),
+                      child: Text('send_rating_button'.tr()),
                     ),
                   ],
                 ),
@@ -221,7 +220,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   print('📋 [RATE_HELPER] Request ID: ${widget.requestId}');
 
   setState(() {
-    _isLoading = true;
+    _loading = true;
   });
 
   try {
@@ -311,7 +310,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
      if (!mounted) return;
      setState(() {
        _hasRated = existing.docs.isNotEmpty;
-       _isLoading = false;
+       _loading = false;
        _requesterId = currentUser.uid; // Asignar el ID del usuario actual
      });
 
@@ -326,7 +325,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
       if (!mounted) return;
       AppServices.showSnackBar(context, 'Error cargando datos: $e', Colors.red);
       setState(() {
-        _isLoading = false;
+        _loading = false;
       });
      }
    }

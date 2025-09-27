@@ -7,6 +7,7 @@ import 'package:eslabon_flutter/providers/location_provider.dart'; // Importa el
 
 // Proveedor para el stream crudo de solicitudes de ayuda activas
 final rawHelpRequestsStreamProvider = StreamProvider<QuerySnapshot>((ref) {
+  print('DEBUG PROVIDER: Iniciando stream de solicitudes de ayuda...');
   return FirebaseFirestore.instance
       .collection('solicitudes-de-ayuda')
       .where('estado', isEqualTo: 'activa')

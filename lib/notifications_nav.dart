@@ -41,11 +41,21 @@ String routeFor(Map<String, dynamic> d) {
       }
       break;
     // FIX CRÍTICO: La notificación 'offer_received' (oferta de ayuda)
-    // debe llevar a la pantalla de detalles de la solicitud (/request/:requestId).
+    // debe llevar a la pantalla para calificar al helper que brindó ayuda.
     case 'offer_received':
       final requestId = data['requestId'] as String?;
+      final helperId = data['helperId'] as String?;
+      final helperName = data['helperName'] as String?;
+      print('[NAV] offer_received: requestId=$requestId');
+      print('🧭 [OFFER_RECEIVED] PARSING: helperId=$helperId helperName=$helperName');
       if (requestId != null) {
-        return _abs('/request/$requestId'); // Ruta correcta para la pantalla de detalle de solicitud
+        String route = '/rate-helper/$requestId';
+        if (helperId != null && helperName != null) {
+          route += '?helperId=$helperId&helperName=$helperName';
+        }
+        print('🧭 [OFFER_RECEIVED] FINAL_ROUTE: $route');
+        print('[NAV] resolved route=$route requestId=$requestId as=requester');
+        return _abs(route);
       }
       break;
       

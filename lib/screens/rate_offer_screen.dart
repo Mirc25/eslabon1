@@ -166,7 +166,7 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: CustomAppBar(
-          title: 'Calificar Ayudador'.tr(),
+          title: 'rate_helper_title'.tr(),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => context.pop(),
@@ -222,7 +222,7 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
                       controller: _reviewController,
                       maxLines: 4,
                       decoration: InputDecoration(
-                        hintText: 'Deja un comentario (opcional)'.tr(),
+                        hintText: 'optional_comment'.tr(),
                         filled: true,
                         fillColor: Colors.white.withOpacity(.08),
                         border: OutlineInputBorder(

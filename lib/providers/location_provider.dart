@@ -97,7 +97,7 @@ final userLocationProvider = StateNotifierProvider<UserLocationNotifier, UserLoc
 });
 
 // Proveedor para el filtro de alcance
-final filterScopeProvider = StateProvider<String>((ref) => 'Cercano'); // 'Cercano', 'Provincial', 'Nacional', 'Internacional'
+final filterScopeProvider = StateProvider<String>((ref) => 'Internacional'); // 'Cercano', 'Provincial', 'Nacional', 'Internacional'
 
 // Proveedor para el radio de proximidad (solo para filtro 'Cercano')
 final proximityRadiusProvider = StateProvider<double>((ref) => 3.0); // en kilómetros

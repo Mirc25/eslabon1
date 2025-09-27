@@ -1,4 +1,4 @@
-﻿{
+{
   "settings": "Configuración",
   "preferences": "Preferencias",
   "privacy": "Privacidad",
@@ -522,6 +522,9 @@
   "Error de Firebase al enviar comentario: {}": "Error de Firebase al enviar comentario: {}",
   "Ocurrió un error inesperado al enviar el comentario.": "Ocurrió un error inesperado al enviar el comentario.",
   "Error al subir la imagen de perfil: An unknown error occurred": "Error al subir la imagen de perfil: An unknown error occurred",
-  "close": "Cerrar"
+  "close": "Cerrar",
+  "no_phone": "Sin teléfono",
+  "help_request": "Solicitud de ayuda",
+  "optional_comment": "Deja un comentario (opcional)"
 }
 

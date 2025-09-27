@@ -8,6 +8,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../notifications_nav.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -59,10 +60,10 @@ class NotificationService {
     if (requesterName != null) testData['requesterName'] = requesterName;
     
     // Generar ruta usando el mismo método que usa FCM
-    final String? route = _routeFromTypeAndIds(testData);
+    final String route = routeFor(testData);
     print('🧪 Generated route: $route');
     
-    if (route != null && route.isNotEmpty) {
+    if (route.isNotEmpty) {
       print('🧪 Testing navigation to: $route');
       
       // Usar el mismo método de timing que _handleNavigation
@@ -226,14 +227,12 @@ class NotificationService {
     print('🔔 Message data completo: ${message.data}');
     print('🔔 Message notification: ${message.notification?.toMap()}');
     
-    // Fallback tolerante para obtener la ruta
-    final String? route = message.data['route'] as String?
-                       ?? message.data['navigationPath'] as String?
-                       ?? _routeFromTypeAndIds(message.data);
+    // Usar la función routeFor() centralizada para determinar la ruta correcta
+    final String route = routeFor(message.data);
     
-    print('🔔 Route final (con fallbacks): $route');
+    print('🔔 Route final (desde routeFor): $route');
     
-    if (route != null && route.isNotEmpty) {
+    if (route.isNotEmpty) {
       print('🔔 ✅ PREPARANDO NAVEGACIÓN A: $route');
       
       // 🚀 SOLUCIÓN DE TIMING: Esperar a que el widget tree esté completamente montado
@@ -408,8 +407,17 @@ class NotificationService {
     switch (notificationType) {
       case 'offer_received':
         if (requestId != null) {
-          print('🔧 [FALLBACK] ✅ Ruta generada: /request/$requestId');
-          return '/request/$requestId';
+          String route = '/rate-helper/$requestId';
+          if (helperId != null) {
+            final helperName = data['helperName']?.toString();
+            if (helperName != null) {
+              route += '?helperId=$helperId&helperName=$helperName';
+            } else {
+              route += '?helperId=$helperId';
+            }
+          }
+          print('🔧 [FALLBACK] ✅ Ruta generada: $route');
+          return route;
         }
         break;
       case 'rate_helper':
