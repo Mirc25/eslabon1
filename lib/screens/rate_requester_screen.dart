@@ -42,14 +42,9 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
   @override
   void initState() {
     super.initState();
-    _appServices = AppServices(_firestore, _auth);
-    
-    // ⭐ DEBUGGING: Logging IDs al recibir argumentos
-    final currentUser = _auth.currentUser;
-    print('⭐ currentUser=${currentUser?.uid}');
-    print('⭐ args: requestId=${widget.requestId} requesterId=${widget.requesterId} requesterName=${widget.requesterName}');
-    
-    _loadRequesterData();
+    print('🚀 [RATE_REQUESTER] INIT: requestId=${widget.requestId}, requesterId=${widget.requesterId}, requesterName=${widget.requesterName}');
+    print('🚀 [RATE_REQUESTER] WIDGET PARAMS: ${widget.toString()}');
+    _loadData();
   }
 
   @override
@@ -58,27 +53,35 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
     super.dispose();
   }
 
-  Future<void> _loadRequesterData() async {
+  Future<void> _loadData() async {
+    print('📊 [RATE_REQUESTER] _loadData() iniciado');
+    
     setState(() {
       _isLoading = true;
     });
 
     try {
       final currentUser = _auth.currentUser;
-      print('🔍 [RATE_REQUESTER] === DEBUGGING PARAMETERS ===');
-      print('🔍 [RATE_REQUESTER] currentUser.uid: ${currentUser?.uid}');
-      print('🔍 [RATE_REQUESTER] widget.requestId: ${widget.requestId}');
-      print('🔍 [RATE_REQUESTER] widget.requesterId: ${widget.requesterId}');
-      print('🔍 [RATE_REQUESTER] widget.requesterName: ${widget.requesterName}');
-      print('🔍 [RATE_REQUESTER] === END DEBUGGING PARAMETERS ===');
-      
+      if (currentUser == null) {
+        print('❌ [RATE_REQUESTER] Usuario no autenticado');
+        AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red);
+        if (mounted) context.go('/login');
+        return;
+      }
+
+      print('👤 [RATE_REQUESTER] Usuario actual: ${currentUser.uid}');
+      print('🎯 [RATE_REQUESTER] Requester a calificar: ${widget.requesterId}');
+      print('📋 [RATE_REQUESTER] Request ID: ${widget.requestId}');
+      print('👤 [RATE_REQUESTER] Requester name: ${widget.requesterName}');
+
       _requesterId = widget.requesterId;
       _requesterName = widget.requesterName;
 
-      // 🛡️ BARRERA 1: Implementando las tres barreras como sugirió ChatGPT
       // Obtener información completa de la solicitud para validar correctamente
+      print('🔍 [RATE_REQUESTER] Obteniendo datos de solicitud...');
       final requestDoc = await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).get();
       if (!requestDoc.exists) {
+        print('❌ [RATE_REQUESTER] Solicitud no encontrada: ${widget.requestId}');
         AppServices.showSnackBar(context, 'Error: Solicitud no encontrada.', Colors.red);
         if (mounted) context.pop();
         return;
@@ -86,30 +89,28 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
 
       final requestData = requestDoc.data()!;
       _requestTitle = requestData['titulo'] ?? requestData['descripcion'] ?? 'Solicitud de ayuda';
+      print('📋 [RATE_REQUESTER] Datos de solicitud obtenidos: $requestData');
+      print('📋 [RATE_REQUESTER] Propietario de solicitud (userId): ${requestData['userId']}');
 
       if (_requesterId == null || _requesterName == null) {
         // Si los parámetros no vienen de la notificación, obtener el requester de la solicitud
-        // En RateRequesterScreen, el helper califica al requester (userId/owner de la solicitud)
         _requesterId = requestData['userId'];  // El owner/requester de la solicitud
         _requesterName = requestData['userName'] ?? 'Solicitante Desconocido';
+        print('🔄 [RATE_REQUESTER] Parámetros obtenidos de la solicitud: requesterId=$_requesterId, requesterName=$_requesterName');
       }
-      
-      // 🧪 ASSERT LOG: Validación antes del auto-rating
-      assert(() {
-        print('🧪 VALIDACION: current=${currentUser?.uid} '
-              'vs requesterId=$_requesterId type=rate_requester');
-        return true;
-      }());
       
       // CRITICAL VALIDATION: Check for self-rating
       // En RateRequesterScreen, el AYUDADOR (currentUser) califica al SOLICITANTE (requesterId)
       // Solo debe impedir si el usuario intenta calificarse a sí mismo
-      print('[RATE_REQUESTER] VALIDATION: currentUser.uid="${currentUser?.uid}" vs requesterId="$_requesterId"');
-      print('[RATE_REQUESTER] VALIDATION: Types - currentUser.uid: ${currentUser?.uid.runtimeType}, requesterId: ${_requesterId.runtimeType}');
-      print('[RATE_REQUESTER] VALIDATION: String comparison: "${currentUser?.uid?.toString()}" == "${_requesterId?.toString()}" = ${currentUser?.uid?.toString() == _requesterId?.toString()}');
+      print('🔍 [RATE_REQUESTER] === VALIDACIÓN DE AUTO-CALIFICACIÓN ===');
+      print('🔍 [RATE_REQUESTER] currentUser.uid: "${currentUser.uid}" (tipo: ${currentUser.uid.runtimeType})');
+      print('🔍 [RATE_REQUESTER] _requesterId: "$_requesterId" (tipo: ${_requesterId.runtimeType})');
+      print('🔍 [RATE_REQUESTER] ¿Son iguales? ${currentUser.uid == _requesterId}');
+      print('🔍 [RATE_REQUESTER] Comparación string: "${currentUser.uid.toString()}" == "${_requesterId.toString()}" = ${currentUser.uid.toString() == _requesterId.toString()}');
       
-      if (currentUser != null && currentUser.uid?.toString() == _requesterId?.toString()) {
-        print('[RATE_REQUESTER] ERROR: Self-rating detected! User trying to rate themselves');
+      if (currentUser.uid?.toString() == _requesterId?.toString()) {
+        print('❌ [RATE_REQUESTER] ERROR: Auto-calificación detectada! Usuario intenta calificarse a sí mismo');
+        print('❌ [RATE_REQUESTER] currentUser.uid=${currentUser.uid} == requesterId=$_requesterId');
         AppServices.showSnackBar(context, 'No puedes calificarte a ti mismo.', Colors.red);
         if (mounted) {
            if (Navigator.of(context).canPop()) {
@@ -121,17 +122,22 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
         return;
       }
       
+      print('✅ [RATE_REQUESTER] Validación de auto-calificación PASADA');
+
       // VALIDACIÓN ADICIONAL: Verificar que el currentUser sea realmente un ayudador de esta solicitud
-      // Buscar en las ofertas de ayuda para confirmar que este usuario ofreció ayuda
+      print('🔍 [RATE_REQUESTER] === VALIDACIÓN DE HELPER ===');
+      print('🔍 [RATE_REQUESTER] Verificando si el usuario es helper de esta solicitud...');
       final offersQuery = await _firestore
           .collection('help_requests')
           .doc(widget.requestId)
           .collection('offers')
-          .where('userId', isEqualTo: currentUser?.uid)
+          .where('userId', isEqualTo: currentUser.uid)
           .get();
       
+      print('🔍 [RATE_REQUESTER] Consulta de ofertas: ${offersQuery.docs.length} documentos encontrados');
+      
       if (offersQuery.docs.isEmpty) {
-        print('[RATE_REQUESTER] ERROR: User is not a helper for this request, cannot rate requester');
+        print('❌ [RATE_REQUESTER] ERROR: Usuario no es helper de esta solicitud, no puede calificar al requester');
         AppServices.showSnackBar(context, 'Solo los ayudadores pueden calificar al solicitante.', Colors.red);
         if (mounted) {
            if (Navigator.of(context).canPop()) {
@@ -142,76 +148,22 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
          }
         return;
       }
+      
+      print('✅ [RATE_REQUESTER] Validación de helper PASADA');
 
+      // Obtener datos del requester
+      print('🔍 [RATE_REQUESTER] Obteniendo datos del requester...');
       final requesterDoc = await _firestore.collection('users').doc(_requesterId).get();
       if (requesterDoc.exists) {
           _requesterAvatarUrl = requesterDoc.data()?['profilePicture'] as String?;
-      }
-      if (currentUser == null) {
-        AppServices.showSnackBar(context, 'Debes iniciar sesión para calificar.', Colors.red);
-        if (mounted) context.go('/login');
-        return;
-      }
-
-      // 🔍 DEBUG: Logging para diagnosticar el problema
-      print("🔍 DEBUG rate_requester_screen:");
-      print("  - currentUser.uid: ${currentUser.uid}");
-      print("  - _requesterId: $_requesterId");
-      print("  - widget.requesterId: ${widget.requesterId}");
-      print("  - widget.requesterName: ${widget.requesterName}");
-      print("  - widget.requestId: ${widget.requestId}");
-
-      if (_requesterId == null) {
-        AppServices.showSnackBar(context, 'Error: No se pudo identificar al solicitante.', Colors.red);
-        if (mounted) context.pop();
-        return;
-      }
-      final String? ownerId = requestData['userId'];
-      final String? helperId = requestData['helperId'];
-      
-      print("🔍 DEBUG solicitud completa:");
-      print("  - ownerId: $ownerId");
-      print("  - helperId: $helperId");
-      print("  - currentUser.uid: ${currentUser.uid}");
-
-      // Calcular otherUserId según la lógica de ChatGPT
-      final String? otherUserId;
-      if (currentUser.uid == ownerId) {
-        otherUserId = helperId; // Si soy el owner, califico al helper
-      } else if (currentUser.uid == helperId) {
-        otherUserId = ownerId; // Si soy el helper, califico al owner
+          print('👤 [RATE_REQUESTER] Datos del requester obtenidos: avatar=$_requesterAvatarUrl');
       } else {
-        otherUserId = null; // No soy parte de esta solicitud
+        print('⚠️ [RATE_REQUESTER] No se encontraron datos del requester: $_requesterId');
       }
 
-      print("🔍 DEBUG otherUserId calculado: $otherUserId");
-
-      // Validaciones de las tres barreras
-      if (otherUserId == null) {
-        print("🚨 ERROR: No eres parte de esta solicitud");
-        AppServices.showSnackBar(context, 'Error: No eres parte de esta solicitud.', Colors.red);
-        if (mounted) context.go('/main');
-        return;
-      }
-
-      if (otherUserId == currentUser.uid) {
-        print("🚨 ERROR: Intentando auto-calificarse");
-        AppServices.showSnackBar(context, 'No podés calificarte a vos mismo; solo a la otra persona del intercambio.', Colors.red);
-        if (mounted) context.go('/main');
-        return;
-      }
-
-      // Verificar que el otherUserId coincida con el _requesterId de la notificación
-      if (otherUserId != _requesterId) {
-        print("🚨 ERROR: Inconsistencia en los datos de la notificación");
-        print("  - otherUserId calculado: $otherUserId");
-        print("  - _requesterId de notificación: $_requesterId");
-        AppServices.showSnackBar(context, 'Error: Inconsistencia en los datos. Por favor, intenta desde el historial.', Colors.red);
-        if (mounted) context.go('/main');
-        return;
-      }
-
-      final QuerySnapshot existingRatings = await _firestore
+      // Verificar si ya se calificó
+      print('🔍 [RATE_REQUESTER] Verificando si ya se calificó...');
+      final existing = await _firestore
           .collection('ratings')
           .where('requestId', isEqualTo: widget.requestId)
           .where('sourceUserId', isEqualTo: currentUser.uid)
@@ -219,23 +171,28 @@ class _RateRequesterScreenState extends State<RateRequesterScreen> {
           .where('type', isEqualTo: 'requester_rating')
           .limit(1)
           .get();
-      if (existingRatings.docs.isNotEmpty) {
-        setState(() {
-          _hasRated = true;
-        });
+
+      print('🔍 [RATE_REQUESTER] Consulta de rating existente: ${existing.docs.length} documentos encontrados');
+
+      if (!mounted) return;
+      setState(() {
+        _hasRated = existing.docs.isNotEmpty;
+        _isLoading = false;
+      });
+
+      print('✅ [RATE_REQUESTER] Carga de datos completada. _hasRated=$_hasRated');
+
+      if (_hasRated) {
+        print('⚠️ [RATE_REQUESTER] Usuario ya calificó a este requester');
         AppServices.showSnackBar(context, 'Ya has calificado a este solicitante para esta ayuda.', Colors.orange);
       }
     } catch (e) {
-      print("Error loading requester data: $e");
-      if (mounted) {
-        AppServices.showSnackBar(context, 'Error al cargar datos del solicitante: $e', Colors.red);
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      print('❌ [RATE_REQUESTER] Error en _loadData: $e');
+      if (!mounted) return;
+      AppServices.showSnackBar(context, 'Error cargando datos: $e', Colors.red);
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 

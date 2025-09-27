@@ -77,45 +77,63 @@ export const ratingNotificationTrigger = onDocumentCreated(
       // Determine notification content based on who was rated
       const isHelperRating = type === "helper_rating";
       let notificationData;
+      
+      // Obtener datos adicionales del usuario que va a ser calificado
+      let targetUserName = "Usuario";
+      let targetUserId = null;
+      
       if (isHelperRating) {
           // Helper was rated by requester - notify helper and allow them to rate back
-          // The helper (ratedUserId) should rate the requester (sourceUserId)
-          // So requesterId should be sourceUserId (the one who rated the helper)
+          // The helper (ratedUserId) should rate the ORIGINAL requester (originalRequesterId)
+          targetUserId = originalRequesterId; // El requester original que debe ser calificado
+          
+          if (targetUserId) {
+              try {
+                  const targetUserDoc = await db.collection("users").doc(targetUserId).get();
+                  const targetUserData = targetUserDoc.data();
+                  targetUserName = targetUserData?.name || targetUserData?.displayName || "Solicitante";
+              } catch (e) {
+                  logger.warn("No se pudo obtener datos del requester original", { targetUserId, error: e.message });
+              }
+          }
+          
           notificationData = {
               title: `¡${raterName} te calificó!`,
-              body: `Recibiste ${ratingValue} estrellas. ¿Quieres calificar a ${raterName}?`,
-              route: `/rate-requester/${requestId}?requesterId=${sourceUserId}&requesterName=${encodeURIComponent(raterName)}`,
+              body: `Recibiste ${ratingValue} estrellas. ¿Quieres calificar a ${targetUserName}?`,
+              route: `/rate-requester/${requestId}?requesterId=${targetUserId}&requesterName=${encodeURIComponent(targetUserName)}`,
               type: 'rate_requester',
               data: {
                   requestId: requestId || "",
-                  requesterId: sourceUserId, // The requester who rated the helper (correct)
-                  requesterName: raterName, // The requester's name (correct)
+                  requesterId: targetUserId, // El requester ORIGINAL que debe ser calificado
+                  requesterName: targetUserName, // Nombre del requester original
                   ratingId: event.params.ratingId,
                   raterName,
                   rating: ratingValue
               }
           };
-          logger.info("🔔 Notificación para helper (puede calificar al requester)", { 
+          logger.info("🔔 Notificación para helper (puede calificar al requester ORIGINAL)", { 
               helperBeingNotified: ratedUserId, // Helper receiving notification
-              requesterToRate: sourceUserId, // Requester to be rated by helper
+              originalRequesterToRate: targetUserId, // Requester ORIGINAL to be rated by helper
               originalRequesterId,
               sourceUserId,
               ratedUserId,
-              route: `/rate-requester/${requestId}?requesterId=${sourceUserId}&requesterName=${encodeURIComponent(raterName)}`
+              route: `/rate-requester/${requestId}?requesterId=${targetUserId}&requesterName=${encodeURIComponent(targetUserName)}`
           });
       } else {
           // Requester was rated by helper - notify requester and allow them to rate back
-          // The requester (ratedUserId) should rate the helper (sourceUserId)
-          // So helperId should be sourceUserId (the one who rated the requester)
+          // The requester (ratedUserId) should rate the helper who rated them (sourceUserId)
+          targetUserId = sourceUserId; // El helper que calificó al requester
+          targetUserName = raterName; // Ya tenemos el nombre del helper
+          
           notificationData = {
               title: `¡${raterName} te calificó!`,
-              body: `Recibiste ${ratingValue} estrellas. ¿Quieres calificar a ${raterName}?`,
-              route: `/rate-helper/${requestId}?helperId=${sourceUserId}&helperName=${encodeURIComponent(raterName)}`,
+              body: `Recibiste ${ratingValue} estrellas. ¿Quieres calificar a ${targetUserName}?`,
+              route: `/rate-helper/${requestId}?helperId=${targetUserId}&helperName=${encodeURIComponent(targetUserName)}`,
               type: 'rate_helper',
               data: {
                   requestId: requestId || "",
-                  helperId: sourceUserId, // The helper who rated the requester (correct)
-                  helperName: raterName, // The helper's name (correct)
+                  helperId: targetUserId, // El helper que calificó al requester
+                  helperName: targetUserName, // Nombre del helper
                   ratingId: event.params.ratingId,
                   raterName,
                   rating: ratingValue
@@ -123,11 +141,11 @@ export const ratingNotificationTrigger = onDocumentCreated(
           };
           logger.info("🔔 Notificación para requester (puede calificar al helper)", { 
               requesterBeingNotified: ratedUserId, // Requester receiving notification
-              helperToRate: sourceUserId, // Helper to be rated by requester
+              helperToRate: targetUserId, // Helper to be rated by requester
               originalRequesterId,
               sourceUserId,
               ratedUserId,
-              route: `/rate-helper/${requestId}?helperId=${sourceUserId}&helperName=${encodeURIComponent(raterName)}`
+              route: `/rate-helper/${requestId}?helperId=${targetUserId}&helperName=${encodeURIComponent(targetUserName)}`
           });
       }
 
@@ -166,9 +184,17 @@ export const ratingNotificationTrigger = onDocumentCreated(
         },
         data: {
           notificationType: notificationData.type,
+          type: notificationData.type,
           ratingId: event.params.ratingId,
           requestId: requestId || "",
-          route: notificationData.route
+          route: notificationData.route,
+          // Incluir todos los datos necesarios para navegación
+          ...(notificationData.data || {}),
+          // Asegurar que los campos críticos estén como strings
+          requesterId: String(notificationData.data?.requesterId || ""),
+          helperId: String(notificationData.data?.helperId || ""),
+          raterName: String(notificationData.data?.raterName || ""),
+          rating: String(notificationData.data?.rating || "")
         },
         android: {
           priority: "high",

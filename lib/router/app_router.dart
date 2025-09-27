@@ -12,6 +12,7 @@ import '../screens/request_detail_screen.dart';
 import '../screens/create_request_screen.dart';
 import '../screens/rate_requester_screen.dart';
 import '../screens/rate_helper_screen.dart';
+import '../screens/push_notification_test_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -136,6 +137,12 @@ class AppRouter {
             helperName: helperName ?? 'Ayudador',
           );
         },
+      ),
+      // Ruta para pruebas de notificaciones
+      GoRoute(
+        name: 'notification_test',
+        path: '/notification-test',
+        builder: (BuildContext context, GoRouterState state) => const PushNotificationTestScreen(),
       ),
     ],
   );

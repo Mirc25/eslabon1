@@ -206,7 +206,7 @@ class AppServices {
         body: '¡Excelente trabajo! $requesterName te ha calificado con ${rating.toStringAsFixed(1)} estrellas.',
         data: {
           'notificationType': 'helper_rated',
-          'navigationPath': '/rate-requester/$requestId',
+          'route': '/rate-requester/$requestId', // <- antes navigationPath
           'requestId': requestId,
           'requesterId': requesterId,
           'requesterName': requesterName,

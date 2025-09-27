@@ -39,7 +39,12 @@ export const createNotificationTrigger = onDocumentCreated(
         body: notification.body || "",
       },
       data: {
-        notificationType: notification.type || "",
+        ...(notification.data || {}),                 // <- preserva route, ids, etc.
+        type: notification.type || notification.data?.type || "",
+        notificationType: notification.type || notification.data?.notificationType || "",
+        requestId: String(notification.data?.requestId ?? ""),
+        helperId: String(notification.data?.helperId ?? ""),
+        requesterId: String(notification.data?.requesterId ?? ""),
       },
     };
 

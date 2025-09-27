@@ -32,6 +32,8 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
       recipientId: receiverId,
       data: {
         notificationType: "offer_received",
+        type: "offer_received",
+        route: `/request/${requestId}`,       // <- RUTA EXPLÍCITA AL DETALLE
         requestId,
         requestTitle: safeTitle,
         helperId,

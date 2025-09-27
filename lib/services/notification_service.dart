@@ -31,6 +31,57 @@ class NotificationService {
   static void setActiveChatId(String? chatId) => _activeChatId = chatId;
   static void setAppInForeground(bool inForeground) => _isAppInForeground = inForeground;
 
+  // 🧪 MÉTODO DE PRUEBA: Simular navegación de notificación sin FCM
+  Future<void> testNotificationNavigation({
+    required String notificationType,
+    required String requestId,
+    String? helperId,
+    String? requesterId,
+    String? helperName,
+    String? requesterName,
+  }) async {
+    print('🧪 === TESTING NOTIFICATION NAVIGATION ===');
+    print('🧪 Type: $notificationType');
+    print('🧪 RequestId: $requestId');
+    print('🧪 HelperId: $helperId');
+    print('🧪 RequesterId: $requesterId');
+    
+    // Crear datos simulados como los que vendrían de FCM
+    final Map<String, dynamic> testData = {
+      'notificationType': notificationType,
+      'requestId': requestId,
+      'type': notificationType, // Fallback
+    };
+    
+    if (helperId != null) testData['helperId'] = helperId;
+    if (requesterId != null) testData['requesterId'] = requesterId;
+    if (helperName != null) testData['helperName'] = helperName;
+    if (requesterName != null) testData['requesterName'] = requesterName;
+    
+    // Generar ruta usando el mismo método que usa FCM
+    final String? route = _routeFromTypeAndIds(testData);
+    print('🧪 Generated route: $route');
+    
+    if (route != null && route.isNotEmpty) {
+      print('🧪 Testing navigation to: $route');
+      
+      // Usar el mismo método de timing que _handleNavigation
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('🧪 🚀 EXECUTING TEST NAVIGATION POST-FRAME: $route');
+        try {
+          _router.go(route);
+          print('🧪 ✅ TEST NAVIGATION SUCCESSFUL');
+        } catch (e) {
+          print('🧪 ❌ TEST NAVIGATION FAILED: $e');
+        }
+      });
+    } else {
+      print('🧪 ❌ Could not generate route for test');
+    }
+    
+    print('🧪 === END TESTING NOTIFICATION NAVIGATION ===');
+  }
+
   // Método público que será llamado desde el handler global en main.dart
   Future<void> handleBackgroundMessage(RemoteMessage message) async {
     debugPrint('Handling a background message via public method: ${message.messageId}');
@@ -68,6 +119,10 @@ class NotificationService {
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) async {
+      print('🚀 === onMessageOpenedApp TRIGGERED ===');
+      print('🚀 Timestamp: ${DateTime.now()}');
+      print('🚀 Message ID: ${message.messageId}');
+      
       // 📨 DEBUGGING: Capturar exactamente lo que llega al teléfono (onMessageOpenedApp)
       print('📨 FCM.data: ${message.data}');
       print('📨 FCM.route: ${message.data['route']}');
@@ -78,7 +133,10 @@ class NotificationService {
       
       print('[FCM] onMessageOpenedApp data=${message.data}');
       print('[FCM] route=${message.data['route']} requestId=${message.data['requestId'] ?? message.data['solicitudId']} type=${message.data['type']}');
+      
+      print('🚀 Calling _handleNavigation...');
       await _handleNavigation(message);
+      print('🚀 === onMessageOpenedApp COMPLETED ===');
     });
   }
 
@@ -168,30 +226,55 @@ class NotificationService {
     print('🔔 Message data completo: ${message.data}');
     print('🔔 Message notification: ${message.notification?.toMap()}');
     
-    final String? route = message.data['route'] as String?;
-    print('🔔 Route extraída: $route');
+    // Fallback tolerante para obtener la ruta
+    final String? route = message.data['route'] as String?
+                       ?? message.data['navigationPath'] as String?
+                       ?? _routeFromTypeAndIds(message.data);
+    
+    print('🔔 Route final (con fallbacks): $route');
     
     if (route != null && route.isNotEmpty) {
-      print('🔔 ✅ NAVEGANDO A: $route');
+      print('🔔 ✅ PREPARANDO NAVEGACIÓN A: $route');
+      
+      // 🚀 SOLUCIÓN DE TIMING: Esperar a que el widget tree esté completamente montado
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('🔔 🚀 EJECUTANDO NAVEGACIÓN POST-FRAME: $route');
+        try {
+          _router.go(route);
+          print('🔔 ✅ NAVEGACIÓN EXITOSA POST-FRAME');
+        } catch (e) {
+          print('🔔 ❌ ERROR EN NAVEGACIÓN POST-FRAME: $e');
+          // Fallback adicional: ir a home si la navegación falla
+          print('🔔 🏠 Navegando a home como fallback post-frame');
+          _router.go('/');
+        }
+      });
+      
+      // También intentar navegación inmediata como backup (por si acaso)
       try {
+        await Future.delayed(const Duration(milliseconds: 100));
+        print('🔔 🔄 INTENTANDO NAVEGACIÓN INMEDIATA COMO BACKUP: $route');
         _router.go(route);
-        print('🔔 ✅ NAVEGACIÓN EXITOSA');
+        print('🔔 ✅ NAVEGACIÓN INMEDIATA EXITOSA');
       } catch (e) {
-        print('🔔 ❌ ERROR EN NAVEGACIÓN: $e');
+        print('🔔 ⚠️ NAVEGACIÓN INMEDIATA FALLÓ (esperando post-frame): $e');
       }
     } else {
-      print('🔔 ❌ NO HAY ROUTE - route es null o vacía');
-      print('🔔 Intentando buscar route en otros campos...');
+      print('🔔 ❌ NO SE PUDO DETERMINAR RUTA - ni route, ni navigationPath, ni fallback funcionaron');
+      print('🔔 Datos disponibles para debug:');
       
-      // Buscar route en otros posibles campos
       final allKeys = message.data.keys.toList();
-      print('🔔 Todas las keys disponibles: $allKeys');
+      print('🔔 Todas las keys: $allKeys');
       
       for (String key in allKeys) {
-        if (key.toLowerCase().contains('route') || key.toLowerCase().contains('path')) {
-          print('🔔 Campo relacionado con route encontrado: $key = ${message.data[key]}');
-        }
+        print('🔔 $key: ${message.data[key]}');
       }
+      
+      // Ir a home como último recurso con timing fix
+      print('🔔 🏠 Navegando a home como último recurso');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _router.go('/');
+      });
     }
     print('🔔 === FIN DEBUGGING NOTIFICATION TAP ===');
   }
@@ -311,4 +394,41 @@ class NotificationService {
   }
 
   Future<String?> getDeviceToken() async => _messaging.getToken();
+
+  /// Fallback para generar rutas basadas en tipo de notificación e IDs
+  String? _routeFromTypeAndIds(Map<String, dynamic> data) {
+    final String? notificationType = data['notificationType']?.toString() ?? data['type']?.toString();
+    final String? requestId = data['requestId']?.toString();
+    final String? helperId = data['helperId']?.toString();
+    final String? requesterId = data['requesterId']?.toString();
+    
+    print('🔧 [FALLBACK] Generando ruta desde tipo: $notificationType');
+    print('🔧 [FALLBACK] requestId: $requestId, helperId: $helperId, requesterId: $requesterId');
+    
+    switch (notificationType) {
+      case 'offer_received':
+        if (requestId != null) {
+          print('🔧 [FALLBACK] ✅ Ruta generada: /request/$requestId');
+          return '/request/$requestId';
+        }
+        break;
+      case 'rate_helper':
+      case 'helper_rated':
+        if (requestId != null && helperId != null) {
+          print('🔧 [FALLBACK] ✅ Ruta generada: /rate-helper/$requestId?helperId=$helperId');
+          return '/rate-helper/$requestId?helperId=$helperId';
+        }
+        break;
+      case 'rate_requester':
+      case 'requester_rated':
+        if (requestId != null && requesterId != null) {
+          print('🔧 [FALLBACK] ✅ Ruta generada: /rate-requester/$requestId?requesterId=$requesterId');
+          return '/rate-requester/$requestId?requesterId=$requesterId';
+        }
+        break;
+    }
+    
+    print('🔧 [FALLBACK] ❌ No se pudo generar ruta para tipo: $notificationType');
+    return null;
+  }
 }

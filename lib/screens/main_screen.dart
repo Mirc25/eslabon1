@@ -1335,6 +1335,15 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   },
             ),
             const Divider(color: Colors.white12),
+            // 🧪 BOTÓN TEMPORAL PARA PRUEBAS DE NOTIFICACIÓN
+            ListTile(
+              leading: const Icon(Icons.bug_report, color: Colors.orange),
+              title: const Text('🧪 Pruebas Notificación', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/notification-test');
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.settings, color: Colors.white70),
               title: Text('settings'.tr(), style: const TextStyle(color: Colors.white)),

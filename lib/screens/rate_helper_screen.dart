@@ -37,6 +37,9 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   String? _requestTitle;
   String? _helperAvatarUrl;
   String? _helperPhone;
+  
+  bool _isLoading = false;
+  Map<String, dynamic> currentRequestData = {};
 
   double _currentRating = 0.0;
   bool _hasRated = false;
@@ -47,13 +50,9 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // ⭐ DEBUGGING: Logging IDs al recibir argumentos
-    final currentUser = _auth.currentUser;
-    print('⭐ currentUser=${currentUser?.uid}');
-    print('⭐ args: requestId=${widget.requestId} helperId=${widget.helperId} helperName=${widget.helperName}');
-    
-    _loadRequesterAndRequestData();
+    print('🚀 [RATE_HELPER] INIT: requestId=${widget.requestId}, helperId=${widget.helperId}, helperName=${widget.helperName}');
+    print('🚀 [RATE_HELPER] WIDGET PARAMS: ${widget.toString()}');
+    _loadData();
   }
 
   @override
@@ -62,96 +61,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
     super.dispose();
   }
 
-  Future<void> _loadRequesterAndRequestData() async {
-    try {
-      final currentUser = _auth.currentUser;
-      print('[RATE_HELPER] uid=${currentUser?.uid} requestId=${widget.requestId}');
-      print('[RATE_HELPER] helperId=${widget.helperId} helperName=${widget.helperName}');
-      
-      if (currentUser == null) {
-        _snack('Debes iniciar sesión para calificar.'.tr(), Colors.red);
-        if (mounted) {
-          context.go('/login');
-        }
-        return;
-      }
 
-      _requesterId = currentUser.uid;
-      _requesterName = currentUser.displayName?.toString() ?? 'Usuario'.tr();
-
-      Map<String, dynamic> currentRequestData =
-          (widget.requestData ?? await _fetchRequest(widget.requestId)) ?? {};
-
-      _requestTitle = (currentRequestData['titulo']?.toString() ??
-              currentRequestData['descripcion']?.toString() ??
-              'Solicitud de ayuda'.tr());
-              
-      // 🧪 ASSERT LOG: Validación antes del auto-rating
-      assert(() {
-        print('🧪 VALIDACION: current=${currentUser.uid} '
-              'vs helperId=${widget.helperId} type=rate_helper');
-        return true;
-      }());
-      
-      // CRITICAL VALIDATION: Check for self-rating
-      // En RateHelperScreen, el SOLICITANTE (currentUser) califica al AYUDADOR (helperId)
-      // Solo debe impedir si el usuario intenta calificarse a sí mismo
-      print('[RATE_HELPER] VALIDATION: currentUser.uid=${currentUser.uid} vs helperId=${widget.helperId}');
-      if (currentUser.uid == widget.helperId) {
-        print('[RATE_HELPER] ERROR: Self-rating detected! User trying to rate themselves');
-        _snack('No puedes calificarte a ti mismo.'.tr(), Colors.red);
-        if (mounted) {
-          context.pop();
-        }
-        return;
-      }
-      
-      // VALIDACIÓN ADICIONAL: Verificar que el currentUser sea realmente el solicitante
-      // Usar los datos de la solicitud ya obtenidos
-      final String requestOwnerId = currentRequestData['userId']?.toString() ?? '';
-      print('[RATE_HELPER] VALIDATION: currentUser.uid=${currentUser.uid} vs requestOwnerId=$requestOwnerId');
-      
-      if (currentUser.uid != requestOwnerId) {
-        print('[RATE_HELPER] ERROR: User is not the request owner, cannot rate helper');
-        _snack('Solo el solicitante puede calificar al ayudador.'.tr(), Colors.red);
-        if (mounted) {
-          context.pop();
-        }
-        return;
-      }
-
-      final helperDoc =
-          await _firestore.collection('users').doc(widget.helperId).get();
-      if (helperDoc.exists) {
-        final data = helperDoc.data() ?? {};
-        _helperPhone = (data['phone']?.toString());
-        _helperAvatarUrl = (data['profilePicture']?.toString());
-      }
-
-      final existing = await _firestore
-          .collection('ratings')
-          .where('requestId', isEqualTo: widget.requestId)
-          .where('sourceUserId', isEqualTo: _requesterId)
-          .where('targetUserId', isEqualTo: widget.helperId)
-          .where('type', isEqualTo: 'helper_rating')
-          .limit(1)
-          .get();
-
-      if (!mounted) return;
-      setState(() {
-        _hasRated = existing.docs.isNotEmpty;
-        _loading = false;
-      });
-
-      if (_hasRated) {
-        _snack('Ya has calificado a este ayudador para esta ayuda.'.tr(), Colors.orange);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _snack('Error cargando datos: $e'.tr(), Colors.red);
-      setState(() => _loading = false);
-    }
-  }
 
   Future<Map<String, dynamic>?> _fetchRequest(String id) async {
     final doc = await _firestore.collection('solicitudes-de-ayuda').doc(id).get();
@@ -294,4 +204,130 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen> {
       ),
     );
   }
+
+  Future<void> _loadData() async {
+  print('📊 [RATE_HELPER] _loadData() iniciado');
+  
+  final currentUser = _auth.currentUser;
+  if (currentUser == null) {
+    print('❌ [RATE_HELPER] Usuario no autenticado');
+    AppServices.showSnackBar(context, 'Usuario no autenticado.', Colors.red);
+    if (mounted) context.pop();
+    return;
+  }
+  
+  print('👤 [RATE_HELPER] Usuario actual: ${currentUser.uid}');
+  print('🎯 [RATE_HELPER] Helper a calificar: ${widget.helperId}');
+  print('📋 [RATE_HELPER] Request ID: ${widget.requestId}');
+
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    // Obtener datos de la solicitud
+    print('🔍 [RATE_HELPER] Obteniendo datos de solicitud...');
+    final requestDoc = await _firestore
+        .collection('solicitudes-de-ayuda')
+        .doc(widget.requestId)
+        .get();
+  
+    if (!requestDoc.exists) {
+      print('❌ [RATE_HELPER] Solicitud no encontrada: ${widget.requestId}');
+      AppServices.showSnackBar(context, 'Solicitud no encontrada.', Colors.red);
+      if (mounted) context.pop();
+      return;
+    }
+
+    currentRequestData = requestDoc.data() as Map<String, dynamic>;
+    print('📋 [RATE_HELPER] Datos de solicitud obtenidos: $currentRequestData');
+    print('📋 [RATE_HELPER] Propietario de solicitud (userId): ${currentRequestData['userId']}');
+  
+    // CRITICAL VALIDATION: Check for self-rating
+    // En RateHelperScreen, el SOLICITANTE (currentUser) califica al AYUDADOR (helperId)
+    // Solo debe impedir si el usuario intenta calificarse a sí mismo
+    print('🔍 [RATE_HELPER] === VALIDACIÓN DE AUTO-CALIFICACIÓN ===');
+    print('🔍 [RATE_HELPER] currentUser.uid: "${currentUser.uid}" (tipo: ${currentUser.uid.runtimeType})');
+    print('🔍 [RATE_HELPER] widget.helperId: "${widget.helperId}" (tipo: ${widget.helperId.runtimeType})');
+    print('🔍 [RATE_HELPER] ¿Son iguales? ${currentUser.uid == widget.helperId}');
+    print('🔍 [RATE_HELPER] Comparación string: "${currentUser.uid.toString()}" == "${widget.helperId.toString()}" = ${currentUser.uid.toString() == widget.helperId.toString()}');
+    
+    if (currentUser.uid == widget.helperId) {
+      print('❌ [RATE_HELPER] ERROR: Auto-calificación detectada! Usuario intenta calificarse a sí mismo');
+      print('❌ [RATE_HELPER] currentUser.uid=${currentUser.uid} == helperId=${widget.helperId}');
+      AppServices.showSnackBar(context, 'No puedes calificarte a ti mismo.', Colors.red);
+      if (mounted) {
+        context.pop();
+      }
+      return;
+    }
+    
+    print('✅ [RATE_HELPER] Validación de auto-calificación PASADA');
+  
+    // VALIDACIÓN ADICIONAL: Verificar que el currentUser sea realmente el solicitante
+    // Usar los datos de la solicitud ya obtenidos
+    final String requestOwnerId = currentRequestData['userId']?.toString() ?? '';
+    print('🔍 [RATE_HELPER] === VALIDACIÓN DE PROPIETARIO ===');
+    print('🔍 [RATE_HELPER] currentUser.uid: "${currentUser.uid}"');
+    print('🔍 [RATE_HELPER] requestOwnerId: "$requestOwnerId"');
+    print('🔍 [RATE_HELPER] ¿Es el propietario? ${currentUser.uid == requestOwnerId}');
+    
+    if (currentUser.uid != requestOwnerId) {
+      print('❌ [RATE_HELPER] ERROR: Usuario no es el propietario de la solicitud, no puede calificar al helper');
+      AppServices.showSnackBar(context, 'Solo el solicitante puede calificar al ayudador.', Colors.red);
+      if (mounted) {
+        context.pop();
+      }
+      return;
+    }
+    
+    print('✅ [RATE_HELPER] Validación de propietario PASADA');
+
+     // Continuar con la carga de datos del helper
+     print('🔍 [RATE_HELPER] Obteniendo datos del helper...');
+     final helperDoc = await _firestore.collection('users').doc(widget.helperId).get();
+     if (helperDoc.exists) {
+       final data = helperDoc.data() ?? {};
+       _helperPhone = (data['phone']?.toString());
+       _helperAvatarUrl = (data['profilePicture']?.toString());
+       print('👤 [RATE_HELPER] Datos del helper obtenidos: phone=${_helperPhone}, avatar=${_helperAvatarUrl}');
+     } else {
+       print('⚠️ [RATE_HELPER] No se encontraron datos del helper: ${widget.helperId}');
+     }
+
+     // Verificar si ya se calificó
+     print('🔍 [RATE_HELPER] Verificando si ya se calificó...');
+     final existing = await _firestore
+         .collection('ratings')
+         .where('requestId', isEqualTo: widget.requestId)
+         .where('sourceUserId', isEqualTo: currentUser.uid)
+         .where('targetUserId', isEqualTo: widget.helperId)
+         .where('type', isEqualTo: 'helper_rating')
+         .limit(1)
+         .get();
+
+     print('🔍 [RATE_HELPER] Consulta de rating existente: ${existing.docs.length} documentos encontrados');
+
+     if (!mounted) return;
+     setState(() {
+       _hasRated = existing.docs.isNotEmpty;
+       _isLoading = false;
+       _requesterId = currentUser.uid; // Asignar el ID del usuario actual
+     });
+
+     print('✅ [RATE_HELPER] Carga de datos completada. _hasRated=$_hasRated, _requesterId=$_requesterId');
+
+     if (_hasRated) {
+       print('⚠️ [RATE_HELPER] Usuario ya calificó a este helper');
+       AppServices.showSnackBar(context, 'Ya has calificado a este ayudador para esta ayuda.', Colors.orange);
+     }
+   } catch (e) {
+      print('❌ [RATE_HELPER] Error en _loadData: $e');
+      if (!mounted) return;
+      AppServices.showSnackBar(context, 'Error cargando datos: $e', Colors.red);
+      setState(() {
+        _isLoading = false;
+      });
+     }
+   }
 }
