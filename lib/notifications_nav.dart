@@ -40,7 +40,15 @@ String routeFor(Map<String, dynamic> d) {
         return _abs(route);
       }
       break;
+    // FIX CRÍTICO: La notificación 'offer_received' (oferta de ayuda)
+    // debe llevar a la pantalla de detalles de la solicitud (/request/:requestId).
     case 'offer_received':
+      final requestId = data['requestId'] as String?;
+      if (requestId != null) {
+        return _abs('/request/$requestId'); // Ruta correcta para la pantalla de detalle de solicitud
+      }
+      break;
+      
     case 'rate_requester':
     case 'helper_rated': // Helper was rated, now can rate the requester
       final requestId = data['requestId'] as String?;
