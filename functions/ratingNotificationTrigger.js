@@ -36,6 +36,14 @@ export const ratingNotificationTrigger = onDocumentCreated(
       return;
     }
 
+    // FIX: Prevenir el envío de notificación si es una auto-calificación.
+    // Esto evita que el usuario reciba un enlace para calificarse a sí mismo.
+    if (ratedUserId === sourceUserId) {
+        logger.error("🚨 Auto-calificación detectada (ratedUserId === sourceUserId). No se enviará notificación de rating para evitar errores de navegación en el cliente.", { ratedUserId, sourceUserId });
+        return;
+    }
+    // FIN DEL FIX
+
     try {
       // Obtener datos del usuario que calificó
       const raterDoc = await db.collection("users").doc(sourceUserId).get();
@@ -87,6 +95,12 @@ export const ratingNotificationTrigger = onDocumentCreated(
           // The helper (ratedUserId) should rate the ORIGINAL requester (originalRequesterId)
           targetUserId = originalRequesterId; // El requester original que debe ser calificado
           
+          // FIX 2: Detener si el ayudador notificado es el mismo que el solicitante al que se debe calificar (A -> A en el rating inverso).
+          if (ratedUserId === targetUserId) {
+              logger.error("🚨 Inconsistencia de datos: El ayudador notificado (ratedUserId) es el mismo que el solicitante original (targetUserId). No se enviará notificación de calificación inversa.", { ratedUserId, targetUserId, requestId });
+              return;
+          }
+
           if (targetUserId) {
               try {
                   const targetUserDoc = await db.collection("users").doc(targetUserId).get();

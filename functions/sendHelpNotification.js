@@ -21,6 +21,13 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
     if (!requestId || !receiverId || !helperId || !helperName) {
       return res.status(400).send("Faltan parámetros obligatorios.");
     }
+    
+    // FIX: Prevenir la notificación si el ayudador es el mismo que el solicitante (Auto-oferta).
+    if (receiverId === helperId) {
+        console.error(`ERROR: Auto-oferta detectada. RequesterId (${receiverId}) es igual a HelperId (${helperId}). No se enviará notificación.`);
+        return res.status(400).send("Auto-oferta no permitida.");
+    }
+
     const safeTitle = requestTitle || requestData?.title || "Nueva solicitud";
 
     const notification = {
