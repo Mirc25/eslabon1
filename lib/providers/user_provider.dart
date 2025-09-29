@@ -1,24 +1,22 @@
-﻿import 'dart:async'; 
+import 'dart:async'; 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eslabon_flutter/models/user_model.dart'; 
 
 // Provider para el usuario actual
-final userProvider = StateNotifierProvider<UserNotifier, AsyncValue<User?>>((ref) {
+final userProvider = AsyncNotifierProvider<UserNotifier, User?>(() {
   return UserNotifier();
 });
 
-class UserNotifier extends StateNotifier<AsyncValue<User?>> {
-  UserNotifier() : super(const AsyncValue.loading()) {
-    _init();
-  }
-
+class UserNotifier extends AsyncNotifier<User?> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   StreamSubscription? _userSubscription;
 
-  void _init() {
+  @override
+  Future<User?> build() async {
+    // Configurar el listener para cambios de autenticación
     _auth.authStateChanges().listen((firebase_auth.User? firebaseUser) {
       if (firebaseUser == null) {
         state = const AsyncValue.data(null);
@@ -33,6 +31,18 @@ class UserNotifier extends StateNotifier<AsyncValue<User?>> {
         });
       }
     });
+
+    // Retornar el estado inicial
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return null;
+    }
+
+    final doc = await _firestore.collection('users').doc(currentUser.uid).get();
+    if (doc.exists) {
+      return User.fromFirestore(doc);
+    }
+    return null;
   }
 
   Future<void> updateLastGlobalChatRead() async {
@@ -49,10 +59,6 @@ class UserNotifier extends StateNotifier<AsyncValue<User?>> {
     }
   }
 
-  @override
-  void dispose() {
-    _userSubscription?.cancel();
-    super.dispose();
-  }
+
 }
 

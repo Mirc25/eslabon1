@@ -877,8 +877,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     );
 
     if (result != null) {
-      ref.read(filterScopeProvider.notifier).state = result['filterScope']?.toString() ?? 'Cercano';
-      ref.read(proximityRadiusProvider.notifier).state = (result['proximityRadius'] as num?)?.toDouble() ?? 3.0;
+      ref.read(filterScopeProvider.notifier).setScope(result['filterScope']?.toString() ?? 'Cercano');
+      ref.read(proximityRadiusProvider.notifier).setRadius((result['proximityRadius'] as num?)?.toDouble() ?? 3.0);
       setState(() {
         _selectedCategory = result['selectedCategory']?.toString() ?? 'Todas';
       });

@@ -10,7 +10,7 @@ try {
   // App already initialized
 }
 
-export const sendChatNotificationHTTP2 = onRequest(async (req, res) => {
+export const sendChatNotificationHTTP = onRequest(async (req, res) => {
   try {
     // Updated version 2.0
     // Set CORS headers

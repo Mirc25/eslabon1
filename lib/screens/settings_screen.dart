@@ -91,10 +91,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         SnackBar(content: Text('Configuración guardada con éxito')),
       );
       if (_selectedSorting == 'Más cercanos') {
-        ref.read(filterScopeProvider.notifier).state = 'Cercano';
-        ref.read(proximityRadiusProvider.notifier).state = _searchRadius;
+        ref.read(filterScopeProvider.notifier).setScope('Cercano');
+        ref.read(proximityRadiusProvider.notifier).setRadius(_searchRadius);
       } else {
-         ref.read(filterScopeProvider.notifier).state = _selectedSorting;
+         ref.read(filterScopeProvider.notifier).setScope(_selectedSorting);
       }
     } catch (e) {
       print('Error al guardar la configuración: $e');

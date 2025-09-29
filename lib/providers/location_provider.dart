@@ -32,12 +32,14 @@ class UserLocationData {
   }
 }
 
-// StateNotifier para gestionar la ubicación del usuario
-class UserLocationNotifier extends StateNotifier<UserLocationData> {
-  UserLocationNotifier() : super(UserLocationData(locality: 'Cargando ubicación...', statusMessage: 'Cargando...')) {
+// Notifier para gestionar la ubicación del usuario
+class UserLocationNotifier extends Notifier<UserLocationData> {
+  @override
+  UserLocationData build() {
     // Inicia la carga de la ubicación, pero no bloquea el constructor.
     // Esto permite que el UI se construya sin esperar.
     Future.microtask(() => determineAndSetUserLocation());
+    return UserLocationData(locality: 'Cargando ubicación...', statusMessage: 'Cargando...');
   }
 
   Future<void> determineAndSetUserLocation() async {
@@ -91,13 +93,37 @@ class UserLocationNotifier extends StateNotifier<UserLocationData> {
   }
 }
 
+// Notifier para el filtro de alcance
+class FilterScopeNotifier extends Notifier<String> {
+  @override
+  String build() => 'Internacional'; // 'Cercano', 'Provincial', 'Nacional', 'Internacional'
+  
+  void setScope(String scope) {
+    state = scope;
+  }
+}
+
+// Notifier para el radio de proximidad
+class ProximityRadiusNotifier extends Notifier<double> {
+  @override
+  double build() => 3.0; // en kilómetros
+  
+  void setRadius(double radius) {
+    state = radius;
+  }
+}
+
 // Proveedor para la ubicación del usuario
-final userLocationProvider = StateNotifierProvider<UserLocationNotifier, UserLocationData>((ref) {
+final userLocationProvider = NotifierProvider<UserLocationNotifier, UserLocationData>(() {
   return UserLocationNotifier();
 });
 
 // Proveedor para el filtro de alcance
-final filterScopeProvider = StateProvider<String>((ref) => 'Internacional'); // 'Cercano', 'Provincial', 'Nacional', 'Internacional'
+final filterScopeProvider = NotifierProvider<FilterScopeNotifier, String>(() {
+  return FilterScopeNotifier();
+});
 
 // Proveedor para el radio de proximidad (solo para filtro 'Cercano')
-final proximityRadiusProvider = StateProvider<double>((ref) => 3.0); // en kilómetros
+final proximityRadiusProvider = NotifierProvider<ProximityRadiusNotifier, double>(() {
+  return ProximityRadiusNotifier();
+});
