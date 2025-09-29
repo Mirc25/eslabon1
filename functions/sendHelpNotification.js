@@ -30,19 +30,30 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
     } 
     // FIN DEL FIX CRÍTICO
 
+    // FIX: Logs temporales para casos de aceptación
+    console.info("📋 [ACCEPTANCE TEST] sendHelpNotification", {
+      type: "offer_received",
+      route: `/rate-helper/${requestId}?helperId=${helperId}&helperName=${encodedHelperName}`,
+      requestId,
+      helperId,
+      receiverId,
+      helperName
+    });
+
     const safeTitle = requestTitle || requestData?.title || "Nueva solicitud";
+    const encodedHelperName = encodeURIComponent(helperName);
 
     const notification = {
       type: "offer_received",
       title: `¡${helperName} quiere ayudarte!`,
-      body: `Toca para ver los detalles de "${safeTitle}".`,
+      body: `Toca para calificar a "${helperName}" por ayudarte con "${safeTitle}".`,
       timestamp: FieldValue.serverTimestamp(),
       read: false,
       recipientId: receiverId,
       data: {
         notificationType: "offer_received",
         type: "offer_received",
-        route: `/request/${requestId}`,       // <- RUTA EXPLÍCITA AL DETALLE
+        route: `/rate-helper/${requestId}?helperId=${helperId}&helperName=${encodedHelperName}`,
         requestId,
         requestTitle: safeTitle,
         helperId,

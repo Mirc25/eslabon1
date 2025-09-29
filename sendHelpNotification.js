@@ -19,17 +19,27 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
     if (!requestId || !receiverId || !helperId || !helperName) {
       return res.status(400).send("Faltan parámetros obligatorios.");
     }
+    // FIX CRÍTICO: Prevenir la notificación si el ayudador es el mismo que el solicitante (Auto-oferta). 
+    if (receiverId === helperId) { 
+        console.error(`ERROR: Auto-oferta detectada. RequesterId (${receiverId}) es igual a HelperId (${helperId}). No se enviará notificación.`); 
+        return res.status(400).send("Auto-oferta no permitida."); 
+    } 
+    // FIN DEL FIX CRÍTICO
+
     const safeTitle = requestTitle || requestData?.title || "Nueva solicitud";
+    const encodedHelperName = encodeURIComponent(helperName);
 
     const notification = {
       type: "offer_received",
-      title: ¡ quiere ayudarte!,
-      body: Toca para ver los detalles de \"\".,
+      title: `¡${helperName} quiere ayudarte!`,
+      body: `Toca para calificar a "${helperName}" por ayudarte con "${safeTitle}".`,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       read: false,
       recipientId: receiverId,
       data: {
         notificationType: "offer_received",
+        type: "offer_received",
+        route: `/rate-helper/${requestId}?helperId=${helperId}&helperName=${encodedHelperName}`,
         requestId,
         requestTitle: safeTitle,
         helperId,

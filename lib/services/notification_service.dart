@@ -243,29 +243,58 @@ class NotificationService {
     if (route.isNotEmpty) {
       print('🔔 ✅ PREPARANDO NAVEGACIÓN A: $route');
       
-      // 🚀 SOLUCIÓN DE TIMING: Esperar a que el widget tree esté completamente montado
+      // 🛡️ PROTECCIÓN ANTI-CRASH: Múltiples capas de seguridad
+      bool navigationSuccessful = false;
+      
+      // 🚀 CAPA 1: PostFrameCallback con protección extra
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (navigationSuccessful) return; // Ya navegó exitosamente
+        
         print('🔔 🚀 EJECUTANDO NAVEGACIÓN POST-FRAME: $route');
         try {
-          _router.go(route);
-          print('🔔 ✅ NAVEGACIÓN EXITOSA POST-FRAME');
+          // Verificar que el router esté disponible
+          if (_router.routerDelegate.currentConfiguration.isNotEmpty) {
+            _router.go(route);
+            navigationSuccessful = true;
+            print('🔔 ✅ NAVEGACIÓN EXITOSA POST-FRAME');
+          } else {
+            throw Exception('Router no está listo');
+          }
         } catch (e) {
           print('🔔 ❌ ERROR EN NAVEGACIÓN POST-FRAME: $e');
-          // Fallback adicional: ir a home si la navegación falla
-          print('🔔 🏠 Navegando a home como fallback post-frame');
-          _router.go('/');
+          // Fallback seguro: ir a home
+          try {
+            _router.go('/');
+            navigationSuccessful = true;
+            print('🔔 🏠 NAVEGACIÓN A HOME EXITOSA (FALLBACK POST-FRAME)');
+          } catch (e2) {
+            print('🔔 💥 ERROR CRÍTICO EN FALLBACK POST-FRAME: $e2');
+          }
         }
       });
       
-      // También intentar navegación inmediata como backup (por si acaso)
-      try {
-        await Future.delayed(const Duration(milliseconds: 100));
-        print('🔔 🔄 INTENTANDO NAVEGACIÓN INMEDIATA COMO BACKUP: $route');
-        _router.go(route);
-        print('🔔 ✅ NAVEGACIÓN INMEDIATA EXITOSA');
-      } catch (e) {
-        print('🔔 ⚠️ NAVEGACIÓN INMEDIATA FALLÓ (esperando post-frame): $e');
-      }
+      // 🚀 CAPA 2: Navegación con delay como backup
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (navigationSuccessful) return; // Ya navegó exitosamente
+        
+        print('🔔 🔄 INTENTANDO NAVEGACIÓN CON DELAY: $route');
+        try {
+          _router.go(route);
+          navigationSuccessful = true;
+          print('🔔 ✅ NAVEGACIÓN CON DELAY EXITOSA');
+        } catch (e) {
+          print('🔔 ⚠️ NAVEGACIÓN CON DELAY FALLÓ: $e');
+          // Último intento: ir a home
+          try {
+            _router.go('/');
+            navigationSuccessful = true;
+            print('🔔 🏠 NAVEGACIÓN A HOME EXITOSA (FALLBACK DELAY)');
+          } catch (e2) {
+            print('🔔 💥 ERROR CRÍTICO EN FALLBACK DELAY: $e2');
+          }
+        }
+      });
+      
     } else {
       print('🔔 ❌ NO SE PUDO DETERMINAR RUTA - ni route, ni navigationPath, ni fallback funcionaron');
       print('🔔 Datos disponibles para debug:');
@@ -277,10 +306,15 @@ class NotificationService {
         print('🔔 $key: ${message.data[key]}');
       }
       
-      // Ir a home como último recurso con timing fix
+      // Ir a home como último recurso con protección anti-crash
       print('🔔 🏠 Navegando a home como último recurso');
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _router.go('/');
+        try {
+          _router.go('/');
+          print('🔔 🏠 NAVEGACIÓN A HOME EXITOSA (ÚLTIMO RECURSO)');
+        } catch (e) {
+          print('🔔 💥 ERROR CRÍTICO EN ÚLTIMO RECURSO: $e');
+        }
       });
     }
     print('🔔 === FIN DEBUGGING NOTIFICATION TAP ===');
@@ -414,10 +448,14 @@ class NotificationService {
     
     switch (notificationType) {
       case 'offer_received':
-        if (requestId != null) {
-          // FIX: offer_received debe ir a la pantalla de detalles, no a rating
+        if (requestId != null && helperId != null) {
+          String route = '/rate-helper/$requestId?helperId=$helperId';
+          print('🔧 [FALLBACK] ✅ Ruta generada para offer_received: $route');
+          return route;
+        } else if (requestId != null) {
+          // Fallback sin helperId
           String route = '/request/$requestId';
-          print('🔧 [FALLBACK] ✅ Ruta generada (CORREGIDA): $route');
+          print('🔧 [FALLBACK] ⚠️ Fallback sin helperId: $route');
           return route;
         }
         break;

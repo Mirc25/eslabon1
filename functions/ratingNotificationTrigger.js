@@ -44,6 +44,15 @@ export const ratingNotificationTrigger = onDocumentCreated(
     }
     // FIN DEL FIX
 
+    // FIX: Logs temporales para casos de aceptación
+    logger.info("📋 [ACCEPTANCE TEST] ratingNotificationTrigger", {
+      type,
+      requestId,
+      ratedUserId,
+      sourceUserId,
+      ratingValue
+    });
+
     try {
       // Obtener datos del usuario que calificó
       const raterDoc = await db.collection("users").doc(sourceUserId).get();

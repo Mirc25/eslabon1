@@ -17,7 +17,11 @@ import '../screens/push_notification_test_screen.dart';
 import '../screens/ratings_screen.dart';
 
 class AppRouter {
+  // 🔑 CLAVE GLOBAL DE NAVEGACIÓN PARA ACCESO DESDE CUALQUIER LUGAR
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  
   static final GoRouter router = GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/',
     routes: <RouteBase>[
       GoRoute(

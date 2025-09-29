@@ -48,6 +48,16 @@ export const createNotificationTrigger = onDocumentCreated(
       },
     };
 
+    // FIX: Logs temporales para casos de aceptación
+    logger.info("📋 [ACCEPTANCE TEST] createNotificationTrigger", {
+      type: notification.type || notification.data?.type || "",
+      route: notification.data?.route || "",
+      requestId: notification.data?.requestId || "",
+      helperId: notification.data?.helperId || "",
+      requesterId: notification.data?.requesterId || "",
+      recipientId: userId
+    });
+
     try {
       const response = await getMessaging().send(message);
       logger.log("✅ Notificación FCM enviada", response);

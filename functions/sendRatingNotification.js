@@ -81,6 +81,16 @@ app.post("/", async (req, res) => {
       requestTitle: String(body.requestTitle || "")
     };
 
+    // FIX: Logs temporales para casos de aceptación
+    logger.info("📋 [ACCEPTANCE TEST] sendRatingNotification", {
+      type: body.type,
+      route: body.route || routeFromType,
+      requestId: body.requestId,
+      requesterId: body.requesterId,
+      helperId: body.helperId,
+      ratedUserId: body.ratedUserId
+    });
+
     const messageId = await admin.messaging().send({
       token,
       notification,

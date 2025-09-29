@@ -2,6 +2,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'router/app_router.dart';
 
 String _abs(String r) => r.startsWith('/') ? r : '/';
 
@@ -57,17 +58,36 @@ String routeFor(Map<String, dynamic> d) {
       }
       break;
       
-    // FIX CRÍTICO: La notificación 'offer_received' (oferta de ayuda)
-    // debe llevar a la pantalla de detalles de la solicitud (/request/:requestId), NO a una pantalla de calificación.
     case 'offer_received':
       final requestId = data['requestId'] as String?;
-      print('[NAV] offer_received: requestId=$requestId');
-      if (requestId != null) {
-        // Ruta corregida a /request/:requestId (Detalles de la solicitud)
-        String route = '/request/$requestId';
-        print('[NAV] resolved route=$route requestId=$requestId as=requester');
+      final helperId = data['helperId'] as String?;
+      final helperName = data['helperName'] as String?;
+      
+      print('🧭 [NAV] 🤝 OFFER_RECEIVED - Datos extraídos:');
+      print('🧭 [NAV]   - requestId: $requestId');
+      print('🧭 [NAV]   - helperId: $helperId');
+      print('🧭 [NAV]   - helperName: $helperName');
+      print('🧭 [NAV]   - data[route]: ${data['route']}');
+      
+      // Priorizar ruta embebida desde FCM
+      if (data['route'] != null && data['route'].toString().isNotEmpty) {
+        final embeddedRoute = data['route'].toString();
+        print('🧭 [NAV] ✅ Usando ruta embebida desde FCM: $embeddedRoute');
+        return _abs(embeddedRoute);
+      }
+      
+      // Fallback: construir ruta de calificación si tenemos los datos necesarios
+      if (requestId != null && helperId != null) {
+        String route = '/rate-helper/$requestId?helperId=$helperId';
+        if (helperName != null) {
+          final encodedName = Uri.encodeComponent(helperName);
+          route += '&helperName=$encodedName';
+        }
+        print('🧭 [NAV] 📝 Fallback a ruta de calificación: $route');
         return _abs(route);
       }
+      
+      print('🧭 [NAV] ❌ Datos insuficientes para offer_received');
       break;
       
     case 'rate_requester':
@@ -153,29 +173,162 @@ Future<void> openNotificationAndMarkRead(
 ) async {
   print('🧭 [MARK_READ] === INICIO PROCESAMIENTO DE NOTIFICACIÓN ===');
   
-  final Map<String, dynamic> data =
-      (doc.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
-  
-  print('🧭 [MARK_READ] Datos de notificación: $data');
-  
-  final target = routeFor(data);
-  print('🧭 [MARK_READ] Ruta objetivo determinada: $target');
-  
-  // Marcar como leída
   try {
-    await doc.reference.update({'read': true});
-    print('🧭 [MARK_READ] ✅ Notificación marcada como leída');
+    final Map<String, dynamic> data =
+        (doc.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
+    
+    print('🧭 [MARK_READ] Datos de notificación: $data');
+    
+    final target = routeFor(data);
+    print('🧭 [MARK_READ] Ruta objetivo determinada: $target');
+    
+    // Marcar como leída
+    try {
+      await doc.reference.update({'read': true});
+      print('🧭 [MARK_READ] ✅ Notificación marcada como leída');
+    } catch (e) {
+      print('🧭 [MARK_READ] ⚠️ Error al marcar como leída: $e');
+    }
+    
+    // 🛡️ NAVEGACIÓN SEGURA CON MÚLTIPLES CAPAS DE PROTECCIÓN
+    _safeNavigateFromNotification(context, target);
+    
   } catch (e) {
-    print('🧭 [MARK_READ] ⚠️ Error al marcar como leída: $e');
-  }
-  
-  // Navegar
-  if (context.mounted) {
-    print('🧭 [MARK_READ] 🚀 Navegando a: $target');
-    context.go(target);
-  } else {
-    print('🧭 [MARK_READ] ❌ Context no está montado, no se puede navegar');
+    print('🧭 [MARK_READ] ❌ ERROR CRÍTICO en procesamiento: $e');
+    // Fallback seguro: ir a home
+    _safeNavigateFromNotification(context, '/main');
   }
   
   print('🧭 [MARK_READ] === FIN PROCESAMIENTO DE NOTIFICACIÓN ===');
+}
+
+// 🛡️ FUNCIÓN DE NAVEGACIÓN ULTRA-ROBUSTA DESDE NOTIFICACIONES
+void _safeNavigateFromNotification(BuildContext context, String target) {
+  print('🧭 [SAFE_NAV] === INICIO NAVEGACIÓN ULTRA-ROBUSTA DESDE NOTIFICACIÓN ===');
+  print('🧭 [SAFE_NAV] Ruta objetivo: $target');
+  
+  bool navigationSuccessful = false;
+  
+  // 🚀 MÉTODO 1: Navegación con context directo
+  try {
+    if (context.mounted) {
+      print('🧭 [SAFE_NAV] 🚀 MÉTODO 1: Context directo');
+      context.go(target);
+      navigationSuccessful = true;
+      print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN CON CONTEXT EXITOSA');
+      return; // Salir si fue exitosa
+    } else {
+      print('🧭 [SAFE_NAV] ⚠️ Context no está montado');
+    }
+  } catch (e) {
+    print('🧭 [SAFE_NAV] ❌ ERROR en navegación con context: $e');
+  }
+  
+  // 🚀 MÉTODO 2: Navegación con GlobalKey del router
+  if (!navigationSuccessful) {
+    try {
+      final navigatorState = AppRouter.navigatorKey.currentState;
+      if (navigatorState != null) {
+        print('🧭 [SAFE_NAV] 🔑 MÉTODO 2: GlobalKey del router');
+        final globalContext = navigatorState.context;
+        if (globalContext.mounted) {
+          globalContext.go(target);
+          navigationSuccessful = true;
+          print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN CON GLOBALKEY EXITOSA');
+          return; // Salir si fue exitosa
+        }
+      } else {
+        print('🧭 [SAFE_NAV] ⚠️ NavigatorState no disponible');
+      }
+    } catch (e) {
+      print('🧭 [SAFE_NAV] ❌ ERROR en navegación con GlobalKey: $e');
+    }
+  }
+  
+  // 🚀 MÉTODO 3: PostFrameCallback con múltiples intentos
+  if (!navigationSuccessful) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigationSuccessful) return;
+      
+      print('🧭 [SAFE_NAV] 🔄 MÉTODO 3: PostFrameCallback');
+      
+      // Intentar con context original
+      try {
+        if (context.mounted) {
+          context.go(target);
+          navigationSuccessful = true;
+          print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN POST-FRAME CON CONTEXT EXITOSA');
+          return;
+        }
+      } catch (e) {
+        print('🧭 [SAFE_NAV] ❌ ERROR PostFrame con context: $e');
+      }
+      
+      // Intentar con GlobalKey
+      try {
+        final navigatorState = AppRouter.navigatorKey.currentState;
+        if (navigatorState != null) {
+          final globalContext = navigatorState.context;
+          if (globalContext.mounted) {
+            globalContext.go(target);
+            navigationSuccessful = true;
+            print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN POST-FRAME CON GLOBALKEY EXITOSA');
+            return;
+          }
+        }
+      } catch (e) {
+        print('🧭 [SAFE_NAV] ❌ ERROR PostFrame con GlobalKey: $e');
+      }
+      
+      // Fallback a home
+      try {
+        final navigatorState = AppRouter.navigatorKey.currentState;
+        if (navigatorState != null) {
+          final globalContext = navigatorState.context;
+          if (globalContext.mounted) {
+            globalContext.go('/main');
+            print('🧭 [SAFE_NAV] 🏠 NAVEGACIÓN A HOME EXITOSA (FALLBACK)');
+          }
+        }
+      } catch (e2) {
+        print('🧭 [SAFE_NAV] 💥 ERROR CRÍTICO EN FALLBACK: $e2');
+      }
+    });
+  }
+  
+  // 🚀 MÉTODO 4: Delay con múltiples intentos
+  if (!navigationSuccessful) {
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (navigationSuccessful) return;
+      
+      print('🧭 [SAFE_NAV] ⏰ MÉTODO 4: Navegación con delay');
+      
+      // Intentar con GlobalKey
+      try {
+        final navigatorState = AppRouter.navigatorKey.currentState;
+        if (navigatorState != null) {
+          final globalContext = navigatorState.context;
+          if (globalContext.mounted) {
+            globalContext.go(target);
+            print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN CON DELAY EXITOSA');
+            return;
+          }
+        }
+      } catch (e) {
+        print('🧭 [SAFE_NAV] ❌ ERROR en navegación con delay: $e');
+      }
+      
+      // Último intento con context original
+      try {
+        if (context.mounted) {
+          context.go(target);
+          print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN FINAL CON CONTEXT EXITOSA');
+        }
+      } catch (e) {
+        print('🧭 [SAFE_NAV] 💥 ERROR FINAL: $e');
+      }
+    });
+  }
+  
+  print('🧭 [SAFE_NAV] === FIN NAVEGACIÓN ULTRA-ROBUSTA DESDE NOTIFICACIÓN ===');
 }
