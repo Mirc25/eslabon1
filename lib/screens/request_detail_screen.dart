@@ -25,11 +25,12 @@ class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
   final Map<String, dynamic>? requestData;
 
+  // ✅ CORRECCIÓN: Usando la sintaxis explícita para Key para evitar la duplicidad
   const RequestDetailScreen({
-    super.key,
+    Key? key, 
     required this.requestId,
     this.requestData,
-  });
+  }) : super(key: key); // Se corrige la referencia a super
 
   @override
   ConsumerState<RequestDetailScreen> createState() => _RequestDetailScreenState();
@@ -43,13 +44,18 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
   final Map<String, TextEditingController> _commentControllers = {};
   
+  // ✅ Sistema de caché para URLs de imágenes de perfil
+  final Map<String, String> _profilePictureUrlCache = {};
+  
   bool _hasOfferedHelp = false;
   bool _isLoading = true;
   bool _canRate = false;
   String? _acceptedHelperId;
   String? _acceptedHelperName;
+  String _requestStatus = 'activa'; // ✅ CLAVE: Estado de la solicitud
   RewardedAd? _rewardedAd;
   bool _isRewardedAdLoaded = false;
+  List<DocumentSnapshot> _pendingOffers = []; // ✅ LISTA DE OFERTAS PENDIENTES
 
   @override
   void initState() {
@@ -148,6 +154,78 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       context.push('/rate-helper/${widget.requestId}?helperId=$_acceptedHelperId&helperName=${Uri.encodeComponent(_acceptedHelperName!)}');
     }
   }
+  
+  Future<void> _finalizeRequest() async {
+    if (_requestStatus != 'aceptada' || _acceptedHelperId == null) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. Actualizar el estado de la solicitud a 'finalizada'
+      await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
+        'estado': 'finalizada',
+        'finalizedAt': FieldValue.serverTimestamp(),
+      });
+      
+      _showSnackBar('Ayuda marcada como finalizada. ¡Gracias!'.tr(), Colors.green);
+      
+    } catch (e) {
+      _showSnackBar('Error al finalizar la ayuda: $e'.tr(), Colors.red);
+    } finally {
+      if (mounted) {
+        await _loadDataAndCheckOfferStatus(); 
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // 🚀 FUNCIÓN CRÍTICA FALTANTE: Aceptar la oferta y cambiar el estado
+  Future<void> _acceptOffer(String offerId, String helperId, String helperName) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. Marcar el estado de la solicitud como ACEPTADA (CLAVE)
+      await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
+        'estado': 'aceptada', // ESTO ES LO QUE DESBLOQUEA LA NAVEGACIÓN
+        'helperId': helperId,
+        'helperName': helperName,
+        'acceptedOfferId': offerId,
+      });
+
+      // 2. Marcar la oferta específica como aceptada
+      await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId)
+          .collection('offers').doc(offerId).update({
+        'status': 'accepted'
+      });
+
+      // ✅ ACTUALIZAR ESTADO LOCAL para la navegación inmediata
+      setState(() {
+        _acceptedHelperId = helperId;
+        _acceptedHelperName = helperName;
+        _requestStatus = 'aceptada';
+        _canRate = true; // El solicitante PUEDE calificar inmediatamente
+      });
+      
+      _showSnackBar('Oferta de $helperName aceptada. ¡Redirigiendo a calificación!'.tr(), Colors.green);
+      
+    } catch (e) {
+      _showSnackBar('Error al aceptar la oferta: $e'.tr(), Colors.red);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        // 🎯 CAMBIO CRÍTICO: Navegar a la pantalla de calificación, no al chat.
+        _navigateToRateHelper();
+      }
+    }
+  }
 
   Future<void> _loadDataAndCheckOfferStatus() async {
     final firebase_auth.User? currentUser = _auth.currentUser;
@@ -157,7 +235,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
 
     try {
-      // Verificar si el usuario ha ofrecido ayuda
+      // 1. Verificar si el usuario ha ofrecido ayuda (para el botón 'Ayuda Ofrecida' del Helper)
       final offersSnapshot = await _firestore
           .collection('solicitudes-de-ayuda')
           .doc(widget.requestId)
@@ -166,7 +244,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           .limit(1)
           .get();
 
-      // Obtener datos de la solicitud para verificar el estado
+      // 2. Obtener datos de la solicitud para verificar el estado
       final requestDoc = await _firestore
           .collection('solicitudes-de-ayuda')
           .doc(widget.requestId)
@@ -175,40 +253,57 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       bool canRate = false;
       String? acceptedHelperId;
       String? acceptedHelperName;
+      String currentRequestStatus = 'activa';
+      List<DocumentSnapshot> pendingOffers = [];
 
       if (requestDoc.exists) {
         final requestData = requestDoc.data() as Map<String, dynamic>;
-        final String requestStatus = requestData['estado'] ?? 'activa';
+        currentRequestStatus = requestData['estado'] ?? 'activa';
         final String requestOwnerId = requestData['userId'] ?? '';
+        
+        setState(() {
+            _requestStatus = currentRequestStatus;
+        });
 
-        // Si el usuario es el dueño de la solicitud y la solicitud está "aceptada"
-        if (currentUser.uid == requestOwnerId && requestStatus == 'aceptada') {
-          // Buscar el ayudador aceptado
-          final acceptedOfferSnapshot = await _firestore
-              .collection('solicitudes-de-ayuda')
-              .doc(widget.requestId)
-              .collection('offers')
-              .where('status', isEqualTo: 'accepted')
-              .limit(1)
-              .get();
+        if (currentUser.uid == requestOwnerId) {
+             // Si soy el solicitante
+            if (currentRequestStatus == 'activa') {
+                final pendingOffersSnapshot = await _firestore
+                    .collection('solicitudes-de-ayuda')
+                    .doc(widget.requestId)
+                    .collection('offers')
+                    .where('status', isEqualTo: 'pending')
+                    .get();
+                pendingOffers = pendingOffersSnapshot.docs;
+            } else if (currentRequestStatus == 'aceptada' || currentRequestStatus == 'finalizada') {
+                // Buscamos el ayudador aceptado
+                final acceptedOfferSnapshot = await _firestore
+                    .collection('solicitudes-de-ayuda')
+                    .doc(widget.requestId)
+                    .collection('offers')
+                    .where('status', isEqualTo: 'accepted')
+                    .limit(1)
+                    .get();
 
-          if (acceptedOfferSnapshot.docs.isNotEmpty) {
-            final acceptedOffer = acceptedOfferSnapshot.docs.first.data();
-            acceptedHelperId = acceptedOffer['helperId'];
-            acceptedHelperName = acceptedOffer['helperName'];
+                if (acceptedOfferSnapshot.docs.isNotEmpty) {
+                    final acceptedOffer = acceptedOfferSnapshot.docs.first.data();
+                    acceptedHelperId = acceptedOffer['helperId'];
+                    acceptedHelperName = acceptedOffer['helperName'];
 
-            // Verificar si ya calificó a este ayudador
-            final existingRating = await _firestore
-                .collection('ratings')
-                .where('requestId', isEqualTo: widget.requestId)
-                .where('sourceUserId', isEqualTo: currentUser.uid)
-                .where('ratedUserId', isEqualTo: acceptedHelperId)
-                .where('type', isEqualTo: 'helper_rating')
-                .limit(1)
-                .get();
+                    // 4. Verificar si ya calificó a este ayudador
+                    final existingRating = await _firestore
+                        .collection('ratings')
+                        .where('requestId', isEqualTo: widget.requestId)
+                        .where('sourceUserId', isEqualTo: currentUser.uid)
+                        .where('targetUserId', isEqualTo: acceptedHelperId)
+                        .where('type', isEqualTo: 'helper_rating')
+                        .limit(1)
+                        .get();
 
-            canRate = existingRating.docs.isEmpty;
-          }
+                    bool hasAlreadyRated = existingRating.docs.isNotEmpty;
+                    canRate = !hasAlreadyRated && currentRequestStatus == 'aceptada';
+                }
+            }
         }
       }
 
@@ -218,6 +313,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           _canRate = canRate;
           _acceptedHelperId = acceptedHelperId;
           _acceptedHelperName = acceptedHelperName;
+          _pendingOffers = pendingOffers; // ✅ Actualiza la lista de ofertas
           _isLoading = false;
         });
       }
@@ -231,6 +327,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
   }
 
+  // ✅ FIX: FUNCIÓN ACEPTACIÓN
   Future<void> _showOfferHelpConfirmation(Map<String, dynamic> requestData) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -261,9 +358,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
   }
 
+  // ✅ FIX: FUNCIÓN ACEPTACIÓN
   Future<void> _handleOfferHelp(Map<String, dynamic> requestData) async {
     print('🚀 INICIO _handleOfferHelp: Iniciando proceso de ofrecer ayuda');
-    print('🚀 RequestData recibido: $requestData');
     
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -271,10 +368,8 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       _showSnackBar('Debes iniciar sesión para ofrecer ayuda.'.tr(), Colors.red);
       return;
     }
-    print('✅ Usuario autenticado: ${currentUser.uid}');
-
+    
     final String requesterUserId = requestData['userId']?.toString() ?? '';
-    print('🔍 RequesterUserId: $requesterUserId');
 
     if (currentUser.uid == requesterUserId) {
       print('❌ ERROR: Usuario intentando ayudarse a sí mismo');
@@ -289,19 +384,14 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
 
     try {
-      print('📝 PASO A: Obteniendo perfil del ayudador...');
       final DocumentSnapshot helperProfile = await _firestore.collection('users').doc(currentUser.uid).get();
       final Map<String, dynamic> helperData = (helperProfile.data() as Map<String, dynamic>?) ?? {};
-      print('✅ PASO A: Perfil obtenido: $helperData');
 
       final String helperName = helperData['name']?.toString() ?? currentUser.displayName ?? 'Ayudador';
       final String? helperAvatarPath = helperData['profilePicture']?.toString();
-      print('📋 HelperName: $helperName, HelperAvatar: $helperAvatarPath');
-
       final String requestTitle = requestData['titulo']?.toString() ?? requestData['descripcion']?.toString() ?? 'Solicitud de ayuda';
-      print('📋 RequestTitle: $requestTitle');
 
-      print('📝 PASO B: Agregando oferta a Firestore (request_detail_screen)...');
+      // PASO B: Agregando oferta a Firestore 
       await _firestore
           .collection('solicitudes-de-ayuda')
           .doc(widget.requestId)
@@ -314,15 +404,13 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         'helperAvatarUrl': helperAvatarPath,
         'requesterId': requesterUserId,
       });
-      print('✅ PASO B: Oferta agregada exitosamente');
 
-      print('📝 PASO C: Incrementando contador de ofertas...');
+      // PASO C: Incrementando contador de ofertas
       await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
         'offersCount': FieldValue.increment(1),
       });
-      print('✅ PASO C: Contador incrementado exitosamente');
 
-      print('📝 PASO D: Llamando a createOfferAndNotifyRequester...');
+      // PASO D: Llamando a createOfferAndNotifyRequester (Cloud Function)
       await _appServices.createOfferAndNotifyRequester(
         context: context,
         requestId: widget.requestId,
@@ -333,43 +421,29 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         requestTitle: requestTitle,
         requestData: requestData,
       );
-      print('✅ PASO D: createOfferAndNotifyRequester completado exitosamente');
 
       if (mounted) {
         setState(() {
           _hasOfferedHelp = true;
         });
       }
-      print('🎉 ÉXITO TOTAL: Proceso de ofrecer ayuda completado');
       _showSnackBar('¡Has ofrecido ayuda con éxito! El solicitante ha sido notificado.'.tr(), Colors.green);
 
     } on FirebaseException catch (e) {
-      print("Error de Firebase al ofrecer ayuda: ${e.code} - ${e.message}");
       String errorMessage = 'Error de Firebase: ';
       switch (e.code) {
-        case 'permission-denied':
-          errorMessage += 'Sin permisos para realizar esta acción.';
-          break;
-        case 'network-request-failed':
-          errorMessage += 'Error de conexión. Verifica tu internet.';
-          break;
-        case 'unavailable':
-          errorMessage += 'Servicio no disponible. Intenta más tarde.';
-          break;
-        default:
-          errorMessage += e.message ?? 'Error desconocido';
+        case 'permission-denied': errorMessage += 'Sin permisos para realizar esta acción.'; break;
+        case 'network-request-failed': errorMessage += 'Error de conexión. Verifica tu internet.'; break;
+        case 'unavailable': errorMessage += 'Servicio no disponible. Intenta más tarde.'; break;
+        default: errorMessage += e.message ?? 'Error desconocido';
       }
       _showSnackBar(errorMessage.tr(), Colors.red);
-    } on FormatException catch (e) {
-      print("Error de formato al ofrecer ayuda: $e");
-      _showSnackBar('Error de formato de datos. Intenta nuevamente.'.tr(), Colors.red);
     } catch (e) {
-      print("Error inesperado al ofrecer ayuda: $e");
-      print("Tipo de error: ${e.runtimeType}");
       _showSnackBar('Error inesperado: ${e.toString()}'.tr(), Colors.red);
     }
   }
-  
+
+  // ✅ FIX: FUNCIÓN FALTANTE
   void _startChat(String chatPartnerId, String chatPartnerName, String? chatPartnerAvatar) async {
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -393,6 +467,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
   }
 
+  // ✅ FIX: FUNCIÓN FALTANTE
   Future<void> _goToChat(String chatPartnerId, String chatPartnerName, String? chatPartnerAvatar) async {
     final firebase_auth.User? currentUser = _auth.currentUser;
     if (currentUser == null) return;
@@ -424,7 +499,6 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         chatId = newChat.id;
       }
       
-      // ✅ MODIFICACIÓN: Se añade la llamada al servicio de notificación in-app.
       await InAppNotificationService.createChatNotification(
         recipientUid: chatPartnerId,
         chatId: chatId,
@@ -433,7 +507,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       );
 
       if (mounted) {
-        context.go('/chat/$chatId?partnerId=$chatPartnerId&partnerName=${Uri.encodeComponent(chatPartnerName)}&partnerAvatar=${chatPartnerAvatar ?? ''}');
+        // Asegurarse de que el nombre esté codificado para la URL
+        final encodedName = Uri.encodeComponent(chatPartnerName);
+        context.go('/chat/$chatId?partnerId=$chatPartnerId&partnerName=$encodedName&partnerAvatar=${chatPartnerAvatar ?? ''}');
       }
     } catch (e) {
       print("Error starting chat: $e");
@@ -716,6 +792,103 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     );
   }
 
+  void _showDetailsDialog(BuildContext context, String title, String details) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Text(details, style: const TextStyle(color: Colors.white70)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('close'.tr(), style: const TextStyle(color: Colors.amber)),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildOffersListAndActions(String requesterUserId) {
+    if (_auth.currentUser?.uid != requesterUserId) {
+      return const SizedBox.shrink(); // Solo para el solicitante
+    }
+    
+    if (_requestStatus == 'aceptada') {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(top: 16),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.green, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ayuda Aceptada:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${_acceptedHelperName ?? 'Usuario'} está ayudando.',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: () => _goToChat(_acceptedHelperId!, _acceptedHelperName!, null), 
+              icon: const Icon(Icons.chat, color: Colors.black),
+              label: Text('Chatear con ${_acceptedHelperName ?? 'el ayudador'}'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (_pendingOffers.isEmpty && _requestStatus == 'activa') {
+      return const Padding(
+        padding: EdgeInsets.only(top: 16),
+        child: Text('Aún no tienes ofertas de ayuda.', style: TextStyle(color: Colors.white54)),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Text('Ofertas Recibidas (${_pendingOffers.length})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        ),
+        ..._pendingOffers.map((offerDoc) {
+          final offerData = offerDoc.data() as Map<String, dynamic>;
+          final String helperId = offerData['helperId']?.toString() ?? '';
+          final String helperName = offerData['helperName']?.toString() ?? 'Ayudador Anónimo';
+          
+          return Card(
+            color: Colors.grey[850],
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: const Icon(Icons.handshake_outlined, color: Colors.amber),
+              title: Text(helperName, style: const TextStyle(color: Colors.white)),
+              subtitle: Text('Ha ofrecido ayuda.', style: const TextStyle(color: Colors.white70)),
+              trailing: ElevatedButton(
+                onPressed: () => _acceptOffer(offerDoc.id, helperId, helperName),
+                child: const Text('Aceptar'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              ),
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final Future<Map<String, dynamic>> requestDataFuture = widget.requestData != null
@@ -846,6 +1019,43 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         final double? latitude = (requestData['latitude'] as num?)?.toDouble();
         final double? longitude = (requestData['longitude'] as num?)?.toDouble();
         final bool hasDetails = requestDetail.isNotEmpty && requestDetail != 'Sin detalles'.tr();
+        
+        // Determinar el botón de acción para el SOLICITANTE
+        Widget? actionButton;
+        if (currentUser?.uid == requesterUserId) {
+            if (_requestStatus == 'aceptada') {
+                if (_canRate) {
+                    // El solicitante debe calificar al ayudador.
+                    actionButton = ElevatedButton.icon(
+                      onPressed: _navigateToRateHelper,
+                      icon: const Icon(Icons.star_rate, color: Colors.black),
+                      label: Text('Calificar Ayudador'.tr(), style: const TextStyle(fontSize: 16, color: Colors.black)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                    );
+                } else {
+                    // El solicitante ya calificó, puede finalizar la ayuda.
+                    actionButton = ElevatedButton.icon(
+                      onPressed: _finalizeRequest,
+                      icon: const Icon(Icons.check_circle, color: Colors.white),
+                      label: Text('Finalizar Ayuda'.tr(), style: const TextStyle(fontSize: 16, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                    );
+                }
+            } else if (_requestStatus == 'finalizada') {
+                // Ayuda finalizada, solo texto informativo.
+                actionButton = Text('Ayuda Finalizada'.tr(), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16));
+            }
+        }
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -866,11 +1076,25 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         Row(
                           children: [
                             FutureBuilder<String>(
-                              future: requesterAvatarPath != null
-                                  ? _storage.ref().child(requesterAvatarPath).getDownloadURL()
-                                  : Future.value(''),
+                              // 1. Verificar si el path está en el caché:
+                              future: requesterAvatarPath != null && _profilePictureUrlCache.containsKey(requesterAvatarPath)
+                                  ? Future.value(_profilePictureUrlCache[requesterAvatarPath]!)
+                                  // 2. Si no está en caché, llamar a Storage:
+                                  : requesterAvatarPath != null && requesterAvatarPath.isNotEmpty
+                                      ? _storage.ref().child(requesterAvatarPath).getDownloadURL()
+                                      : Future.value(''),
                               builder: (context, urlSnapshot) {
                                 final String? finalImageUrl = urlSnapshot.data;
+                                
+                                // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
+                                if (urlSnapshot.connectionState == ConnectionState.done && 
+                                    finalImageUrl != null && 
+                                    finalImageUrl.isNotEmpty && 
+                                    requesterAvatarPath != null && 
+                                    !_profilePictureUrlCache.containsKey(requesterAvatarPath)) {
+                                  _profilePictureUrlCache[requesterAvatarPath] = finalImageUrl;
+                                }
+                                
                                 return CircleAvatar(
                                   radius: 25,
                                   backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
@@ -955,6 +1179,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                             color: remainingTime.isNegative ? Colors.red : Colors.lightGreenAccent,
                             fontSize: 12),
                       ),
+                       Text(
+                        'Estado: $_requestStatus'.tr(),
+                        style: TextStyle(
+                            color: _requestStatus == 'aceptada' ? Colors.amber : Colors.white70,
+                            fontSize: 12),
+                      ),
                     ],
                   ),
                 ],
@@ -962,62 +1192,89 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               const Divider(height: 24, thickness: 1, color: Colors.grey),
 
               if (imagePaths.isNotEmpty)
-                GestureDetector(
-                  onTap: () async {
-                    if (imagePathToDisplay != null) {
-                      try {
-                        final imageUrl = await _storage.ref().child(imagePathToDisplay).getDownloadURL();
-                        _showImageFullScreen(context, imageUrl);
-                      } catch (e) {
-                        _showSnackBar('Error al cargar la imagen. Intenta de nuevo.'.tr(), Colors.red);
-                      }
-                    }
-                  },
-                  child: Center(
-                    child: Container(
-                      height: 200,
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey[800],
-                      ),
-                      child: FutureBuilder<String>(
-                        future: imagePathToDisplay != null ? _storage.ref().child(imagePathToDisplay).getDownloadURL() : Future.value(''),
-                        builder: (context, urlSnapshot) {
-                          if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
-                            final imageUrl = urlSnapshot.data!;
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Stack(
-                                children: [
-                                  Image.network(
-                                    imageUrl,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                  ),
-                                  Align(
-                                    alignment: Alignment.bottomRight,
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: CircleAvatar(
-                                        backgroundColor: Colors.black54,
-                                        child: Text(
-                                          '${imagePaths.length}',
-                                          style: const TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: imagePaths.length,
+                    itemBuilder: (context, index) {
+                      final imagePath = imagePaths[index];
+                      return Container(
+                        width: 300,
+                        margin: const EdgeInsets.only(right: 12, bottom: 16),
+                        child: GestureDetector(
+                          onTap: () async {
+                            try {
+                              String imageUrl;
+                              if (_profilePictureUrlCache.containsKey(imagePath)) {
+                                imageUrl = _profilePictureUrlCache[imagePath]!;
+                              } else {
+                                imageUrl = await _storage.ref().child(imagePath).getDownloadURL();
+                                _profilePictureUrlCache[imagePath] = imageUrl;
+                              }
+                              _showImageFullScreen(context, imageUrl);
+                            } catch (e) {
+                              _showSnackBar('Error al cargar la imagen. Intenta de nuevo.'.tr(), Colors.red);
+                            }
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.grey[800],
                               ),
-                            );
-                          }
-                          return const Center(child: CircularProgressIndicator(color: Colors.amber));
-                        },
-                      ),
-                    ),
+                              child: FutureBuilder<String>(
+                                future: _profilePictureUrlCache.containsKey(imagePath)
+                                    ? Future.value(_profilePictureUrlCache[imagePath]!)
+                                    : _storage.ref().child(imagePath).getDownloadURL(),
+                                builder: (context, urlSnapshot) {
+                                  if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
+                                    final imageUrl = urlSnapshot.data!;
+                                    if (!_profilePictureUrlCache.containsKey(imagePath)) {
+                                      _profilePictureUrlCache[imagePath] = imageUrl;
+                                    }
+                                    return Stack(
+                                      children: [
+                                        Image.network(
+                                          imageUrl,
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              color: Colors.grey[700],
+                                              child: const Center(
+                                                child: Icon(Icons.error, color: Colors.white54, size: 50),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        if (index == 0)
+                                          Align(
+                                            alignment: Alignment.bottomRight,
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(8.0),
+                                              child: CircleAvatar(
+                                                backgroundColor: Colors.black54,
+                                                child: Text(
+                                                  '${imagePaths.length}',
+                                                  style: const TextStyle(color: Colors.white),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  }
+                                  return const Center(child: CircularProgressIndicator(color: Colors.amber));
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
 
@@ -1086,13 +1343,27 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                 ],
               ),
               const SizedBox(height: 30),
+              
+              // Lógica de botones de ACCIÓN (Calificar/Finalizar)
+              if (actionButton != null)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 20.0),
+                    child: actionButton,
+                  ),
+                ),
 
-              if (currentUser?.uid != requesterUserId)
+              // 🚀 Listado de Ofertas (Solo si es el solicitante y está 'activa'/'aceptada')
+              if (currentUser?.uid == requesterUserId && _requestStatus != 'finalizada')
+                _buildOffersListAndActions(requesterUserId),
+              
+              // Botones de Iniciar Chat / Ofrecer Ayuda (solo si es un Helper y la solicitud está 'activa')
+              if (currentUser?.uid != requesterUserId && _requestStatus == 'activa')
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: () => _startChat(requesterUserId, requesterName, requesterAvatarPath),
+                      onPressed: () => _startChat(requesterUserId, requesterName, requesterAvatarPath), 
                       icon: const Icon(Icons.chat_bubble_outline, color: Colors.black),
                       label: Text('Iniciar Chat'.tr(), style: const TextStyle(fontSize: 14, color: Colors.black)),
                       style: ElevatedButton.styleFrom(
@@ -1103,7 +1374,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       ),
                     ),
                     ElevatedButton.icon(
-                      onPressed: _hasOfferedHelp ? null : () => _showOfferHelpConfirmation(requestData),
+                      onPressed: _hasOfferedHelp ? null : () => _showOfferHelpConfirmation(requestData), 
                       icon: const Icon(Icons.handshake_outlined, color: Colors.black),
                       label: Text(
                         _hasOfferedHelp ? 'Ayuda Ofrecida'.tr() : 'Ofrecer Ayuda'.tr(),
@@ -1117,25 +1388,6 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       ),
                     ),
                   ],
-                ),
-
-              // Botón de calificación para el solicitante cuando la ayuda ha sido completada
-              if (_canRate && currentUser?.uid == requesterUserId)
-                Padding(
-                  padding: const EdgeInsets.only(top: 20),
-                  child: Center(
-                    child: ElevatedButton.icon(
-                      onPressed: _navigateToRateHelper,
-                      icon: const Icon(Icons.star_rate, color: Colors.white),
-                      label: Text('Calificar Ayudador'.tr(), style: const TextStyle(fontSize: 16, color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-                      ),
-                    ),
-                  ),
                 ),
             ],
           ),

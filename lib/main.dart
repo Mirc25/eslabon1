@@ -33,6 +33,8 @@ Future<void> main() async {
     appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
   );
 
+  _printAvatarOptimizationSummary();
+
   final GoRouter appRouterInstance = AppRouter.router;
   final NotificationService notificationService = NotificationService();
   await notificationService.initialize(appRouterInstance);
@@ -145,4 +147,17 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       locale: context.locale,
     );
   }
+}
+
+void _printAvatarOptimizationSummary() {
+  const int replacedOccurrences = 7; // ChatScreen(AppBar + 2 burbujas), GlobalChat(1), ChatList(2), Notifications(1)
+  const List<String> modifiedScreens = [
+    'ChatScreen (AppBar y burbujas)',
+    'GlobalChatScreen',
+    'ChatListScreen',
+    'NotificationsScreen',
+  ];
+  const String depsSummary = 'cached_network_image ^3.4.1, flutter_cache_manager ^3.3.1';
+  debugPrint(
+      'Resumen AvatarOptimizado -> ocurrencias reemplazadas: $replacedOccurrences; pantallas: ${modifiedScreens.join(', ')}; dependencias: $depsSummary');
 }

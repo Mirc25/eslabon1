@@ -1,4 +1,4 @@
-﻿// lib/screens/create_request_screen.dart
+// lib/screens/create_request_screen.dart
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
@@ -72,8 +72,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   final List<String> _categories = ['Personas', 'Animales', 'Objetos', 'Servicios', 'Otros'];
   final List<String> _priorities = ['alta', 'media', 'baja'];
 
-  List<dynamic> _selectedImages = [];
-  List<dynamic> _selectedVideos = [];
+  List<XFile> _selectedImages = []; // ✅ Usar XFile directamente
+  List<XFile> _selectedVideos = []; // ✅ Usar XFile directamente
   static const int _maxFileSizeMB = 20;
 
   bool _isLoading = false;
@@ -88,6 +88,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   late AppServices _appServices;
+  
+  // Sistema de caché para URLs de imágenes de perfil
+  final Map<String, String> _profilePictureUrlCache = {};
 
   @override
   void initState() {
@@ -289,11 +292,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
             _showSnackBar('Has alcanzado el límite de 5 imágenes.'.tr(), Colors.orange);
             break;
           }
-          if (kIsWeb) {
-            _selectedImages.add(xFile);
-          } else {
-            _selectedImages.add(File(xFile.path));
-          }
+          _selectedImages.add(xFile); // ✅ FIX: Almacena XFile directamente
           remainingSlots--;
         }
       });
@@ -327,11 +326,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
             _showSnackBar('Has alcanzado el límite de 3 videos.'.tr(), Colors.orange);
             break;
           }
-          if (kIsWeb) {
-            _selectedVideos.add(videoFile);
-          } else {
-            _selectedVideos.add(File(videoFile.path));
-          }
+          _selectedVideos.add(videoFile); // ✅ FIX: Almacena XFile directamente
           remainingSlots--;
         }
       });
@@ -390,41 +385,36 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       }
       
       List<String> imagePaths = [];
-      for (dynamic imageSource in _selectedImages) {
-        String fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource is XFile ? imageSource.name : (imageSource as File).path.split('/').last}';
+      // ✅ FIX: Lógica de subida estable para imágenes
+      for (XFile imageSource in _selectedImages) { 
+        String fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource.name}';
         UploadTask uploadTask;
 
-        if (kIsWeb && imageSource is XFile) {
-          Uint8List bytes = await imageSource.readAsBytes();
-          uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-        } else if (imageSource is File) {
-          uploadTask = _storage.ref().child(fileName).putFile(imageSource);
-        } else {
-          continue;
-        }
+        // Lee los bytes del archivo (estable para web y móvil)
+        Uint8List bytes = await imageSource.readAsBytes(); 
+        
+        // Usa putData para subida estable
+        uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+        
         await uploadTask;
         imagePaths.add(fileName);
         print('DEBUG CREATE: Imagen subida: $fileName');
       }
 
       List<String> videoPaths = [];
-      for (dynamic videoSource in _selectedVideos) {
-        String fileName = 'videos/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${videoSource is XFile ? videoSource.name : (videoSource as File).path.split('/').last}';
+      // ✅ FIX: Lógica de subida estable para videos
+      for (XFile videoSource in _selectedVideos) { 
+        String fileName = 'videos/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${videoSource.name}';
         UploadTask uploadTask;
 
-        String contentType = 'video/mp4';
-        if (videoSource is XFile) {
-          contentType = videoSource.mimeType?.toString() ?? 'video/mp4';
-        }
+        String contentType = videoSource.mimeType?.toString() ?? 'video/mp4';
 
-        if (kIsWeb && videoSource is XFile) {
-          Uint8List bytes = await videoSource.readAsBytes();
-          uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: contentType));
-        } else if (videoSource is File) {
-          uploadTask = _storage.ref().child(fileName).putFile(videoSource, SettableMetadata(contentType: contentType));
-        } else {
-          continue;
-        }
+        // Lee los bytes del archivo (estable para web y móvil)
+        Uint8List bytes = await videoSource.readAsBytes(); 
+        
+        // Usa putData para subida estable
+        uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: contentType));
+
         await uploadTask;
         videoPaths.add(fileName);
         print('DEBUG CREATE: Video subido: $fileName');
@@ -592,9 +582,25 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                     const SizedBox(height: 10),
                     Center(
                       child: FutureBuilder<String>(
-                        future: _userAvatarPath != null ? _storage.ref().child(_userAvatarPath!).getDownloadURL() : Future.value(''),
+                        // 1. Verificar si el path está en el caché:
+                        future: _userAvatarPath != null && _profilePictureUrlCache.containsKey(_userAvatarPath)
+                            ? Future.value(_profilePictureUrlCache[_userAvatarPath]!)
+                            // 2. Si no está en caché, llamar a Storage:
+                            : _userAvatarPath != null && _userAvatarPath!.isNotEmpty
+                                ? _storage.ref().child(_userAvatarPath!).getDownloadURL()
+                                : Future.value(''),
                         builder: (context, urlSnapshot) {
                           final String? finalImageUrl = urlSnapshot.data;
+                          
+                          // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
+                          if (urlSnapshot.connectionState == ConnectionState.done && 
+                              finalImageUrl != null && 
+                              finalImageUrl.isNotEmpty && 
+                              _userAvatarPath != null && 
+                              !_profilePictureUrlCache.containsKey(_userAvatarPath)) {
+                            _profilePictureUrlCache[_userAvatarPath!] = finalImageUrl;
+                          }
+                          
                           return CircleAvatar(
                             radius: 40,
                             backgroundColor: Colors.grey[700],
@@ -747,12 +753,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                         ),
                         ..._selectedImages.asMap().entries.map((entry) {
                           final int index = entry.key;
-                          final dynamic imageSource = entry.value;
+                          final XFile imageSource = entry.value; // ✅ Usamos XFile
 
                           Widget imageWidget;
                           if (kIsWeb) {
                             imageWidget = FutureBuilder<Uint8List>(
-                              future: (imageSource as XFile).readAsBytes(),
+                              future: imageSource.readAsBytes(),
                               builder: (context, snapshot) {
                                 if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
                                   return Image.memory(snapshot.data!, width: 80, height: 80, fit: BoxFit.cover);
@@ -761,7 +767,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                               },
                             );
                           } else {
-                            imageWidget = Image.file(imageSource as File, width: 80, height: 80, fit: BoxFit.cover);
+                            // ✅ Usamos File(path) para mostrar la previsualización en móvil (estable para UI)
+                            imageWidget = Image.file(File(imageSource.path), width: 80, height: 80, fit: BoxFit.cover);
                           }
 
                           return Stack(
@@ -815,7 +822,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                         ),
                         ..._selectedVideos.asMap().entries.map((entry) {
                           final int index = entry.key;
-                          final dynamic videoSource = entry.value;
+                          final XFile videoSource = entry.value; // ✅ Usamos XFile
 
                           Widget videoPreviewWidget = Container(
                             width: 80,
@@ -830,7 +837,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                               children: [
                                 const Icon(Icons.videocam, color: Colors.white70, size: 30),
                                 Text(
-                                  videoSource is XFile ? videoSource.name : (videoSource as File).path.split('/').last,
+                                  videoSource.name,
                                   style: const TextStyle(color: Colors.grey, fontSize: 8),
                                   textAlign: TextAlign.center,
                                   maxLines: 2,

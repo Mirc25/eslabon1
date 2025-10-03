@@ -1,0 +1,4 @@
+﻿List of devices attached
+7fa290cc               offline transport_id:3
+R8MT300WPVD            device product:a03ub model:SM_A035M device:a03 transport_id:2
+

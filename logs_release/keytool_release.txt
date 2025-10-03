@@ -1,0 +1,26 @@
+﻿Nombre de Alias: upload
+Fecha de Creaci¾n: 1 sep. 2025
+Tipo de Entrada: PrivateKeyEntry
+Longitud de la Cadena de Certificado: 1
+Certificado[1]:
+Propietario: CN=pablo oviedo, OU=eslabon, O=eslabon cia, L=chimbas, ST="san juan ", C=ar
+Emisor: CN=pablo oviedo, OU=eslabon, O=eslabon cia, L=chimbas, ST="san juan ", C=ar
+N·mero de serie: d59e502289c328f0
+Vßlido desde: Mon Sep 01 11:19:47 ART 2025 hasta: Fri Jan 17 11:19:47 ART 2053
+Huellas digitales del certificado:
+	 SHA1: 1F:74:98:5A:8C:CD:D1:0A:7E:62:AC:58:5D:B1:6D:88:B3:16:8B:A8
+	 SHA256: 0A:FD:3F:7F:94:02:E8:DF:73:F0:12:AF:6C:CA:46:25:70:D0:F4:BA:3F:F5:96:4E:46:56:22:D9:3A:F5:F0:EB
+Nombre del algoritmo de firma: SHA256withRSA
+Algoritmo de clave p·blica de asunto: Clave RSA de 2048 bits
+Versi¾n: 3
+
+Extensiones: 
+
+#1: ObjectId: 2.5.29.14 Criticality=false
+SubjectKeyIdentifier [
+KeyIdentifier [
+0000: 00 81 F7 83 2A 0A 70 15   5E D3 7B 25 14 22 10 37  ....*.p.^..%.".7
+0010: D1 6D 72 B9                                        .mr.
+]
+]
+

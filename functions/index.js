@@ -5,3 +5,4 @@ export { sendPanicNotification } from "./sendPanicNotification.js";
 export { sendRatingNotification } from "./sendRatingNotification.js";
 export { createNotificationTrigger } from "./createNotificationTrigger.js";
 export { ratingNotificationTrigger } from "./ratingNotificationTrigger.js";
+export { ratingStatsTrigger } from "./ratingStatsTrigger.js";

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:eslabon_flutter/utils/firestore_utils.dart';
 import 'package:eslabon_flutter/theme/app_colors.dart';
+import 'package:eslabon_flutter/services/app_services.dart'; // ✅ Importado AppServices
 
 class RateHelperScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -24,10 +25,20 @@ class RateHelperScreen extends ConsumerStatefulWidget {
 
 class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
     with TickerProviderStateMixin {
+  // Inicializar AppServices y controladores
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  late final AppServices _appServices; // ✅ Declaración de AppServices
+  
   int _rating = 0;
   final TextEditingController _commentController = TextEditingController();
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _hasRated = false;
+  
+  // Datos a cargar/obtener del solicitante (usuario actual)
+  String _requesterName = '';
+  String _requestTitle = 'Solicitud de Ayuda';
+
   late AnimationController _animationController;
   late AnimationController _starAnimationController;
   late Animation<double> _fadeAnimation;
@@ -36,6 +47,8 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
   @override
   void initState() {
     super.initState();
+    _appServices = AppServices(_firestore, _auth); // ✅ Inicialización de AppServices
+    
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -52,7 +65,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
     );
 
-    _checkIfAlreadyRated();
+    _loadDataAndCheckIfAlreadyRated();
     _animationController.forward();
   }
 
@@ -64,26 +77,45 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
     super.dispose();
   }
 
-  Future<void> _checkIfAlreadyRated() async {
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+  Future<void> _loadDataAndCheckIfAlreadyRated() async {
+      final currentUser = _auth.currentUser;
       if (currentUser == null) return;
 
-      final ratingDoc = await FirebaseFirestore.instance
-          .collection('ratings')
-          .where('requestId', isEqualTo: widget.requestId)
-          .where('sourceUserId', isEqualTo: currentUser.uid)
-          .where('targetUserId', isEqualTo: widget.helperId)
-          .get();
+      try {
+          // 1. Obtener datos del solicitante (usuario actual)
+          final requesterDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+          if (requesterDoc.exists) {
+              _requesterName = requesterDoc.data()?['name'] ?? 'Solicitante';
+          }
 
-      if (mounted) {
-        setState(() {
-          _hasRated = ratingDoc.docs.isNotEmpty;
-        });
+          // 2. Obtener título de la solicitud
+          final requestDoc = await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).get();
+          if (requestDoc.exists) {
+              _requestTitle = requestDoc.data()?['titulo'] ?? 'Solicitud de Ayuda';
+          }
+          
+          // 3. Verificar si ya calificó
+          final ratingDoc = await _firestore
+              .collection('ratings')
+              .where('requestId', isEqualTo: widget.requestId)
+              .where('sourceUserId', isEqualTo: currentUser.uid)
+              .where('targetUserId', isEqualTo: widget.helperId)
+              .get();
+
+          if (mounted) {
+              setState(() {
+                  _hasRated = ratingDoc.docs.isNotEmpty;
+                  _isLoading = false;
+              });
+          }
+      } catch (e) {
+          debugPrint('Error loading data or checking rating status: $e');
+          if (mounted) {
+              setState(() {
+                  _isLoading = false;
+              });
+          }
       }
-    } catch (e) {
-      debugPrint('Error checking rating status: $e');
-    }
   }
 
   Future<void> _submitRating() async {
@@ -97,7 +129,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
     });
 
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = _auth.currentUser;
       if (currentUser == null) {
         _showSnackBar('Usuario no autenticado', isError: true);
         return;
@@ -107,15 +139,32 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
         _showSnackBar('No puedes calificarte a ti mismo', isError: true);
         return;
       }
+      
+      final requesterId = currentUser.uid;
 
+      // 1. Guardar la calificación del Solicitante al Ayudador
       await FirestoreUtils.saveRating(
         requestId: widget.requestId,
         targetUserId: widget.helperId,
-        sourceUserId: currentUser.uid,
+        sourceUserId: requesterId,
         rating: _rating.toDouble(),
         comment: _commentController.text.trim(),
         type: 'helper_rating',
       );
+      
+      // 2. 🚀 PASO CRÍTICO: ENVIAR NOTIFICACIÓN AL AYUDADOR PARA QUE CALIFIQUE AL SOLICITANTE
+      await _appServices.notifyHelperAfterRequesterRates(
+        context: context,
+        helperId: widget.helperId,
+        requesterId: requesterId,
+        requesterName: _requesterName, 
+        rating: _rating.toDouble(),
+        requestId: widget.requestId,
+        requestTitle: _requestTitle,
+        reviewComment: _commentController.text.trim(),
+      );
+      
+      debugPrint('✅ Notificación de solicitud de rating enviada al ayudador: ${widget.helperName}');
 
       if (mounted) {
         // Navegar a la pantalla de confirmación
@@ -183,6 +232,13 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffoldBackground,
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+      );
+    }
+    
     if (_hasRated) {
       return Scaffold(
         backgroundColor: AppColors.scaffoldBackground,
@@ -195,7 +251,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.check_circle,
                 size: 80,
                 color: Colors.green,
@@ -269,7 +325,7 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
                       ),
                       child: Column(
                         children: [
-                          CircleAvatar(
+                          const CircleAvatar(
                             radius: 40,
                             backgroundColor: Colors.white,
                             child: Icon(

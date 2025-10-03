@@ -70,6 +70,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   File? _newProfileImage;
   double? _userLatitude;
   double? _userLongitude;
+  
+  // ✅ Sistema de caché para URLs de imágenes de perfil
+  final Map<String, String> _profilePictureUrlCache = {};
 
   @override
   void initState() {
@@ -210,7 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<String?> _uploadImage() async {
     if (currentUser == null) {
-      _showErrorDialog('Debes iniciar sesi�n para subir una imagen de perfil.');
+      _showErrorDialog('Debes iniciar sesi�n para subir una imagen de perfil.');
       return null;
     }
     
@@ -410,9 +413,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: GestureDetector(
                   onTap: _pickImage,
                   child: FutureBuilder<String>(
-                    future: _profileImagePath != null ? _storage.ref().child(_profileImagePath!).getDownloadURL() : Future.value(''),
+                    // 1. Verificar si el path está en el caché:
+                    future: _profileImagePath != null && _profilePictureUrlCache.containsKey(_profileImagePath)
+                        ? Future.value(_profilePictureUrlCache[_profileImagePath]!)
+                        // 2. Si no está en caché, llamar a Storage:
+                        : _profileImagePath != null && _profileImagePath!.isNotEmpty
+                            ? _storage.ref().child(_profileImagePath!).getDownloadURL()
+                            : Future.value(''),
                     builder: (context, urlSnapshot) {
                       final String? finalImageUrl = urlSnapshot.data;
+                      
+                      // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
+                      if (urlSnapshot.connectionState == ConnectionState.done && 
+                          finalImageUrl != null && 
+                          finalImageUrl.isNotEmpty && 
+                          _profileImagePath != null && 
+                          !_profilePictureUrlCache.containsKey(_profileImagePath)) {
+                        _profilePictureUrlCache[_profileImagePath!] = finalImageUrl;
+                      }
+                      
                       return Stack(
                         children: [
                           CircleAvatar(

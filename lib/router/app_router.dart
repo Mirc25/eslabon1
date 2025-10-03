@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../screens/auth_gate.dart';
 import '../screens/chat_screen.dart';
+import '../screens/global_chat_screen.dart';
 import '../screens/chat_list_screen.dart';
 import '../screens/main_screen.dart';
 import '../screens/auth_screen.dart';
@@ -15,6 +16,13 @@ import '../screens/rate_helper_screen.dart';
 import '../screens/rating_confirmation_screen.dart';
 import '../screens/push_notification_test_screen.dart';
 import '../screens/ratings_screen.dart';
+import '../screens/help_history_screen.dart';
+import '../screens/user_profile_view_screen.dart';
+import '../screens/settings_screen.dart';
+import '../screens/faq_screen.dart';
+import '../screens/report_problem_screen.dart';
+import '../screens/about_screen.dart';
+import '../screens/search_users_screen.dart';
 
 class AppRouter {
   // 🔑 CLAVE GLOBAL DE NAVEGACIÓN PARA ACCESO DESDE CUALQUIER LUGAR
@@ -57,12 +65,7 @@ class AppRouter {
         name: 'global_chat',
         path: '/global_chat',
         builder: (BuildContext context, GoRouterState state) {
-          return const ChatScreen(
-            chatId: 'global_chat',
-            chatPartnerId: 'global',
-            chatPartnerName: 'Chat Global',
-            chatPartnerAvatar: null,
-          );
+          return const GlobalChatScreen();
         },
       ),
       // Ruta para la pantalla de mensajes/chats
@@ -172,6 +175,52 @@ class AppRouter {
           final int initialTabIndex = tab == 'ranking' ? 1 : 0;
           return RatingsScreen(initialTabIndex: initialTabIndex);
         },
+      ),
+      // Ruta para el historial de ayudas
+      GoRoute(
+        name: 'history',
+        path: '/history',
+        builder: (BuildContext context, GoRouterState state) => const HelpHistoryScreen(),
+      ),
+      // Ruta para ver perfil de usuario
+      GoRoute(
+        name: 'user_profile_view',
+        path: '/user_profile_view/:userId',
+        builder: (BuildContext context, GoRouterState state) {
+          final String userId = state.pathParameters['userId']!;
+          final Map<String, dynamic> extra = state.extra as Map<String, dynamic>? ?? {};
+          return UserProfileViewScreen(
+            userId: userId,
+            userName: extra['userName'] ?? 'Usuario',
+            userPhotoUrl: extra['userPhotoUrl'],
+            message: extra['message'],
+          );
+        },
+      ),
+      // Ruta para configuraciones
+      GoRoute(
+        path: '/settings',
+        builder: (BuildContext context, GoRouterState state) => const SettingsScreen(),
+      ),
+      // Ruta para preguntas frecuentes
+      GoRoute(
+        path: '/faq',
+        builder: (BuildContext context, GoRouterState state) => const FAQScreen(),
+      ),
+      // Ruta para reportar problemas
+      GoRoute(
+        path: '/report_problem',
+        builder: (BuildContext context, GoRouterState state) => const ReportProblemScreen(),
+      ),
+      // Ruta para información de la aplicación
+      GoRoute(
+        path: '/about',
+        builder: (BuildContext context, GoRouterState state) => const AboutScreen(),
+      ),
+      // Ruta para búsqueda de usuarios
+      GoRoute(
+        path: '/search_users',
+        builder: (BuildContext context, GoRouterState state) => const SearchUsersScreen(),
       ),
     ],
   );

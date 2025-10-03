@@ -1,0 +1,65 @@
+﻿
+10-02 16:31:04.130 W/DeviceSto
+rageMonitorService( 1104): 
+updateBroadcasts(/data) 
+oldLevel:0, newLevel:0, seq:1
+10-02 16:31:04.132 D/DeviceSto
+rageMonitorService( 1104): 
+Available File Node Number is 
+[5487564]
+10-02 16:31:04.132 W/DeviceSto
+rageMonitorService( 1104): upd
+ateBroadcasts_filenode(/data) 
+fn_oldLevel:0, fn_newLevel:0, 
+seq:1
+10-02 16:32:04.142 W/DeviceSto
+rageMonitorService( 1104): 
+updateBroadcasts(/data) 
+oldLevel:0, newLevel:0, seq:1
+10-02 16:32:04.143 D/DeviceSto
+rageMonitorService( 1104): 
+Available File Node Number is 
+[5487553]
+10-02 16:32:04.144 W/DeviceSto
+rageMonitorService( 1104): upd
+ateBroadcasts_filenode(/data) 
+fn_oldLevel:0, fn_newLevel:0, 
+seq:1
+10-02 16:32:18.944 
+W/Firestore(10011): (26.0.0) 
+[Firestore]: Listen for 
+Query(target=Query(chats 
+where participantsarray_contai
+nssmRdDTqWhOMk3my3cvhNrkWBsx53
+ order by __name__);limitType=
+LIMIT_TO_FIRST) failed: Status
+{code=PERMISSION_DENIED, 
+description=Missing or 
+insufficient permissions., 
+cause=null}
+10-02 16:32:18.944 I/flutter 
+(10011): Error starting chat: 
+[cloud_firestore/permission-de
+nied] The caller does not 
+have permission to execute 
+the specified operation.
+10-02 16:32:20.745 
+W/Firestore(10011): (26.0.0) 
+[Firestore]: Listen for 
+Query(target=Query(chats 
+where participantsarray_contai
+nssmRdDTqWhOMk3my3cvhNrkWBsx53
+ order by __name__);limitType=
+LIMIT_TO_FIRST) failed: Status
+{code=PERMISSION_DENIED, 
+description=Missing or 
+insufficient permissions., 
+cause=null}
+10-02 16:32:20.746 I/flutter 
+(10011): Error starting chat: 
+[cloud_firestore/permission-de
+nied] The caller does not 
+have permission to execute 
+the specified operation.
+
+

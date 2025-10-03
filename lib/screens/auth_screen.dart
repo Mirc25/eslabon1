@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:eslabon_flutter/widgets/custom_text_field.dart';
+import 'package:easy_localization/easy_localization.dart'; // ✅ FIX CRÍTICO: Importación de traducción agregada
 
 class Country {
   final String code;
@@ -86,6 +87,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _loadLocationData() async {
     try {
+      // NOTE: Assuming assets/countries.json and assets/provinces.json exist
       final String countryData = await rootBundle.loadString('assets/countries.json');
       final String provinceData = await rootBundle.loadString('assets/provinces.json');
 
@@ -95,7 +97,7 @@ class _AuthScreenState extends State<AuthScreen> {
       });
     } catch (e) {
       print('Error loading data: $e');
-      _showErrorDialog('Error al cargar datos de países/provincias. Intenta de nuevo.');
+      _showErrorDialog('Error al cargar datos de países/provincias. Intenta de nuevo.'.tr());
     }
   }
 
@@ -115,10 +117,11 @@ class _AuthScreenState extends State<AuthScreen> {
       await FirebaseMessaging.instance.requestPermission();
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        await _firestore.collection('users').doc(user.uid).update({
+        // Usamos .set(merge: true) para no sobrescribir datos existentes
+        await _firestore.collection('users').doc(user.uid).set({ 
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
         debugPrint('✅ Token FCM guardado correctamente: $token');
       } else {
         debugPrint('⚠️ No se pudo obtener el token FCM.');
@@ -127,6 +130,62 @@ class _AuthScreenState extends State<AuthScreen> {
       debugPrint('❌ Error guardando token FCM: $e');
     }
   }
+  
+  // 🚀 FUNCIÓN CLAVE: Guarda datos y maneja el estado de la aplicación
+  Future<void> _saveUserDataAndNavigate(User user) async {
+    try {
+      final userProfileData = {
+        'uid': user.uid,
+        'email': user.email,
+        'name': nameController.text.trim(),
+        'lowercaseName': nameController.text.trim().toLowerCase(),
+        'dni': dniController.text.trim(),
+        'birthDay': int.tryParse(_selectedDay!),
+        'birthMonth': int.tryParse(_selectedMonth!),
+        'birthYear': int.tryParse(_selectedYear!),
+        'address': addressController.text.trim(),
+        'zip': postalCodeController.text.trim(),
+        'country': selectedCountry != null ? {
+          'code': selectedCountry!.code,
+          'name': selectedCountry!.name,
+          'dial_code': selectedCountry!.dialCode,
+        } : null,
+        'province': selectedProvince,
+        'phone': '${phoneDialCode ?? ''}${phoneController.text.trim()}',
+        'profilePicture': null,
+        'reputation': 0,
+        'helpedCount': 0,
+        'receivedHelpCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'emailVerified': user.emailVerified,
+        'phoneVerified': false,
+      };
+
+      // 1. INTENTO DE ESCRITURA EN FIRESTORE (Punto de fallo anterior)
+      await _firestore.collection('users').doc(user.uid).set(
+        userProfileData, 
+        SetOptions(merge: true)
+      );
+      
+      // 2. Guardar FCM Token
+      await _saveFcmTokenForUser(user);
+
+      // 3. NAVEGACIÓN EXITOSA
+      if (mounted) {
+        _showSuccessDialog(user.email ?? ''); // Muestra el modal de éxito/verificación de email
+      }
+    } on FirebaseException catch (e) {
+      // ⚠️ Captura el error de Firestore (que puede ser un 403 por Reglas/App Check)
+      print("❌ Firestore Write Error after Auth: ${e.code} - ${e.message}");
+      _showErrorDialog('Error al guardar tu perfil en la base de datos. Por favor, verifica las Reglas de Seguridad (Error: ${e.code}).'.tr());
+      // Forzamos el signOut para que la próxima vez el usuario intente de nuevo el registro completo
+      await _auth.signOut(); 
+    } catch (e) {
+      print("❌ General Error during profile save: $e");
+      _showErrorDialog('Ocurrió un error inesperado al finalizar tu registro.'.tr());
+    }
+  }
+
 
   Future<void> _login() async {
     setState(() {
@@ -138,6 +197,8 @@ class _AuthScreenState extends State<AuthScreen> {
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
+      
+      // Intentamos guardar el token FCM después de un login exitoso
       await _saveFcmTokenForUser(userCredential.user!);
 
       if (mounted) {
@@ -146,11 +207,11 @@ class _AuthScreenState extends State<AuthScreen> {
     } on FirebaseAuthException catch (e) {
       String message;
       if (e.code == 'user-not-found') {
-        message = 'No se encontró un usuario con ese correo.';
+        message = 'No se encontró un usuario con ese correo.'.tr();
       } else if (e.code == 'wrong-password') {
-        message = 'Contraseña incorrecta.';
+        message = 'Contraseña incorrecta.'.tr();
       } else if (e.code == 'invalid-email') {
-        message = 'El formato del correo electrónico es inválido.';
+        message = 'El correo electrónico no es válido.'.tr();
       } else {
         message = 'Error de autenticación: ${e.message}';
       }
@@ -159,7 +220,7 @@ class _AuthScreenState extends State<AuthScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Ocurrió un error inesperado: $e';
+        _errorMessage = 'Ocurrió un error inesperado: $e'.tr();
       });
     } finally {
       setState(() {
@@ -170,13 +231,13 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) {
-      _showErrorDialog('Por favor, corrige los errores en el formulario para continuar.');
+      _showErrorDialog('Por favor, corrige los errores en el formulario para continuar.'.tr());
       return;
     }
 
     if (selectedCountry == null || selectedProvince == null ||
         _selectedDay == null || _selectedMonth == null || _selectedYear == null) {
-      _showErrorDialog('Por favor, completa todos los campos obligatorios del formulario.');
+      _showErrorDialog('Por favor, completa todos los campos obligatorios del formulario.'.tr());
       return;
     }
 
@@ -188,28 +249,33 @@ class _AuthScreenState extends State<AuthScreen> {
     final int age = today.year - birthDate.year;
 
     if (age < 18 || (age == 18 && (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)))) {
-      _showErrorDialog('Para registrarte debes ser mayor de 18 años.');
+      _showErrorDialog('Para registrarte debes ser mayor de 18 años.'.tr());
       return;
     }
 
     setState(() {
       _isLoadingAuth = true;
+      _errorMessage = null;
     });
 
     try {
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: emailController.text,
-        password: passwordController.text,
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
       );
 
-      if (userCredential.user != null) {
-        await userCredential.user!.sendEmailVerification();
-        await _saveUserDataAndShowSuccess();
-        await _saveFcmTokenForUser(userCredential.user!);
+      final User? user = userCredential.user;
+      if (user != null) {
+        // 1. Enviar verificación de email inmediatamente (para que el usuario sepa que debe verificar)
+        await user.sendEmailVerification(); 
+        
+        // 2. Guardar datos en Firestore y navegar (el paso que fallaba)
+        await _saveUserDataAndNavigate(user); 
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'Error al registrar: ${e.message}';
       if (e.code == 'email-already-in-use') {
+        // Lógica de recuperación para cuentas existentes no verificadas
         try {
           final signInCredential = await _auth.signInWithEmailAndPassword(
             email: emailController.text,
@@ -217,8 +283,9 @@ class _AuthScreenState extends State<AuthScreen> {
           );
           if (signInCredential.user != null && !signInCredential.user!.emailVerified) {
             _showReverifyModal();
+            return;
           } else {
-            _showErrorDialog('Este correo ya está registrado y verificado. Por favor, inicia sesión.');
+            _showErrorDialog('Este correo ya está registrado y verificado. Por favor, inicia sesión.'.tr());
             if (mounted) {
               setState(() {
                 _isLoginMode = true;
@@ -227,62 +294,27 @@ class _AuthScreenState extends State<AuthScreen> {
           }
         } on FirebaseAuthException catch (signInError) {
           if (signInError.code == 'wrong-password') {
-            _showErrorDialog('Este correo ya está registrado, pero la contraseña es incorrecta. Si es tuyo, inicia sesión con la contraseña correcta. De lo contrario, usa otro email.');
+            _showErrorDialog('Este correo ya está registrado, pero la contraseña es incorrecta. Si es tuyo, inicia sesión con la contraseña correcta. De lo contrario, usa otro email.'.tr());
           } else {
-            _showErrorDialog('Error al intentar iniciar sesión con email existente: ${signInError.message}');
+            _showErrorDialog('Error al intentar iniciar sesión con email existente: ${signInError.message}'.tr());
           }
         }
       } else if (e.code == 'weak-password') {
-        errorMessage = 'La contraseña es demasiado débil.';
+        errorMessage = 'La contraseña es demasiado débil.'.tr();
       } else if (e.code == 'invalid-email') {
-        errorMessage = 'El formato del correo electrónico es inválido.';
+        errorMessage = 'El formato del correo electrónico es inválido.'.tr();
       } else if (e.code == 'credential-already-in-use') {
-        errorMessage = 'Este correo electrónico ya está asociado a otra cuenta. Intenta iniciar sesión o usa otro email.';
+        errorMessage = 'Este correo electrónico ya está asociado a otra cuenta. Intenta iniciar sesión o usa otro email.'.tr();
       }
       _showErrorDialog(errorMessage);
     } catch (e) {
-      _showErrorDialog('Ocurrió un error inesperado durante el registro: ${e.toString()}');
+      _showErrorDialog('Ocurrió un error inesperado durante el registro: ${e.toString()}'.tr());
     } finally {
       setState(() {
         _isLoadingAuth = false;
       });
     }
   }
-  
-  Future<void> _saveUserDataAndShowSuccess() async {
-    final User? user = _auth.currentUser;
-    if (user != null) {
-      await _firestore.collection('users').doc(user.uid).set({
-        'name': nameController.text,
-        'lowercaseName': nameController.text.toLowerCase(),
-        'dni': dniController.text,
-        'birthDay': int.tryParse(_selectedDay!),
-        'birthMonth': int.tryParse(_selectedMonth!),
-        'birthYear': int.tryParse(_selectedYear!),
-        'address': addressController.text,
-        'zip': postalCodeController.text,
-        'country': selectedCountry != null ? {
-          'code': selectedCountry!.code,
-          'name': selectedCountry!.name,
-          'dial_code': selectedCountry!.dialCode,
-        } : null,
-        'province': selectedProvince,
-        'phone': '${phoneDialCode ?? ''}${phoneController.text}',
-        'email': emailController.text,
-        'profilePicture': null,
-        'reputation': 0,
-        'helpedCount': 0,
-        'receivedHelpCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'emailVerified': user.emailVerified,
-        'phoneVerified': false,
-      });
-      _showSuccessDialog(emailController.text);
-    } else {
-      _showErrorDialog('No se pudo guardar la información del usuario: usuario no autenticado.');
-    }
-  }
-
 
   void _showErrorDialog(String message) {
     showDialog(
@@ -330,7 +362,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Revisa tu email ($email) y tu carpeta de spam para verificar tu cuenta.',
+                'Revisa tu email ($email) y tu carpeta de spam para verificar tu cuenta.'.tr(),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white),
               ),
@@ -439,7 +471,7 @@ class _AuthScreenState extends State<AuthScreen> {
       onChanged: onChanged,
       validator: (val) {
         if (val == null || val.isEmpty) {
-          return 'Este campo es obligatorio';
+          return 'Este campo es obligatorio'.tr();
         }
         return null;
       },
@@ -472,14 +504,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
               CustomTextField(
                 controller: emailController,
-                labelText: 'Correo Electrónico',
+                labelText: 'Correo Electrónico'.tr(),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Este campo es obligatorio';
+                    return 'Este campo es obligatorio'.tr();
                   }
                   if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                    return 'Introduce un email válido';
+                    return 'Introduce un email válido'.tr();
                   }
                   return null;
                 },
@@ -487,14 +519,14 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 12),
               CustomTextField(
                 controller: passwordController,
-                labelText: 'Contraseña',
+                labelText: 'Contraseña'.tr(),
                 obscureText: true,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Este campo es obligatorio';
+                    return 'Este campo es obligatorio'.tr();
                   }
                   if (_isLoginMode == false && value.length < 6) {
-                    return 'La contraseña debe tener al menos 6 caracteres';
+                    return 'La contraseña debe tener al menos 6 caracteres'.tr();
                   }
                   return null;
                 },
@@ -504,14 +536,14 @@ class _AuthScreenState extends State<AuthScreen> {
               if (!_isLoginMode) ...[
                 CustomTextField(
                   controller: confirmPasswordController,
-                  labelText: 'Repetir Contraseña',
+                  labelText: 'Repetir Contraseña'.tr(),
                   obscureText: true,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Este campo es obligatorio';
+                      return 'Este campo es obligatorio'.tr();
                     }
                     if (value != passwordController.text) {
-                      return 'Las contraseñas no coinciden';
+                      return 'Las contraseñas no coinciden'.tr();
                     }
                     return null;
                   },
@@ -519,10 +551,10 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: nameController,
-                  labelText: 'Nombre completo',
+                  labelText: 'Nombre completo'.tr(),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Este campo es obligatorio';
+                      return 'Este campo es obligatorio'.tr();
                     }
                     return null;
                   },
@@ -530,11 +562,11 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: dniController,
-                  labelText: 'DNI',
+                  labelText: 'DNI'.tr(),
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Este campo es obligatorio';
+                      return 'Este campo es obligatorio'.tr();
                     }
                     return null;
                   },
@@ -542,10 +574,10 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: addressController,
-                  labelText: 'Dirección (Lo más Completa Posible)',
+                  labelText: 'Dirección (Lo más Completa Posible)'.tr(),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Este campo es obligatorio';
+                      return 'Este campo es obligatorio'.tr();
                     }
                     return null;
                   },
@@ -553,20 +585,20 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: postalCodeController,
-                  labelText: 'Código postal',
+                  labelText: 'Código postal'.tr(),
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Este campo es obligatorio';
+                      return 'Este campo es obligatorio'.tr();
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 12),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
                   child: Text(
-                    'Fecha de Nacimiento',
+                    'Fecha de Nacimiento'.tr(),
                     style: TextStyle(color: Colors.white70, fontSize: 16),
                   ),
                 ),
@@ -574,7 +606,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Expanded(child: DropdownButtonFormField<String>(
                     value: _selectedDay,
                     decoration: InputDecoration(
-                      labelText: 'Día',
+                      labelText: 'Día'.tr(),
                       labelStyle: const TextStyle(color: Colors.white70),
                       enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
@@ -587,7 +619,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     onChanged: (val) => setState(() => _selectedDay = val),
                     validator: (val) {
                       if (val == null || val.isEmpty) {
-                        return 'Este campo es obligatorio';
+                        return 'Este campo es obligatorio'.tr();
                       }
                       return null;
                     },
@@ -596,7 +628,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Expanded(child: DropdownButtonFormField<String>(
                     value: _selectedMonth,
                     decoration: InputDecoration(
-                      labelText: 'Mes',
+                      labelText: 'Mes'.tr(),
                       labelStyle: const TextStyle(color: Colors.white70),
                       enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
@@ -609,7 +641,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     onChanged: (val) => setState(() => _selectedMonth = val),
                     validator: (val) {
                       if (val == null || val.isEmpty) {
-                        return 'Este campo es obligatorio';
+                        return 'Este campo es obligatorio'.tr();
                       }
                       return null;
                     },
@@ -618,7 +650,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Expanded(child: DropdownButtonFormField<String>(
                     value: _selectedYear,
                     decoration: InputDecoration(
-                      labelText: 'Año',
+                      labelText: 'Año'.tr(),
                       labelStyle: const TextStyle(color: Colors.white70),
                       enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
@@ -631,7 +663,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     onChanged: (val) => setState(() => _selectedYear = val),
                     validator: (val) {
                       if (val == null || val.isEmpty) {
-                        return 'Este campo es obligatorio';
+                        return 'Este campo es obligatorio'.tr();
                       }
                       return null;
                     },
@@ -640,12 +672,12 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<Country>(
                   value: selectedCountry,
-                  decoration: const InputDecoration(
-                    labelText: 'Seleccionar país',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
-                    focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: InputDecoration(
+                    labelText: 'Seleccionar país'.tr(),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
+                    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   dropdownColor: Colors.black,
                   iconEnabledColor: Colors.white,
@@ -662,7 +694,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   },
                   validator: (val) {
                     if (val == null) {
-                      return 'Este campo es obligatorio';
+                      return 'Este campo es obligatorio'.tr();
                     }
                     return null;
                   },
@@ -670,12 +702,12 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: selectedProvince,
-                  decoration: const InputDecoration(
-                    labelText: 'Seleccionar provincia/estado',
-                    labelStyle: TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
+                  decoration: InputDecoration(
+                    labelText: 'Seleccionar provincia/estado'.tr(),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white70)),
                     focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   dropdownColor: Colors.black,
                   iconEnabledColor: Colors.white,
@@ -687,7 +719,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   onChanged: (value) => setState(() => selectedProvince = value),
                   validator: (val) {
                     if (val == null || val.isEmpty) {
-                      return 'Este campo es obligatorio';
+                      return 'Este campo es obligatorio'.tr();
                     }
                     return null;
                   },
@@ -695,12 +727,12 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 12),
                 CustomTextField(
                   controller: phoneController,
-                  labelText: 'Teléfono',
+                  labelText: 'Teléfono'.tr(),
                   keyboardType: TextInputType.phone,
                   hintText: phoneDialCode != null && phoneDialCode!.isNotEmpty ? '$phoneDialCode ' : '',
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Este campo es obligatorio.';
+                      return 'Este campo es obligatorio.'.tr();
                     }
                     return null;
                   },
@@ -731,7 +763,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                       ),
                       child: Text(
-                        _isLoginMode ? 'Iniciar Sesión' : 'Registrarse',
+                        _isLoginMode ? 'Iniciar Sesión'.tr() : 'Registrarse'.tr(),
                         style: const TextStyle(fontSize: 18),
                       ),
                     ),
@@ -746,8 +778,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 },
                 child: Text(
                   _isLoginMode
-                      ? '¿No tienes cuenta? Regístrate'
-                      : '¿Ya tienes cuenta? Iniciar Sesión',
+                      ? '¿No tienes cuenta? Regístrate'.tr()
+                      : '¿Ya tienes cuenta? Iniciar Sesión'.tr(),
                   style: const TextStyle(color: Colors.white70),
                 ),
               ),

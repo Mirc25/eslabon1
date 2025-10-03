@@ -1,0 +1,5 @@
+﻿== Release certificate fingerprints ==
+gradle signingReport: no release SHA-1 found
+apksigner: no cert digests parsed
+Source: keytool
+SHA-1:   1F:74:98:5A:8C:CD:D1:0A:7E:62:AC:58:5D:B1:6D:88:B3:16:8B:A8

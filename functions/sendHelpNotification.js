@@ -1,4 +1,4 @@
-// functions/sendHelpNotification.js - CÓDIGO COMPLETO (Ya corregido)
+// functions/sendHelpNotification.js - CÓDIGO FINAL CORREGIDO
 import { onRequest } from "firebase-functions/v2/https";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -28,32 +28,34 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
         console.error(`ERROR: Auto-oferta detectada. RequesterId (${receiverId}) es igual a HelperId (${helperId}). No se enviará notificación.`); 
         return res.status(400).send("Auto-oferta no permitida."); 
     } 
-    // FIN DEL FIX CRÍTICO
+    
+    // ✅ FIX DEL ERROR 500: Definir las variables antes de usarlas.
+    const safeTitle = requestTitle || requestData?.title || "Nueva solicitud";
+    const encodedHelperName = encodeURIComponent(helperName); 
 
-    // FIX: Logs temporales para casos de aceptación
-    console.info("📋 [ACCEPTANCE TEST] sendHelpNotification", {
+    console.info("📋 [OFFER RECEIVED] sendHelpNotification", {
       type: "offer_received",
-      route: `/rate-helper/${requestId}?helperId=${helperId}&helperName=${encodedHelperName}`,
+      // ✅ RUTA CORREGIDA: Va al detalle para aceptar la oferta.
+      route: `/request/${requestId}`, 
       requestId,
       helperId,
       receiverId,
       helperName
     });
 
-    const safeTitle = requestTitle || requestData?.title || "Nueva solicitud";
-    const encodedHelperName = encodeURIComponent(helperName);
-
     const notification = {
       type: "offer_received",
       title: `¡${helperName} quiere ayudarte!`,
-      body: `Toca para calificar a "${helperName}" por ayudarte con "${safeTitle}".`,
+      // ✅ BODY: Mensaje claro para ir a aceptar
+      body: `Toca para ver la oferta de ayuda de "${helperName}" para "${safeTitle}".`, 
       timestamp: FieldValue.serverTimestamp(),
       read: false,
       recipientId: receiverId,
       data: {
         notificationType: "offer_received",
         type: "offer_received",
-        route: `/rate-helper/${requestId}?helperId=${helperId}&helperName=${encodedHelperName}`,
+        // ✅ RUTA FINAL: Debe llevar al detalle de la solicitud (donde se acepta la ayuda).
+        route: `/request/${requestId}`, 
         requestId,
         requestTitle: safeTitle,
         helperId,
@@ -61,6 +63,7 @@ export const sendHelpNotification = onRequest({ cors: true }, async (req, res) =
         requestData: requestData || {},
         priority: priority ?? null,
         location: location ?? null,
+        helperNameEncoded: encodedHelperName 
       },
     };
 

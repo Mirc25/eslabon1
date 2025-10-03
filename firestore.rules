@@ -1,8 +1,182 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{db}/documents {
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 9, 10);
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+
+    // =======================
+    // 1) USERS
+    // =======================
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update, delete: if isSignedIn() && request.auth.uid == userId;
+
+      // Subcolección de NOTIFICACIONES del usuario
+      match /notifications/{notifId} {
+        allow read, create, update, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Subcolección de RATINGS por usuario (opcional, soporte a tu flujo)
+      // Permite que el propio usuario registre y consulte sus calificaciones emitidas
+      match /ratings/{ratingId} {
+        // Solo el dueño puede leer su subcolección
+        allow read: if isSignedIn() && request.auth.uid == userId;
+
+        // Crear rating bajo users/{userId}/ratings:
+        // - Debe estar autenticado y ser el dueño (userId)
+        // - Debe ser el autor (sourceUserId == userId)
+        // - Valor entre 1..5 (acepta campos 'value' o 'rating')
+        // - No puede auto-calificarse (targetUserId|ratedUserId != userId)
+        function ratingValueValidUsers() {
+          return (
+            request.resource.data.value != null
+            && request.resource.data.value is number
+            && request.resource.data.value >= 1
+            && request.resource.data.value <= 5
+          ) || (
+            request.resource.data.rating != null
+            && request.resource.data.rating is number
+            && request.resource.data.rating >= 1
+            && request.resource.data.rating <= 5
+          );
+        }
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.sourceUserId == userId
+          && ratingValueValidUsers()
+          && (
+            (request.resource.data.targetUserId != null && request.resource.data.targetUserId != userId) ||
+            (request.resource.data.ratedUserId != null && request.resource.data.ratedUserId != userId)
+          );
+
+        // Inmutables tras creación
+        allow update, delete: if false;
+      }
     }
+
+    // ===================================
+    // 2) SOLICITUDES DE AYUDA (con ofertas y comentarios)
+    // ===================================
+    match /solicitudes-de-ayuda/{requestId} {
+      // Lectura para usuarios autenticados
+      allow read: if isSignedIn();
+
+      // Crear solo si el dueño de la solicitud es el autenticado
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+
+      // Update/Delete solo el dueño y SIN poder cambiar el userId original
+      allow update, delete: if isSignedIn()
+        && request.auth.uid == resource.data.userId
+        && (request.resource.data.userId == resource.data.userId);
+
+      // Permitir exclusivamente el incremento de offersCount por NO dueño
+      allow update: if isSignedIn()
+        && request.auth.uid != resource.data.userId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['offersCount'])
+        && request.resource.data.offersCount == resource.data.offersCount + 1;
+
+      // Subcolección de OFERTAS
+      match /offers/{offerId} {
+        allow read: if isSignedIn();
+
+        // helper UID puede venir con alias: helperId | helperUid | userId | createdBy
+        function helperUidField() {
+          return (request.resource.data.helperId != null) ? request.resource.data.helperId
+               : (request.resource.data.helperUid != null) ? request.resource.data.helperUid
+               : (request.resource.data.userId != null) ? request.resource.data.userId
+               : (request.resource.data.createdBy != null) ? request.resource.data.createdBy
+               : null;
+        }
+
+        // Crear oferta:
+        // - Debe estar logueado
+        // - NO puede ser el dueño de la solicitud
+        // - El UID del helper (en cualquiera de los alias) debe ser el del usuario autenticado
+        allow create: if isSignedIn()
+          && request.auth.uid != get(/databases/$(database)/documents/solicitudes-de-ayuda/$(requestId)).data.userId
+          && helperUidField() == request.auth.uid;
+
+        // Actualizar oferta: solo el dueño de la solicitud (p.ej. aceptar)
+        allow update: if isSignedIn()
+          && request.auth.uid == get(/databases/$(database)/documents/solicitudes-de-ayuda/$(requestId)).data.userId;
+      }
+
+      // Subcolección de COMENTARIOS
+      match /comments/{commentId} {
+        allow read, create: if isSignedIn();
+      }
+    }
+
+    // ===========================
+    // 3) RATINGS (inmutables tras creación)
+    // ===========================
+    match /ratings/{ratingId} {
+      allow read: if isSignedIn();
+
+      // Acepta targetUserId o ratedUserId y valida 1..5; prohíbe auto-rating
+      function targetUid() {
+        return (request.resource.data.targetUserId != null) ? request.resource.data.targetUserId
+             : (request.resource.data.ratedUserId != null) ? request.resource.data.ratedUserId
+             : null;
+      }
+      function ratingValueValid() {
+        return (
+               request.resource.data.value != null
+               && request.resource.data.value is number
+               && request.resource.data.value >= 1
+               && request.resource.data.value <= 5
+        ) || (
+               request.resource.data.rating != null
+               && request.resource.data.rating is number
+               && request.resource.data.rating >= 1
+               && request.resource.data.rating <= 5
+        );
+      }
+
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.sourceUserId
+        && targetUid() != null
+        && targetUid() != request.auth.uid
+        && ratingValueValid();
+
+      // Inmutables tras creación
+      allow update, delete: if false;
+    }
+
+    // =========================================
+    // 4) CHAT GLOBAL
+    // =========================================
+    match /global_chat_messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      // El autor puede editar o borrar su propio mensaje
+      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+    }
+
+    // =========================================
+    // 5) CHATS 1 a 1
+    // =========================================
+    match /chats/{chatId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+
+      allow create: if isSignedIn()
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && request.resource.data.participants[0] != request.resource.data.participants[1]
+        && request.auth.uid in request.resource.data.participants;
+
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          && request.resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // Bloqueo por defecto
+    match /{document=**} { allow read, write: if false; }
   }
 }

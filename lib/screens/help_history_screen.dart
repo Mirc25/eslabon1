@@ -1,11 +1,14 @@
-﻿// lib/screens/help_history_screen.dart
+// lib/screens/help_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/widgets/custom_app_bar.dart';
+import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 
 class HelpHistoryScreen extends StatefulWidget {
   const HelpHistoryScreen({super.key});
@@ -26,6 +29,12 @@ class _HelpHistoryScreenState extends State<HelpHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (currentUserId.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('Usuario no autenticado.')),
+      );
+    }
+    
     return CustomBackground(
       showAds: false,
       child: Scaffold(
@@ -43,20 +52,22 @@ class _HelpHistoryScreenState extends State<HelpHistoryScreen> {
             children: [
               const SizedBox(height: 8),
               TabBar(
-                tabs: [
-                  Tab(text: 'as_helper'.tr()),     // “Como ayudante”
-                  Tab(text: 'as_requester'.tr()),  // “Como solicitante”
-                ],
-                isScrollable: false,
-                indicatorColor: Colors.greenAccent,
+                indicatorColor: Colors.amber,
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white70,
+                tabs: [
+                  Tab(text: 'offers_sent'.tr()),   // Ayudas Emitidas
+                  Tab(text: 'help_requests'.tr()),  // Solicitudes Publicadas
+                ],
+                isScrollable: false,
               ),
               const SizedBox(height: 8),
               Expanded(
                 child: TabBarView(
                   children: [
+                    // Historial como Ayudante (Ofertas enviadas)
                     HelpHistoryAsHelper(userId: currentUserId),
+                    // Historial como Solicitante (Solicitudes creadas)
                     HelpHistoryAsRequester(userId: currentUserId),
                   ],
                 ),
@@ -69,68 +80,180 @@ class _HelpHistoryScreenState extends State<HelpHistoryScreen> {
   }
 }
 
-/// ---- Tab 1: Historial como ayudante
-class HelpHistoryAsHelper extends StatelessWidget {
-  final String userId;
-  const HelpHistoryAsHelper({super.key, required this.userId});
+// -----------------------------------------------------------
+// WIDGET DE TARJETA ESTILIZADA PARA EL HISTORIAL
+// -----------------------------------------------------------
+class _HistoryCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final String requestId;
+  final bool isHelper;
 
-  @override
-  Widget build(BuildContext context) {
-    // TODO: Reemplazar por tu lista/stream real de “ayudas brindadas”
-    return _EmptyState(
-      title: 'as_helper'.tr(),
-      subtitle: userId.isEmpty
-          ? tr('no_user_logged_in')
-          : tr('no_history_yet'),
-    );
+  const _HistoryCard({
+    required this.data,
+    required this.requestId,
+    required this.isHelper,
+  });
+
+  String get _status {
+    final status = data['estado'] ?? 'activa';
+    return status.toUpperCase();
   }
-}
-
-/// ---- Tab 2: Historial como solicitante
-class HelpHistoryAsRequester extends StatelessWidget {
-  final String userId;
-  const HelpHistoryAsRequester({super.key, required this.userId});
-
-  @override
-  Widget build(BuildContext context) {
-    // TODO: Reemplazar por tu lista/stream real de “ayudas solicitadas”
-    return _EmptyState(
-      title: 'as_requester'.tr(),
-      subtitle: userId.isEmpty
-          ? tr('no_user_logged_in')
-          : tr('no_history_yet'),
-    );
+  
+  Color get _statusColor {
+    switch(_status) {
+      case 'ACEPTADA': return Colors.amberAccent;
+      case 'FINALIZADA': return Colors.greenAccent;
+      case 'EXPIRADA': return Colors.redAccent;
+      default: return Colors.orange;
+    }
   }
-}
-
-/// ---- Widget simple para estado vacío
-class _EmptyState extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  const _EmptyState({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.history, size: 48, color: Colors.white.withValues(alpha: 0.8)),
-            const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontSize: 18)),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
-              textAlign: TextAlign.center,
-            ),
-          ],
+    final description = data['titulo'] ?? data['descripcion'] ?? 'Solicitud sin título';
+    final timestamp = data['timestamp'] as Timestamp?;
+    final date = timestamp != null ? DateFormat('dd/MM/yyyy HH:mm').format(timestamp.toDate()) : 'N/A';
+    
+    // Obtiene el nombre del partner (solicitante si soy helper, o ayudante si soy solicitante)
+    final partnerName = isHelper 
+        ? (data['requesterName'] ?? 'Solicitante')
+        : (data['acceptedHelperName'] ?? 'Pendiente');
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+      color: Colors.grey[850],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 4,
+      child: InkWell(
+        onTap: () {
+          // Navega a los detalles de la solicitud
+          context.pushNamed('request_detail', pathParameters: {'requestId': requestId}, extra: data);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      description,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    _status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _statusColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isHelper ? 'Solicitado por: $partnerName' : 'Ayudante: $partnerName',
+                style: const TextStyle(fontSize: 14, color: Colors.white70),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Publicado: $date',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+// -----------------------------------------------------------
 
 
+// -----------------------------------------------------------
+// TAB 1: Historial como ayudante (Ayudas Emitidas)
+// -----------------------------------------------------------
+class HelpHistoryAsHelper extends StatelessWidget {
+  final String userId;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  const HelpHistoryAsHelper({super.key, required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    // Busca solicitudes donde el ID del usuario está en el campo 'helperId'
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('solicitudes-de-ayuda')
+          .where('helperId', isEqualTo: userId)
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: SpinningImageLoader());
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return Center(child: Text('Aún no has participado como ayudante.', style: TextStyle(color: Colors.white70)));
+
+        return ListView.builder(
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            
+            return _HistoryCard(
+              data: data,
+              requestId: doc.id,
+              isHelper: true,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// -----------------------------------------------------------
+// TAB 2: Historial como solicitante (Solicitudes Publicadas)
+// -----------------------------------------------------------
+class HelpHistoryAsRequester extends StatelessWidget {
+  final String userId;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  const HelpHistoryAsRequester({super.key, required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    // Busca solicitudes que el usuario creó
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('solicitudes-de-ayuda')
+          .where('userId', isEqualTo: userId)
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: SpinningImageLoader());
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return Center(child: Text('Aún no has creado solicitudes de ayuda.', style: TextStyle(color: Colors.white70)));
+
+        return ListView.builder(
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            
+            return _HistoryCard(
+              data: data,
+              requestId: doc.id,
+              isHelper: false,
+            );
+          },
+        );
+      },
+    );
+  }
+}

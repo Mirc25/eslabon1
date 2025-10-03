@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "697376338964-rbir89lgtfpjir641qll1sa9alfcgt6m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.eslabon_flutter",
+            "certificate_hash": "1f74985a8ccdd10a7e62ac585db16d88b3168ba8"
+          }
+        },
+        {
           "client_id": "697376338964-04jfuqf3vibja4300bbnmju5j8ive23k.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -61,6 +69,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "697376338964-rua77f2e4e64bgd0fp8feoaqav8hrga1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.eslabon_nuevo",
+            "certificate_hash": "1f74985a8ccdd10a7e62ac585db16d88b3168ba8"
+          }
+        },
         {
           "client_id": "697376338964-04jfuqf3vibja4300bbnmju5j8ive23k.apps.googleusercontent.com",
           "client_type": 3

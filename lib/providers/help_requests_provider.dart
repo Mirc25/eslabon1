@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
 
 import 'package:eslabon_flutter/providers/location_provider.dart'; // Importa el proveedor de ubicación
+import 'package:eslabon_flutter/providers/user_provider.dart'; // ✅ Importado el proveedor de usuario
+import 'package:eslabon_flutter/models/user_model.dart'; // ✅ Importado el modelo de usuario
 
 // Proveedor para el stream crudo de solicitudes de ayuda activas
 final rawHelpRequestsStreamProvider = StreamProvider<QuerySnapshot>((ref) {
@@ -21,6 +23,8 @@ final filteredHelpRequestsProvider = Provider<AsyncValue<List<QueryDocumentSnaps
   final String currentFilterScope = ref.watch(filterScopeProvider);
   final double proximityRadiusKm = ref.watch(proximityRadiusProvider);
   final UserLocationData userLocation = ref.watch(userLocationProvider);
+  // ✅ OBTENER EL PERFIL DEL USUARIO ACTUAL para filtros Nacional/Provincial
+  final User? currentUser = ref.watch(userProvider).value; 
 
   return rawRequestsAsyncValue.when(
     data: (snapshot) {
@@ -32,11 +36,18 @@ final filteredHelpRequestsProvider = Provider<AsyncValue<List<QueryDocumentSnaps
       
       final List<QueryDocumentSnapshot> filteredList = allHelpRequestDocs.where((doc) {
         final request = doc.data() as Map<String, dynamic>;
-        final String requestProvincia = request['provincia'] ?? '';
-        final String requestCountry = request['country'] ?? '';
-        final double? requestLat = request['latitude'];
-        final double? requestLon = request['longitude'];
+        final String requestProvincia = (request['provincia'] ?? '').toString();
+        final String requestCountry = (request['country'] ?? '').toString();
+        final double? requestLat = (request['latitude'] as num?)?.toDouble();
+        final double? requestLon = (request['longitude'] as num?)?.toDouble();
+        final String requestOwnerId = request['userId']?.toString() ?? '';
 
+        // Las solicitudes propias siempre se muestran, si tienen estado 'activa' (anula cualquier filtro)
+        if (currentUser != null && requestOwnerId == currentUser.id) {
+          return true;
+        }
+
+        // 1. Filtrado Cercano (Requiere ubicación de la solicitud y del usuario)
         bool isNearbyLocal = false;
         if (userLocation.latitude != null && userLocation.longitude != null && requestLat != null && requestLon != null) {
           final distance = _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon);
@@ -44,6 +55,7 @@ final filteredHelpRequestsProvider = Provider<AsyncValue<List<QueryDocumentSnaps
         }
 
         bool passesFilter = false;
+        
         if (currentFilterScope == 'Cercano') {
           passesFilter = isNearbyLocal;
           if (requestLat != null && requestLon != null) {
@@ -55,13 +67,22 @@ final filteredHelpRequestsProvider = Provider<AsyncValue<List<QueryDocumentSnaps
             print('DEBUG FILTRO: Solicitud sin coordenadas válidas');
           }
         } else if (currentFilterScope == 'Provincial') {
-          const String userProvincia = 'San Juan'; // Asumo 'San Juan' como provincia fija del usuario
-          passesFilter = (requestProvincia == userProvincia);
+          // 2. Filtrado Provincial (Usa la provincia guardada en el perfil del usuario)
+          final String userProvincia = currentUser?.province?.toString() ?? '';
+          passesFilter = userProvincia.isNotEmpty && requestProvincia.isNotEmpty && requestProvincia == userProvincia;
+          print('DEBUG FILTRO: Provincial, Usuario Prov: $userProvincia, Req Prov: $requestProvincia, pasa filtro: $passesFilter');
+          
         } else if (currentFilterScope == 'Nacional') {
-          passesFilter = (requestCountry == 'Argentina'); // Asumo 'Argentina' como país fijo
+          // 3. Filtrado Nacional (Usa el país guardado en el perfil del usuario)
+          final String userCountry = currentUser?.country['name']?.toString() ?? '';
+          passesFilter = userCountry.isNotEmpty && requestCountry.isNotEmpty && requestCountry == userCountry;
+          print('DEBUG FILTRO: Nacional, Usuario País: $userCountry, Req País: $requestCountry, pasa filtro: $passesFilter');
+
         } else if (currentFilterScope == 'Internacional') {
+          // 4. Filtrado Internacional
           passesFilter = true; // Todos pasan el filtro internacional
         }
+        
         return passesFilter;
       }).toList();
 

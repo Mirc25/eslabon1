@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_storage/firebase_storage.dart'; // ✅ IMPORTADO: Necesario para obtener la URL de la imagen
 
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
-import '../widgets/spinning_image_loader.dart'; // �o. A�'ADIDO: Importa el widget
+import '../widgets/spinning_image_loader.dart'; 
 
 class RankingSection extends StatefulWidget {
   const RankingSection({Key? key}) : super(key: key);
@@ -19,7 +20,11 @@ class _RankingSectionState extends State<RankingSection> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance; // ✅ INSTANCIA DE STORAGE
   final ScrollController _scrollController = ScrollController();
+  
+  // ✅ Sistema de caché para URLs de imágenes de perfil
+  final Map<String, String> _profilePictureUrlCache = {};
   List<DocumentSnapshot> _users = [];
   bool _isLoading = true;
   bool _hasMore = true;
@@ -161,7 +166,7 @@ class _RankingSectionState extends State<RankingSection> {
         ),
         Expanded(
           child: _isLoading && _users.isEmpty
-              ? const Center(child: SpinningImageLoader()) // �o. CORREGIDO: Usando el nuevo widget
+              ? const Center(child: SpinningImageLoader())
               : _users.isEmpty
                   ? Center(child: Text(
                       _searchQuery.isNotEmpty
@@ -179,7 +184,7 @@ class _RankingSectionState extends State<RankingSection> {
                             return const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(8.0),
-                                child: SpinningImageLoader(), // �o. CORREGIDO: Usando el nuevo widget
+                                child: SpinningImageLoader(),
                               ),
                             );
                           } else {
@@ -191,7 +196,7 @@ class _RankingSectionState extends State<RankingSection> {
                         final String userId = _users[index].id;
                         final int rank = index + 1;
                         final String name = userData['name'] ?? 'Usuario Anónimo';
-                        final String? profilePicture = userData['profilePicture'] as String?;
+                        final String? profilePicturePath = userData['profilePicture'] as String?;
                         final double averageRating = (userData['averageRating'] as num? ?? 0.0).toDouble();
                         final int helpedCount = (userData['helpedCount'] as num? ?? 0).toInt();
 
@@ -220,12 +225,39 @@ class _RankingSectionState extends State<RankingSection> {
                                     ),
                                   ),
                                   const SizedBox(width: 16),
-                                  CircleAvatar(
-                                    radius: 30,
-                                    backgroundImage: (profilePicture != null && profilePicture.startsWith('http'))
-                                        ? NetworkImage(profilePicture)
-                                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                                    backgroundColor: Colors.grey[700],
+                                  // 🚀 LÓGICA CORREGIDA: Obtener la URL de Storage
+                                  FutureBuilder<String>(
+                                    // 1. Verificar si el path está en el caché:
+                                    future: profilePicturePath != null && _profilePictureUrlCache.containsKey(profilePicturePath)
+                                        ? Future.value(_profilePictureUrlCache[profilePicturePath]!)
+                                        // 2. Si no está en caché, llamar a Storage:
+                                        : profilePicturePath != null && profilePicturePath.isNotEmpty
+                                            ? _storage.ref().child(profilePicturePath).getDownloadURL()
+                                            : Future.value(''),
+                                    builder: (context, urlSnapshot) {
+                                      final String? finalImageUrl = urlSnapshot.data;
+                                      
+                                      // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
+                                      if (urlSnapshot.connectionState == ConnectionState.done && 
+                                          finalImageUrl != null && 
+                                          finalImageUrl.isNotEmpty && 
+                                          profilePicturePath != null && 
+                                          !_profilePictureUrlCache.containsKey(profilePicturePath)) {
+                                        _profilePictureUrlCache[profilePicturePath] = finalImageUrl;
+                                      }
+                                      
+                                      return CircleAvatar(
+                                        radius: 30,
+                                        backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
+                                            ? NetworkImage(finalImageUrl)
+                                            : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                                        backgroundColor: Colors.grey[700],
+                                        // Muestra un ícono solo si no hay imagen de perfil
+                                        child: (finalImageUrl == null || finalImageUrl.isEmpty) 
+                                            ? const Icon(Icons.person, size: 30, color: Colors.white70) 
+                                            : null,
+                                      );
+                                    },
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(
@@ -268,4 +300,3 @@ class _RankingSectionState extends State<RankingSection> {
     );
   }
 }
-

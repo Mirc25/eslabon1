@@ -13,6 +13,7 @@ import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/app_services.dart';
 import '../services/inapp_notification_service.dart';
+import '../widgets/avatar_optimizado.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -46,6 +47,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _chatPartnerAvatarUrl;
   String? _currentUserAvatarUrl;
   String? _chatPartnerToken;
+  
+  // ✅ Sistema de caché para URLs de imágenes de perfil
+  final Map<String, String> _profilePictureUrlCache = {};
 
   @override
   void initState() {
@@ -118,10 +122,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           _currentUserAvatarPath = userData['profilePicture'];
         });
         if (_currentUserAvatarPath != null) {
-          final url = await _storage.ref().child(_currentUserAvatarPath!).getDownloadURL();
-          setState(() {
-            _currentUserAvatarUrl = url;
-          });
+          // 1. Verificar si el path está en el caché:
+          if (_profilePictureUrlCache.containsKey(_currentUserAvatarPath)) {
+            setState(() {
+              _currentUserAvatarUrl = _profilePictureUrlCache[_currentUserAvatarPath];
+            });
+          } else {
+            // 2. Si no está en caché, llamar a Storage:
+            final url = await _storage.ref().child(_currentUserAvatarPath!).getDownloadURL();
+            // 3. Guardar en el caché:
+            _profilePictureUrlCache[_currentUserAvatarPath!] = url;
+            setState(() {
+              _currentUserAvatarUrl = url;
+            });
+          }
         }
       }
     }
@@ -135,10 +149,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             _chatPartnerAvatarUrl = widget.chatPartnerAvatar!;
           });
         } else {
-          final url = await _storage.ref().child(widget.chatPartnerAvatar!).getDownloadURL();
-          setState(() {
-            _chatPartnerAvatarUrl = url;
-          });
+          // 1. Verificar si el path está en el caché:
+          if (_profilePictureUrlCache.containsKey(widget.chatPartnerAvatar)) {
+            setState(() {
+              _chatPartnerAvatarUrl = _profilePictureUrlCache[widget.chatPartnerAvatar];
+            });
+          } else {
+            // 2. Si no está en caché, llamar a Storage:
+            final url = await _storage.ref().child(widget.chatPartnerAvatar!).getDownloadURL();
+            // 3. Guardar en el caché:
+            _profilePictureUrlCache[widget.chatPartnerAvatar!] = url;
+            setState(() {
+              _chatPartnerAvatarUrl = url;
+            });
+          }
         }
       } catch (e) {
         print('Error loading chat partner avatar URL: $e');
@@ -314,10 +338,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
           ),
           actions: [
-            CircleAvatar(
-              backgroundImage: (_chatPartnerAvatarUrl != null)
-                  ? NetworkImage(_chatPartnerAvatarUrl!)
-                  : const AssetImage('assets/default_avatar.png') as ImageProvider,
+            AvatarOptimizado(
+              url: _chatPartnerAvatarUrl,
+              radius: 20,
               backgroundColor: Colors.grey[700],
             ),
             const SizedBox(width: 10),
@@ -420,11 +443,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (!isMe)
-              CircleAvatar(
+              AvatarOptimizado(
+                url: avatarUrl,
                 radius: 16,
-                backgroundImage: avatarUrl != null && avatarUrl.startsWith('http')
-                    ? NetworkImage(avatarUrl)
-                    : const AssetImage('assets/default_avatar.png') as ImageProvider,
                 backgroundColor: Colors.grey[700],
               ),
             if (!isMe) const SizedBox(width: 8),
@@ -459,11 +480,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
             if (isMe) const SizedBox(width: 8),
             if (isMe)
-              CircleAvatar(
+              AvatarOptimizado(
+                url: avatarUrl,
                 radius: 16,
-                backgroundImage: avatarUrl != null && avatarUrl.startsWith('http')
-                    ? NetworkImage(avatarUrl)
-                    : const AssetImage('assets/default_avatar.png') as ImageProvider,
                 backgroundColor: Colors.grey[700],
               ),
           ],

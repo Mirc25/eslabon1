@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class UserProfileViewScreen extends StatefulWidget {
   final String userId;
@@ -20,10 +21,15 @@ class UserProfileViewScreen extends StatefulWidget {
 }
 
 class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  
   String _displayName = 'Cargando...';
   String _displayPhotoUrl = '';
   Map<String, dynamic> _userData = {};
   bool _isLoading = true;
+  
+  // ✅ Sistema de caché para URLs de imágenes de perfil
+  final Map<String, String> _profilePictureUrlCache = {};
 
   @override
   void initState() {
@@ -36,10 +42,44 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
       final docSnapshot = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
       if (docSnapshot.exists) {
         _userData = docSnapshot.data() as Map<String, dynamic>;
+        final String profilePicturePath = _userData['profilePicture'] ?? widget.userPhotoUrl ?? '';
+        
         setState(() {
           _displayName = _userData['name'] ?? widget.userName ?? 'Usuario Desconocido';
-          _displayPhotoUrl = _userData['profilePicture'] ?? widget.userPhotoUrl ?? '';
         });
+        
+        // Optimización de carga de imagen de perfil
+        if (profilePicturePath.isNotEmpty) {
+          if (profilePicturePath.startsWith('http')) {
+            // Ya es una URL completa
+            setState(() {
+              _displayPhotoUrl = profilePicturePath;
+            });
+          } else {
+            // Es un path de Firebase Storage
+            // 1. Verificar si el path está en el caché:
+            if (_profilePictureUrlCache.containsKey(profilePicturePath)) {
+              setState(() {
+                _displayPhotoUrl = _profilePictureUrlCache[profilePicturePath]!;
+              });
+            } else {
+              // 2. Si no está en caché, llamar a Storage:
+              try {
+                final url = await _storage.ref().child(profilePicturePath).getDownloadURL();
+                // 3. Guardar en el caché:
+                _profilePictureUrlCache[profilePicturePath] = url;
+                setState(() {
+                  _displayPhotoUrl = url;
+                });
+              } catch (e) {
+                print('Error loading profile picture from Storage: $e');
+                setState(() {
+                  _displayPhotoUrl = '';
+                });
+              }
+            }
+          }
+        }
       } else {
         setState(() {
           _displayName = widget.userName ?? 'Usuario no encontrado';

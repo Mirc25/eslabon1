@@ -1,8 +1,11 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Lectura pública (imágenes de perfil, adjuntos, etc.)
+    // Escritura solo para usuarios autenticados
     match /{allPaths=**} {
-      allow read, write: if request.time < timestamp.date(2025, 9, 10);
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 }

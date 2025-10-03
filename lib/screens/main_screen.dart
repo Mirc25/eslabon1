@@ -132,6 +132,29 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     }
   }
 
+  // ✅ OPTIMIZACIÓN: Método para obtener URL de imagen de perfil con caché
+  Future<String> _getProfilePictureUrl(String? profilePicturePath) async {
+    // 1. Verificar si el path está en el caché:
+    if (profilePicturePath != null && _profilePictureUrlCache.containsKey(profilePicturePath)) {
+      return _profilePictureUrlCache[profilePicturePath] ?? '';
+    }
+    
+    // 2. Si no está en caché, llamar a Storage:
+    if (profilePicturePath != null && profilePicturePath.isNotEmpty) {
+      try {
+        final String downloadUrl = await _storage.ref().child(profilePicturePath).getDownloadURL();
+        // 3. Guardar en el caché:
+        _profilePictureUrlCache[profilePicturePath] = downloadUrl;
+        return downloadUrl;
+      } catch (e) {
+        print('Error loading profile picture: $e');
+        return '';
+      }
+    }
+    
+    return '';
+  }
+
   void _showCommentsModal(String requestId, firebase_auth.User? currentUser) {
     if (!_commentControllers.containsKey(requestId)) {
       _commentControllers[requestId] = TextEditingController();
@@ -448,7 +471,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
+                    Flexible(
+                      flex: 8,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -565,9 +589,11 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         ],
                       ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
+                    Flexible(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
@@ -591,7 +617,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             distanceText,
                             style: const TextStyle(fontSize: 10, color: Colors.white70),
                           ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -602,38 +629,68 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   children: [
                     SizedBox(
                       width: 120,
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: imageUrlPath != null && imageUrlPath.isNotEmpty
-                            ? FutureBuilder<String>(
-                                future: _storage.ref().child(imageUrlPath).getDownloadURL(),
-                                builder: (context, urlSnapshot) {
-                                  if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
-                                    return ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        urlSnapshot.data!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) => Container(
-                                          color: Colors.grey[700],
-                                          child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                  return Container(
-                                    color: Colors.grey[700],
-                                    child: const Center(child: CircularProgressIndicator(color: Colors.amber)),
-                                  );
-                                },
-                              )
-                            : Container(
+                      height: 120,
+                      child: Builder(
+                        builder: (context) {
+                          // Obtener la lista de rutas de imágenes
+                          List<String> imagePaths = [];
+                          if (rawImages != null) {
+                            if (rawImages is List) {
+                              imagePaths = rawImages.map((e) => e?.toString() ?? '').where((path) => path.isNotEmpty).toList();
+                            } else if (rawImages is String && rawImages.isNotEmpty) {
+                              imagePaths = [rawImages];
+                            }
+                          }
+
+                          if (imagePaths.isEmpty) {
+                            return AspectRatio(
+                              aspectRatio: 1,
+                              child: Container(
                                 decoration: BoxDecoration(
                                   color: Colors.grey[700],
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(Icons.image_not_supported, color: Colors.white54, size: 40),
                               ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: imagePaths.length,
+                            itemBuilder: (context, index) {
+                              final imagePath = imagePaths[index];
+                              return Padding(
+                                padding: EdgeInsets.only(right: index < imagePaths.length - 1 ? 8.0 : 0),
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: FutureBuilder<String>(
+                                    future: _getProfilePictureUrl(imagePath),
+                                    builder: (context, urlSnapshot) {
+                                      if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData && urlSnapshot.data!.isNotEmpty) {
+                                        return ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Image.network(
+                                            urlSnapshot.data!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              color: Colors.grey[700],
+                                              child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      return Container(
+                                        color: Colors.grey[700],
+                                        child: const Center(child: CircularProgressIndicator(color: Colors.amber)),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
                     Expanded(
@@ -1214,37 +1271,22 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                       crossAxisAlignment: CrossAxisAlignment.center,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // ✅ CORRECCIÓN: Lógica para la imagen del perfil con caché.
-                        if (profilePicturePath != null && _profilePictureUrlCache.containsKey(profilePicturePath))
-                          CircleAvatar(
-                            radius: 40,
-                            backgroundImage: NetworkImage(_profilePictureUrlCache[profilePicturePath]!),
-                            backgroundColor: Colors.grey[700],
-                          )
-                        else
-                          FutureBuilder<String>(
-                            future: profilePicturePath != null
-                                ? _storage.ref().child(profilePicturePath).getDownloadURL()
-                                : Future.value(''),
-                            builder: (context, urlSnapshot) {
-                              if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
-                                final String? finalImageUrl = urlSnapshot.data;
-                                if (finalImageUrl != null && finalImageUrl.isNotEmpty) {
-                                  _profilePictureUrlCache[profilePicturePath!] = finalImageUrl;
-                                  return CircleAvatar(
-                                    radius: 40,
-                                    backgroundImage: NetworkImage(finalImageUrl),
-                                    backgroundColor: Colors.grey[700],
-                                  );
-                                }
-                              }
-                              return CircleAvatar(
-                                radius: 40,
-                                backgroundColor: Colors.grey[700],
-                                backgroundImage: const AssetImage('assets/default_avatar.png'),
-                              );
-                            },
-                          ),
+                        // ✅ OPTIMIZACIÓN: Sistema de caché mejorado para imágenes de perfil
+                        FutureBuilder<String>(
+                          // 1. Verificar si el path está en el caché:
+                          future: _getProfilePictureUrl(profilePicturePath),
+                          builder: (context, urlSnapshot) {
+                            final String finalImageUrl = urlSnapshot.data ?? '';
+                            
+                            return CircleAvatar(
+                              radius: 40,
+                              backgroundColor: Colors.grey[700],
+                              backgroundImage: finalImageUrl.isNotEmpty
+                                  ? NetworkImage(finalImageUrl)
+                                  : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                            );
+                          },
+                        ),
                         const SizedBox(height: 10),
                         Text(
                           userName,
@@ -1385,7 +1427,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
               onTap: () async {
                 await _auth.signOut();
                 if (mounted) {
-                  context.go('/login');
+                  context.go('/auth');
                 }
               },
             ),

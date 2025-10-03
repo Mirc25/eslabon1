@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../widgets/avatar_optimizado.dart';
 
 import 'package:eslabon_flutter/widgets/custom_app_bar.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
@@ -230,15 +231,15 @@ class NotificationsScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Avatar del usuario o icono de chat
-              CircleAvatar(
+              AvatarOptimizado(
+                url: groupedNotification.chatPartnerAvatar,
                 radius: 25,
                 backgroundColor: Colors.amber,
-                backgroundImage: groupedNotification.chatPartnerAvatar != null 
-                    ? NetworkImage(groupedNotification.chatPartnerAvatar!)
-                    : null,
-                child: groupedNotification.chatPartnerAvatar == null 
-                    ? const Icon(Icons.person, color: Colors.white, size: 30)
-                    : null,
+                placeholder: const CircleAvatar(
+                  radius: 25,
+                  backgroundColor: Colors.amber,
+                  child: Icon(Icons.person, color: Colors.white, size: 30),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

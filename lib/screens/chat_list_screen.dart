@@ -9,6 +9,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/spinning_image_loader.dart';
+import '../widgets/avatar_optimizado.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({Key? key}) : super(key: key);
@@ -209,10 +210,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       color: Colors.grey[700],
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: userAvatar != null && userAvatar.startsWith('http')
-                              ? NetworkImage(userAvatar)
-                              : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                        leading: AvatarOptimizado(
+                          url: userAvatar,
+                          radius: 20,
                           backgroundColor: Colors.grey[600],
                         ),
                         title: Text(
@@ -293,10 +293,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           color: Colors.grey[850],
                           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundImage: otherUserAvatar != null && otherUserAvatar.startsWith('http')
-                                  ? NetworkImage(otherUserAvatar)
-                                  : const AssetImage('assets/default_avatar.png') as ImageProvider,
+                            leading: AvatarOptimizado(
+                              url: otherUserAvatar,
+                              radius: 20,
                               backgroundColor: Colors.grey[700],
                             ),
                             title: Text(

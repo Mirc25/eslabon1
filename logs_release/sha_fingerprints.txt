@@ -1,0 +1,5 @@
+﻿error de herramienta de claves: java.lang.Exception: El archivo de almacÚn de claves no existe: upload-keystore.jks
+java.lang.Exception: El archivo de almacÚn de claves no existe: upload-keystore.jks
+	at java.base/sun.security.tools.keytool.Main.doCommands(Main.java:923)
+	at java.base/sun.security.tools.keytool.Main.run(Main.java:423)
+	at java.base/sun.security.tools.keytool.Main.main(Main.java:416)

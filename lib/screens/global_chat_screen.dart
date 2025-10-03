@@ -1,4 +1,4 @@
-﻿// lib/screens/global_chat_screen.dart
+// lib/screens/global_chat_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +16,7 @@ import 'package:eslabon_flutter/widgets/custom_background.dart';
 import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import 'package:eslabon_flutter/models/user_model.dart';
 import 'package:eslabon_flutter/screens/bad_params_screen.dart';
+import 'package:eslabon_flutter/widgets/avatar_optimizado.dart';
 
 class GlobalChatScreen extends ConsumerStatefulWidget {
   const GlobalChatScreen({Key? key}) : super(key: key);
@@ -25,6 +26,8 @@ class GlobalChatScreen extends ConsumerStatefulWidget {
 }
 
 class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with TickerProviderStateMixin {
+  // Desactiva el mapa temporalmente para evitar crash si falta API key
+  static const bool kEnableGlobalMap = false;
   GoogleMapController? _mapController;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -72,13 +75,17 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
   Future<void> _sendMessage() async {
     final user = ref.read(userProvider).value;
     final userLocation = ref.read(userLocationProvider);
+    final authUid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
 
-    if (_messageController.text.trim().isEmpty || user == null) {
+    if (_messageController.text.trim().isEmpty || user == null || authUid == null) {
+      if (mounted && authUid == null) {
+        AppServices.showSnackBar(context, 'Debes iniciar sesión para enviar mensajes.', Colors.red);
+      }
       return;
     }
 
     final messageData = {
-      'userId': user.id,
+      'userId': authUid,
       'userName': user.name,
       'userAvatarUrl': user.profilePicture,
       'text': _messageController.text.trim(),
@@ -91,6 +98,9 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
     };
 
     try {
+      // DEBUG: registrar los IDs para diagnosticar permisos
+      // ignore: avoid_print
+      print('GlobalChat: sending as authUid=' + authUid + ' profileId=' + user.id);
       await _firestore.collection('global_chat_messages').add(messageData);
       _messageController.clear();
       if (_scrollController.hasClients) {
@@ -102,7 +112,16 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
       }
     } catch (e) {
       if (mounted) {
-        AppServices.showSnackBar(context, 'Error al enviar el mensaje: $e', Colors.red);
+        String msg = 'Error al enviar el mensaje';
+        try {
+          // Capturar códigos de Firebase para mayor claridad
+          // ignore: unused_catch_clause
+          final fe = e as FirebaseException; // cloud_firestore FirebaseException
+          msg = 'Error al enviar mensaje (${fe.code}): ${fe.message}';
+        } catch (_) {
+          msg = 'Error al enviar el mensaje: $e';
+        }
+        AppServices.showSnackBar(context, msg, Colors.red);
       }
     }
   }
@@ -185,38 +204,40 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
               if (_selectedChannel == 'Cercano')
                 SizedBox(
                   height: 200,
-                  child: userLocation.latitude == null
-                      ? Center(child: Text('No se puede mostrar el mapa sin ubicación.'.tr(), style: const TextStyle(color: Colors.white70)))
-                      : Stack(
-                          children: [
-                            GoogleMap(
-                              onMapCreated: _onMapCreated,
-                              initialCameraPosition: CameraPosition(
-                                target: LatLng(userLocation.latitude!, userLocation.longitude!),
-                                zoom: 10,
-                              ),
-                              markers: {
-                                Marker(
-                                  markerId: const MarkerId('userLocation'),
-                                  position: LatLng(userLocation.latitude!, userLocation.longitude!),
+                  child: !kEnableGlobalMap
+                      ? Center(child: Text('Mapa desactivado temporalmente'.tr(), style: const TextStyle(color: Colors.white70)))
+                      : userLocation.latitude == null
+                          ? Center(child: Text('No se puede mostrar el mapa sin ubicación.'.tr(), style: const TextStyle(color: Colors.white70)))
+                          : Stack(
+                              children: [
+                                GoogleMap(
+                                  onMapCreated: _onMapCreated,
+                                  initialCameraPosition: CameraPosition(
+                                    target: LatLng(userLocation.latitude!, userLocation.longitude!),
+                                    zoom: 10,
+                                  ),
+                                  markers: {
+                                    Marker(
+                                      markerId: const MarkerId('userLocation'),
+                                      position: LatLng(userLocation.latitude!, userLocation.longitude!),
+                                    ),
+                                  },
+                                  circles: {
+                                    Circle(
+                                      circleId: const CircleId('searchRadius'),
+                                      center: LatLng(userLocation.latitude!, userLocation.longitude!),
+                                      radius: _searchRadius * 1000,
+                                      fillColor: Colors.amber.withOpacity(0.2),
+                                      strokeColor: Colors.amber,
+                                      strokeWidth: 2,
+                                    ),
+                                  },
                                 ),
-                              },
-                              circles: {
-                                Circle(
-                                  circleId: const CircleId('searchRadius'),
-                                  center: LatLng(userLocation.latitude!, userLocation.longitude!),
-                                  radius: _searchRadius * 1000,
-                                  fillColor: Colors.amber.withOpacity(0.2),
-                                  strokeColor: Colors.amber,
-                                  strokeWidth: 2,
-                                ),
-                              },
-                            ),
-                            Positioned(
-                              bottom: 10,
-                              left: 10,
-                              right: 10,
-                              child: Card(
+                                Positioned(
+                                  bottom: 10,
+                                  left: 10,
+                                  right: 10,
+                                  child: Card(
                                 color: Colors.black54,
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -381,11 +402,9 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
             if (!isMe)
               GestureDetector(
                 onTap: onUserTap,
-                child: CircleAvatar(
+                child: AvatarOptimizado(
+                  url: avatarUrl,
                   radius: 16,
-                  backgroundImage: avatarUrl != null && avatarUrl.startsWith('http')
-                      ? NetworkImage(avatarUrl)
-                      : const AssetImage('assets/default_avatar.png') as ImageProvider,
                   backgroundColor: Colors.grey[700],
                 ),
               ),
@@ -430,11 +449,9 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
             if (isMe)
               GestureDetector(
                 onTap: onUserTap,
-                child: CircleAvatar(
+                child: AvatarOptimizado(
+                  url: avatarUrl,
                   radius: 16,
-                  backgroundImage: avatarUrl != null && avatarUrl.startsWith('http')
-                      ? NetworkImage(avatarUrl)
-                      : const AssetImage('assets/default_avatar.png') as ImageProvider,
                   backgroundColor: Colors.grey[700],
                 ),
               ),

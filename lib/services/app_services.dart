@@ -188,6 +188,7 @@ class AppServices {
     }
   }
 
+  // ✅ Función CORREGIDA/VERIFICADA para notificar al ayudador y pedirle que califique.
   Future<void> notifyHelperAfterRequesterRates({
     required BuildContext context,
     required String helperId,
@@ -203,10 +204,12 @@ class AppServices {
         recipientId: helperId,
         type: 'helper_rated',
         title: '¡Tienes una nueva calificación!',
-        body: '¡Excelente trabajo! $requesterName te ha calificado con ${rating.toStringAsFixed(1)} estrellas.',
+        // Se añade el mensaje sobre el turno de calificar
+        body: '¡Excelente trabajo! $requesterName te ha calificado con ${rating.toStringAsFixed(1)} estrellas y es tu turno para calificar.',
         data: {
           'notificationType': 'helper_rated',
-          'route': '/rate-requester/$requestId', // <- antes navigationPath
+          // La ruta debe llevar al ayudador a la pantalla para calificar al solicitante
+          'route': '/rate-requester/$requestId?requesterId=$requesterId&requesterName=${Uri.encodeComponent(requesterName)}', 
           'requestId': requestId,
           'requesterId': requesterId,
           'requesterName': requesterName,
@@ -214,10 +217,10 @@ class AppServices {
           'reviewComment': reviewComment,
         },
       );
-      print('Notificación de calificación enviada al ayudador.');
+      print('Notificación de solicitud de calificación enviada al ayudador.');
     } catch (e) {
       print('Error al notificar al ayudador sobre la calificación: $e');
-      AppServices.showSnackBar(context, 'Error al enviar notificación de calificación.', Colors.red);
+      AppServices.showSnackBar(context, 'Error al enviar notificación de solicitud de calificación.', Colors.red);
     }
   }
 
@@ -449,4 +452,3 @@ class AppServices {
     }
   }
 }
-
