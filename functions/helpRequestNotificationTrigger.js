@@ -7,19 +7,7 @@ import * as logger from "firebase-functions/logger";
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
-// Haversine distance in km
-function haversineKm(lat1, lon1, lat2, lon2) {
-  const toRad = (v) => (v * Math.PI) / 180;
-  const R = 6371; // Earth radius km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
+// Filtrado simplificado: ignorar proximidad/provincia, enviar a usuarios elegibles con push y token
 
 export const helpRequestNotificationTrigger = onDocumentCreated(
   "solicitudes-de-ayuda/{requestId}",
@@ -59,35 +47,10 @@ export const helpRequestNotificationTrigger = onDocumentCreated(
         const u = doc.data() || {};
         const uid = doc.id;
         if (!uid || uid === ownerId) return; // evitar notificar al dueño
-
-        const sortingPref = String(u.sortingPreference || "");
-        const userProv = String(u.province || "");
-        const userLat = Number(u.latitude ?? NaN);
-        const userLon = Number(u.longitude ?? NaN);
-        const searchRadius = Number(u.searchRadius ?? 3); // km (por defecto 3 km)
-
-        let matches = false;
-        if (sortingPref === "Cercano" || sortingPref === "Más cercanos" || sortingPref === "Mas cercanos" || sortingPref === "Nearby") {
-          if (!isNaN(userLat) && !isNaN(userLon) && !isNaN(reqLat) && !isNaN(reqLon)) {
-            const dist = haversineKm(userLat, userLon, reqLat, reqLon);
-            matches = dist <= searchRadius;
-          }
-        } else if (sortingPref === "Provincial") {
-          matches = userProv && reqProv && userProv === reqProv;
-        } else if (sortingPref === "Nacional") {
-          matches = true;
-        } else {
-          // Preferencia indefinida: si tenemos coordenadas del usuario y de la solicitud, usar un radio por defecto
-          if (!isNaN(userLat) && !isNaN(userLon) && !isNaN(reqLat) && !isNaN(reqLon)) {
-            const dist = haversineKm(userLat, userLon, reqLat, reqLon);
-            matches = dist <= 3; // radio por defecto 3 km
-          }
-        }
-
-        if (!matches) return;
-
+        // Solo usuarios con push habilitado y token válido
+        const pushEnabled = !!u.pushNotificationsEnabled;
         const token = u.fcmToken;
-        if (token) {
+        if (pushEnabled && token) {
           tokens.push(token);
           notifiedCount += 1;
         }

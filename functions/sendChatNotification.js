@@ -20,6 +20,9 @@ export const sendChatNotification = onDocumentCreated('chats/{chatId}/messages/{
       return null;
     }
 
+    // Log temprano para depuración del token del receptor
+    console.log('Fetching receiver token for user:', receiverId);
+
     // Obtener los datos del receptor, incluyendo el chat actual y el token FCM
     const receiverDoc = await admin.firestore().collection('users').doc(receiverId).get();
     if (!receiverDoc.exists) {
@@ -29,11 +32,16 @@ export const sendChatNotification = onDocumentCreated('chats/{chatId}/messages/{
     const receiverData = receiverDoc.data();
     const receiverToken = receiverData.fcmToken;
 
-    // Verificar si el receptor está en el chat activo. Si lo está, no se envía la notificación.
-    if (receiverData.currentChatId === chatId) {
-      console.log('User is in the active chat, not sending push notification.');
+    // Log de presencia de token FCM del receptor
+    console.log('Receiver FCM token:', receiverToken ? 'present' : 'missing');
+
+    // Si no hay token del receptor, finalizar limpiamente
+    if (!receiverToken) {
+      console.log('Receiver FCM token missing, skipping push.');
       return null;
     }
+
+    // Eliminado temporalmente el filtro de chat activo para garantizar el envío del push
 
     // Obtener los datos del remitente para la notificación
     const senderDoc = await admin.firestore().collection('users').doc(senderId).get();
