@@ -6,3 +6,7 @@ export { sendRatingNotification } from "./sendRatingNotification.js";
 export { createNotificationTrigger } from "./createNotificationTrigger.js";
 export { ratingNotificationTrigger } from "./ratingNotificationTrigger.js";
 export { ratingStatsTrigger } from "./ratingStatsTrigger.js";
+export { moderateImageUpload } from "./moderateImage.js";
+export { moderateVideoUpload } from "./moderateVideo.js";
+export { moderateTextAndSet } from "./moderateTextHTTP.js";
+export { helpRequestNotificationTrigger } from "./helpRequestNotificationTrigger.js";

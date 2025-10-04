@@ -121,6 +121,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.0.2"
+  cloud_functions:
+    dependency: "direct main"
+    description:
+      name: cloud_functions
+      sha256: bf3b5b18b794123d452196e407e5952b4fe002043a373f0acac0f8fc6998567f
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.2"
+  cloud_functions_platform_interface:
+    dependency: transitive
+    description:
+      name: cloud_functions_platform_interface
+      sha256: d3a24cb9bf0a0fe8abe71db47d703d368a175d956c40730f7a216211ccbc5d8d
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.8.5"
+  cloud_functions_web:
+    dependency: transitive
+    description:
+      name: cloud_functions_web
+      sha256: dbcde017570afd7186addf8ba7b985a89ddcaf689e76741540d41e7cd0ce5bbe
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.0.2"
   collection:
     dependency: transitive
     description:
@@ -353,6 +377,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.0.2"
+  firebase_remote_config:
+    dependency: "direct main"
+    description:
+      name: firebase_remote_config
+      sha256: "6406d65d88d41891d201095d1a6bff8ecabe91f3097090db00900d53826f2f9f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.2"
+  firebase_remote_config_platform_interface:
+    dependency: transitive
+    description:
+      name: firebase_remote_config_platform_interface
+      sha256: "60ec31cc11bcf2f416e86dd77521784b7dc4be1b82118ca10a1ce9a29fa85e09"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.3"
+  firebase_remote_config_web:
+    dependency: transitive
+    description:
+      name: firebase_remote_config_web
+      sha256: "864791054997d63987e0fbb2d7b175ab04e41060a9315b7eeddba2974603247c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.8.12"
   firebase_storage:
     dependency: "direct main"
     description:
@@ -1354,6 +1402,46 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.4"
+  video_player:
+    dependency: "direct main"
+    description:
+      name: video_player
+      sha256: "0d55b1f1a31e5ad4c4967bfaa8ade0240b07d20ee4af1dfef5f531056512961a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.10.0"
+  video_player_android:
+    dependency: transitive
+    description:
+      name: video_player_android
+      sha256: "6cfe0b1e102522eda1e139b82bf00602181c5844fd2885340f595fb213d74842"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.8.14"
+  video_player_avfoundation:
+    dependency: transitive
+    description:
+      name: video_player_avfoundation
+      sha256: f9a780aac57802b2892f93787e5ea53b5f43cc57dc107bee9436458365be71cd
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.8.4"
+  video_player_platform_interface:
+    dependency: transitive
+    description:
+      name: video_player_platform_interface
+      sha256: cf2a1d29a284db648fd66cbd18aacc157f9862d77d2cc790f6f9678a46c1db5a
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.4.0"
+  video_player_web:
+    dependency: transitive
+    description:
+      name: video_player_web
+      sha256: "9f3c00be2ef9b76a95d94ac5119fb843dca6f2c69e6c9968f6f2b6c9e7afbdeb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.0"
   vm_service:
     dependency: transitive
     description:

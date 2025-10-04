@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import '../widgets/spinning_image_loader.dart'; // �o. A�'ADIDO: Importa el widget
+import '../widgets/avatar_optimizado.dart';
 
 class MyRatingsSection extends StatelessWidget {
   const MyRatingsSection({Key? key}) : super(key: key);
@@ -23,14 +24,18 @@ class MyRatingsSection extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('ratings')
           .where('targetUserId', isEqualTo: currentUser.uid)
-          .orderBy('timestamp', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: SpinningImageLoader()); // �o. CORREGIDO: Usando el nuevo widget
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error al cargar calificaciones: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+          final err = snapshot.error;
+          String msg = 'Error al cargar calificaciones: $err';
+          if (err is FirebaseException && err.code == 'failed-precondition') {
+            msg = 'Error al cargar calificaciones: consulta sin índice. Ajustamos la consulta; si persiste, intenta reiniciar la app.';
+          }
+          return Center(child: Text(msg, style: const TextStyle(color: Colors.red)));
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(
@@ -42,7 +47,15 @@ class MyRatingsSection extends StatelessWidget {
           );
         }
 
-        final ratings = snapshot.data!.docs;
+        // Ordenar en cliente para evitar requerir índice compuesto
+        final ratings = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final ta = (a.data() as Map<String, dynamic>)['timestamp'];
+            final tb = (b.data() as Map<String, dynamic>)['timestamp'];
+            final da = ta is Timestamp ? ta.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+            final db = tb is Timestamp ? tb.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+            return db.compareTo(da); // descendente
+          });
 
         return ListView.builder(
           padding: const EdgeInsets.all(8.0),
@@ -70,12 +83,16 @@ class MyRatingsSection extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 3,
                   child: ListTile(
-                    leading: CircleAvatar(
+                    leading: AvatarOptimizado(
+                      url: (sourceUserPhoto != null && sourceUserPhoto.startsWith('http')) ? sourceUserPhoto : null,
+                      storagePath: (sourceUserPhoto != null && !sourceUserPhoto.startsWith('http')) ? sourceUserPhoto : null,
                       radius: 25,
-                      backgroundImage: (sourceUserPhoto != null && sourceUserPhoto.startsWith('http'))
-                          ? NetworkImage(sourceUserPhoto)
-                          : const AssetImage('assets/default_avatar.png') as ImageProvider,
                       backgroundColor: Colors.grey[700],
+                      placeholder: const CircleAvatar(
+                        radius: 25,
+                        backgroundColor: Colors.grey,
+                        backgroundImage: AssetImage('assets/default_avatar.png'),
+                      ),
                     ),
                     title: Text(sourceUserName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                     subtitle: Column(
@@ -96,7 +113,14 @@ class MyRatingsSection extends StatelessWidget {
                           ),
                       ],
                     ),
-                    onTap: () => context.pushNamed('user_rating_details', pathParameters: {'userId': sourceUserId}, extra: sourceUserName),
+                    onTap: () => context.pushNamed(
+                      'user_profile_view',
+                      pathParameters: {'userId': sourceUserId},
+                      extra: {
+                        'userName': sourceUserName,
+                        'userPhotoUrl': sourceUserPhoto,
+                      },
+                    ),
                   ),
                 );
               },

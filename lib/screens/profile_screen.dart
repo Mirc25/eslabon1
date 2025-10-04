@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart'; 
 import 'package:easy_localization/easy_localization.dart';
 import '../widgets/spinning_image_loader.dart'; 
+import '../widgets/avatar_optimizado.dart';
 
 class Country {
   final String code;
@@ -211,6 +212,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _captureImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.camera,
+      preferredCameraDevice: CameraDevice.front,
+    );
+
+    if (image != null) {
+      setState(() {
+        _newProfileImage = File(image.path);
+      });
+    }
+  }
+
+  void _openImageSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: Text('Tomar foto', style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _captureImage();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: Text('Elegir de galería', style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _pickImage();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<String?> _uploadImage() async {
     if (currentUser == null) {
       _showErrorDialog('Debes iniciar sesi�n para subir una imagen de perfil.');
@@ -220,13 +270,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_newProfileImage == null) return _profileImagePath;
 
     try {
-      final String fileName = 'users/${currentUser!.uid}/profile_picture.jpg';
+      // Usar nombre versionado para evitar caché: profile_picture_<timestamp>.jpg
+      final int ts = DateTime.now().millisecondsSinceEpoch;
+      final String fileName = 'users/${currentUser!.uid}/profile_picture_$ts.jpg';
+
+      // Opcional: eliminar imagen anterior para no dejar archivos huérfanos
+      try {
+        if (_profileImagePath != null && _profileImagePath!.isNotEmpty) {
+          await _storage.ref().child(_profileImagePath!).delete();
+        }
+      } catch (_) {
+        // Ignorar si no existe o no se puede borrar
+      }
+
       final UploadTask uploadTask = _storage.ref().child(fileName).putFile(_newProfileImage!);
-      
       final TaskSnapshot taskSnapshot = await uploadTask;
-      
       final String uploadedPath = taskSnapshot.ref.fullPath;
-      
       return uploadedPath;
     } on FirebaseException catch (e) {
       print("Error uploading image: ${e.code} - ${e.message}");
@@ -411,57 +470,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Center(
                 child: GestureDetector(
-                  onTap: _pickImage,
-                  child: FutureBuilder<String>(
-                    // 1. Verificar si el path está en el caché:
-                    future: _profileImagePath != null && _profilePictureUrlCache.containsKey(_profileImagePath)
-                        ? Future.value(_profilePictureUrlCache[_profileImagePath]!)
-                        // 2. Si no está en caché, llamar a Storage:
-                        : _profileImagePath != null && _profileImagePath!.isNotEmpty
-                            ? _storage.ref().child(_profileImagePath!).getDownloadURL()
-                            : Future.value(''),
-                    builder: (context, urlSnapshot) {
-                      final String? finalImageUrl = urlSnapshot.data;
-                      
-                      // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
-                      if (urlSnapshot.connectionState == ConnectionState.done && 
-                          finalImageUrl != null && 
-                          finalImageUrl.isNotEmpty && 
-                          _profileImagePath != null && 
-                          !_profilePictureUrlCache.containsKey(_profileImagePath)) {
-                        _profilePictureUrlCache[_profileImagePath!] = finalImageUrl;
-                      }
-                      
-                      return Stack(
-                        children: [
-                          CircleAvatar(
+                  onTap: _openImageSourceSheet,
+                  child: Stack(
+                    children: [
+                      if (_newProfileImage != null)
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Colors.grey[800],
+                          backgroundImage: FileImage(_newProfileImage!),
+                        )
+                      else
+                        AvatarOptimizado(
+                          url: (_profileImagePath != null && _profileImagePath!.startsWith('http')) ? _profileImagePath : null,
+                          storagePath: (_profileImagePath != null && !_profileImagePath!.startsWith('http')) ? _profileImagePath : null,
+                          radius: 60,
+                          backgroundColor: Colors.grey[800],
+                          placeholder: const CircleAvatar(
                             radius: 60,
-                            backgroundColor: Colors.grey[800],
-                            backgroundImage: _newProfileImage != null
-                                ? FileImage(_newProfileImage!)
-                                : (finalImageUrl != null && finalImageUrl.isNotEmpty
-                                ? NetworkImage(finalImageUrl) as ImageProvider<Object>?
-                                : const AssetImage('assets/default_avatar.png') as ImageProvider<Object>?),
-                            child: _newProfileImage == null && (finalImageUrl == null || finalImageUrl.isEmpty)
-                                ? const Icon(Icons.person, size: 60, color: Colors.white70)
-                                : null,
+                            backgroundColor: Colors.grey,
+                            backgroundImage: AssetImage('assets/default_avatar.png'),
                           ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.amber,
-                              radius: 20,
-                              child: Icon(
-                                Icons.camera_alt,
-                                color: Colors.black,
-                                size: 20,
-                              ),
-                            ),
+                        ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: CircleAvatar(
+                          backgroundColor: Colors.amber,
+                          radius: 20,
+                          child: Icon(
+                            Icons.camera_alt,
+                            color: Colors.black,
+                            size: 20,
                           ),
-                        ],
-                      );
-                    },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

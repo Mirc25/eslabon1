@@ -110,14 +110,9 @@ class NotificationService {
       final String? chatRoomId = message.data['chatRoomId']?.toString();
       final String? notificationType = message.data['notificationType']?.toString();
 
-      // Si la app está en primer plano, no mostrar notificaciones push
-      if (_isAppInForeground) {
-        debugPrint('App en primer plano, notificación suprimida.');
-        return;
-      }
-
-      if (notificationType == 'chat_message' && _activeChatId == chatRoomId) {
-        debugPrint('Mensaje de chat en primer plano en chat activo, se ignora.');
+      // En primer plano: suprimir solo chats del hilo activo; mostrar demás tipos
+      if (_isAppInForeground && notificationType == 'chat_message' && _activeChatId == chatRoomId) {
+        debugPrint('Mensaje de chat en chat activo, se ignora en foreground.');
         return;
       }
       await _handleMessage(message);

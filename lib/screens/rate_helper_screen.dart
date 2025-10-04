@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:eslabon_flutter/utils/firestore_utils.dart';
 import 'package:eslabon_flutter/theme/app_colors.dart';
 import 'package:eslabon_flutter/services/app_services.dart'; // ✅ Importado AppServices
+import '../widgets/avatar_optimizado.dart';
 
 class RateHelperScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -34,6 +35,9 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
   final TextEditingController _commentController = TextEditingController();
   bool _isLoading = true;
   bool _hasRated = false;
+  
+  // ✅ Foto de perfil del ayudador (path en Storage)
+  String? _helperProfilePath;
   
   // Datos a cargar/obtener del solicitante (usuario actual)
   String _requesterName = '';
@@ -93,18 +97,26 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
           if (requestDoc.exists) {
               _requestTitle = requestDoc.data()?['titulo'] ?? 'Solicitud de Ayuda';
           }
+
+          // 3. Obtener foto de perfil del ayudador (si existe)
+          final helperDoc = await _firestore.collection('users').doc(widget.helperId).get();
+          if (helperDoc.exists) {
+              _helperProfilePath = helperDoc.data()?['profilePicture'] as String?;
+          }
           
-          // 3. Verificar si ya calificó
-          final ratingDoc = await _firestore
+          // 4. Verificar si ya calificó (evitar índices compuestos)
+          final ratingSnap = await _firestore
               .collection('ratings')
               .where('requestId', isEqualTo: widget.requestId)
-              .where('sourceUserId', isEqualTo: currentUser.uid)
-              .where('targetUserId', isEqualTo: widget.helperId)
               .get();
-
+          final hasRated = ratingSnap.docs.any((doc) {
+            final data = doc.data();
+            return data['sourceUserId'] == currentUser.uid &&
+                   data['targetUserId'] == widget.helperId;
+          });
           if (mounted) {
               setState(() {
-                  _hasRated = ratingDoc.docs.isNotEmpty;
+                  _hasRated = hasRated;
                   _isLoading = false;
               });
           }
@@ -325,13 +337,18 @@ class _RateHelperScreenState extends ConsumerState<RateHelperScreen>
                       ),
                       child: Column(
                         children: [
-                          const CircleAvatar(
+                          AvatarOptimizado(
+                            storagePath: _helperProfilePath,
                             radius: 40,
                             backgroundColor: Colors.white,
-                            child: Icon(
-                              Icons.person,
-                              size: 50,
-                              color: AppColors.primary,
+                            placeholder: const CircleAvatar(
+                              radius: 40,
+                              backgroundColor: Colors.white,
+                              child: Icon(
+                                Icons.person,
+                                size: 50,
+                                color: AppColors.primary,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 15),

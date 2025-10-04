@@ -16,6 +16,8 @@ class _AvatarCacheManager extends CacheManager {
 }
 
 class AvatarOptimizado extends StatelessWidget {
+  // Caché global en memoria para URLs resueltas de Firebase Storage -> URL pública
+  static final Map<String, String> _resolvedUrlCache = {};
   final String? url; // URL directa (photoUrl, profileImageUrl, etc.)
   final String? storagePath; // Ruta en Firebase Storage (avatarPath)
   final int? avatarVersion; // Versión para invalidación controlada
@@ -61,8 +63,17 @@ class AvatarOptimizado extends StatelessWidget {
 
   Future<String?> _resolveUrl() async {
     if (storagePath != null && storagePath!.isNotEmpty) {
+      // Si ya está en caché global, devolver inmediatamente para evitar flashes
+      final cached = _resolvedUrlCache[storagePath!];
+      if (cached != null && cached.isNotEmpty) {
+        return cached;
+      }
       try {
-        return await FirebaseStorage.instance.ref().child(storagePath!).getDownloadURL();
+        final resolved = await FirebaseStorage.instance.ref().child(storagePath!).getDownloadURL();
+        if (resolved.isNotEmpty) {
+          _resolvedUrlCache[storagePath!] = resolved;
+        }
+        return resolved;
       } catch (_) {
         return null;
       }
@@ -98,8 +109,9 @@ class AvatarOptimizado extends StatelessWidget {
             imageUrl: effectiveUrl,
             cacheKey: cacheKey,
             cacheManager: _AvatarCacheManager(),
-            fadeInDuration: const Duration(milliseconds: 120),
-            fadeOutDuration: const Duration(milliseconds: 60),
+            // Evitar cualquier efecto de fade para reducir percepciones de "flash"
+            fadeInDuration: Duration.zero,
+            fadeOutDuration: Duration.zero,
             memCacheWidth: diameter.round(),
             memCacheHeight: diameter.round(),
             placeholder: (_, __) => consistentPlaceholder,
@@ -122,6 +134,8 @@ class AvatarOptimizado extends StatelessWidget {
                   height: diameter,
                   child: Image(
                     image: imageProvider,
+                    // Mantener frame anterior si cambia la URL mientras se carga
+                    gaplessPlayback: true,
                     fit: BoxFit.cover,
                   ),
                 ),

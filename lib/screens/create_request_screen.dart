@@ -15,12 +15,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:easy_localization/easy_localization.dart';
+import '../widgets/avatar_optimizado.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/providers/user_provider.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/spinning_image_loader.dart';
-import '../widgets/banner_ad_widget.dart';
+import '../widgets/ad_banner_widget.dart';
+import '../services/ads_ids.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_background.dart';
 
@@ -91,6 +93,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   
   // Sistema de caché para URLs de imágenes de perfil
   final Map<String, String> _profilePictureUrlCache = {};
+  
+  // Evita reentrancia del ImagePicker (already_active)
+  bool _isPickingMedia = false;
 
   @override
   void initState() {
@@ -276,60 +281,141 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   }
 
   Future<void> _pickImages() async {
-    final ImagePicker picker = ImagePicker();
-    final List<XFile>? images = await picker.pickMultiImage(
-      imageQuality: 70,
-      maxWidth: 800,
-      maxHeight: 600,
-    );
+    if (_isPickingMedia) {
+      _showSnackBar('El selector ya está activo, por favor espere.'.tr(), Colors.orange);
+      return;
+    }
+    _isPickingMedia = true;
+    try {
+      final ImagePicker picker = ImagePicker();
+      final List<XFile>? images = await picker.pickMultiImage(
+        imageQuality: 70,
+        maxWidth: 800,
+        maxHeight: 600,
+      );
 
-    if (images != null && images.isNotEmpty) {
-      if (!mounted) return;
-      setState(() {
-        int remainingSlots = 5 - _selectedImages.length;
-        for (XFile xFile in images) {
-          if (remainingSlots <= 0) {
-            _showSnackBar('Has alcanzado el límite de 5 imágenes.'.tr(), Colors.orange);
-            break;
+      if (images != null && images.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          int remainingSlots = 5 - _selectedImages.length;
+          for (XFile xFile in images) {
+            if (remainingSlots <= 0) {
+              _showSnackBar('Has alcanzado el límite de 5 imágenes.'.tr(), Colors.orange);
+              break;
+            }
+            _selectedImages.add(xFile); // ✅ FIX: Almacena XFile directamente
+            remainingSlots--;
           }
-          _selectedImages.add(xFile); // ✅ FIX: Almacena XFile directamente
-          remainingSlots--;
-        }
-      });
+        });
+      }
+    } finally {
+      _isPickingMedia = false;
     }
   }
 
   Future<void> _pickVideos() async {
-    final ImagePicker picker = ImagePicker();
-    final List<XFile>? media = await picker.pickMultipleMedia();
+    if (_isPickingMedia) {
+      _showSnackBar('El selector ya está activo, por favor espere.'.tr(), Colors.orange);
+      return;
+    }
+    _isPickingMedia = true;
+    try {
+      final ImagePicker picker = ImagePicker();
+      final List<XFile>? media = await picker.pickMultipleMedia();
 
-    if (media != null && media.isNotEmpty) {
-      List<XFile> videosToAdd = [];
-      for (XFile file in media) {
-        if (file.mimeType != null && file.mimeType!.startsWith('video/')) {
-          final fileSize = await file.length();
-          if (fileSize > (_maxFileSizeMB * 1024 * 1024)) {
-            _showSnackBar('El video ${file.name} excede el tamaño máximo de ${_maxFileSizeMB}MB.'.tr(), Colors.red);
+      if (media != null && media.isNotEmpty) {
+        List<XFile> videosToAdd = [];
+        for (XFile file in media) {
+          if (file.mimeType != null && file.mimeType!.startsWith('video/')) {
+            final fileSize = await file.length();
+            if (fileSize > (_maxFileSizeMB * 1024 * 1024)) {
+              _showSnackBar('El video ${file.name} excede el tamaño máximo de ${_maxFileSizeMB}MB.'.tr(), Colors.red);
+              continue;
+            }
+            videosToAdd.add(file);
+          } else if (file.mimeType != null && file.mimeType!.startsWith('image/')) {
+            _showSnackBar('Por favor, selecciona solo videos, o usa el botón de imágenes para fotos.'.tr(), Colors.orange);
             continue;
           }
-          videosToAdd.add(file);
-        } else if (file.mimeType != null && file.mimeType!.startsWith('image/')) {
-          _showSnackBar('Por favor, selecciona solo videos, o usa el botón de imágenes para fotos.'.tr(), Colors.orange);
-          continue;
+        }
+        if (!mounted) return;
+        setState(() {
+          int remainingSlots = 3 - _selectedVideos.length;
+          for (XFile videoFile in videosToAdd) {
+            if (remainingSlots <= 0) {
+              _showSnackBar('Has alcanzado el límite de 3 videos.'.tr(), Colors.orange);
+              break;
+            }
+            _selectedVideos.add(videoFile); // ✅ FIX: Almacena XFile directamente
+            remainingSlots--;
+          }
+        });
+      }
+    } finally {
+      _isPickingMedia = false;
+    }
+  }
+
+  Future<void> _captureImageFromCamera() async {
+    if (_isPickingMedia) {
+      _showSnackBar('El selector ya está activo, por favor espere.'.tr(), Colors.orange);
+      return;
+    }
+    _isPickingMedia = true;
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70,
+        maxWidth: 800,
+        maxHeight: 600,
+      );
+
+      if (image != null) {
+        if (!mounted) return;
+        setState(() {
+          if (_selectedImages.length < 5) {
+            _selectedImages.add(image);
+          } else {
+            _showSnackBar('Has alcanzado el límite de 5 imágenes.'.tr(), Colors.orange);
+          }
+        });
+      }
+    } finally {
+      _isPickingMedia = false;
+    }
+  }
+
+  Future<void> _captureVideoFromCamera() async {
+    if (_isPickingMedia) {
+      _showSnackBar('El selector ya está activo, por favor espere.'.tr(), Colors.orange);
+      return;
+    }
+    _isPickingMedia = true;
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? video = await picker.pickVideo(
+        source: ImageSource.camera,
+        maxDuration: const Duration(minutes: 1),
+      );
+
+      if (video != null) {
+        final fileSize = await video.length();
+        if (fileSize > (_maxFileSizeMB * 1024 * 1024)) {
+          _showSnackBar('El video ${video.name} excede el tamaño máximo de ${_maxFileSizeMB}MB.'.tr(), Colors.red);
+        } else {
+          if (!mounted) return;
+          setState(() {
+            if (_selectedVideos.length < 3) {
+              _selectedVideos.add(video);
+            } else {
+              _showSnackBar('Has alcanzado el límite de 3 videos.'.tr(), Colors.orange);
+            }
+          });
         }
       }
-      if (!mounted) return;
-      setState(() {
-        int remainingSlots = 3 - _selectedVideos.length;
-        for (XFile videoFile in videosToAdd) {
-          if (remainingSlots <= 0) {
-            _showSnackBar('Has alcanzado el límite de 3 videos.'.tr(), Colors.orange);
-            break;
-          }
-          _selectedVideos.add(videoFile); // ✅ FIX: Almacena XFile directamente
-          remainingSlots--;
-        }
-      });
+    } finally {
+      _isPickingMedia = false;
     }
   }
 
@@ -384,41 +470,50 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         return;
       }
       
-      List<String> imagePaths = [];
-      // ✅ FIX: Lógica de subida estable para imágenes
-      for (XFile imageSource in _selectedImages) { 
-        String fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource.name}';
-        UploadTask uploadTask;
+      // Subir imágenes en paralelo con manejo de errores por archivo
+      final imageUploadFutures = _selectedImages.map((imageSource) async {
+        try {
+          final fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource.name}';
+          final ref = _storage.ref().child(fileName);
+          if (kIsWeb) {
+            final bytes = await imageSource.readAsBytes();
+            await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          } else {
+            await ref.putFile(File(imageSource.path), SettableMetadata(contentType: 'image/jpeg'));
+          }
+          print('DEBUG CREATE: Imagen subida: $fileName');
+          return fileName;
+        } catch (e) {
+          print('ERROR CREATE: Falló subida imagen ${imageSource.name}: $e');
+          _showSnackBar('Falló subir imagen ${imageSource.name}'.tr(), Colors.red);
+          return null; // devolvemos null para filtrar luego
+        }
+      }).toList();
 
-        // Lee los bytes del archivo (estable para web y móvil)
-        Uint8List bytes = await imageSource.readAsBytes(); 
-        
-        // Usa putData para subida estable
-        uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-        
-        await uploadTask;
-        imagePaths.add(fileName);
-        print('DEBUG CREATE: Imagen subida: $fileName');
-      }
+      final imagePaths = (await Future.wait(imageUploadFutures)).whereType<String>().toList();
 
-      List<String> videoPaths = [];
-      // ✅ FIX: Lógica de subida estable para videos
-      for (XFile videoSource in _selectedVideos) { 
-        String fileName = 'videos/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${videoSource.name}';
-        UploadTask uploadTask;
+      // Subir videos en paralelo con manejo de errores por archivo
+      final videoUploadFutures = _selectedVideos.map((videoSource) async {
+        try {
+          final fileName = 'videos/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${videoSource.name}';
+          final contentType = videoSource.mimeType?.toString() ?? 'video/mp4';
+          final ref = _storage.ref().child(fileName);
+          if (kIsWeb) {
+            final bytes = await videoSource.readAsBytes();
+            await ref.putData(bytes, SettableMetadata(contentType: contentType));
+          } else {
+            await ref.putFile(File(videoSource.path), SettableMetadata(contentType: contentType));
+          }
+          print('DEBUG CREATE: Video subido: $fileName');
+          return fileName;
+        } catch (e) {
+          print('ERROR CREATE: Falló subida video ${videoSource.name}: $e');
+          _showSnackBar('Falló subir video ${videoSource.name}'.tr(), Colors.red);
+          return null; // devolvemos null para filtrar luego
+        }
+      }).toList();
 
-        String contentType = videoSource.mimeType?.toString() ?? 'video/mp4';
-
-        // Lee los bytes del archivo (estable para web y móvil)
-        Uint8List bytes = await videoSource.readAsBytes(); 
-        
-        // Usa putData para subida estable
-        uploadTask = _storage.ref().child(fileName).putData(bytes, SettableMetadata(contentType: contentType));
-
-        await uploadTask;
-        videoPaths.add(fileName);
-        print('DEBUG CREATE: Video subido: $fileName');
-      }
+      final videoPaths = (await Future.wait(videoUploadFutures)).whereType<String>().toList();
       
       final requesterName = userData['name']?.toString() ?? 'Usuario anónimo'.tr();
       final profileImagePath = userData['profilePicture']?.toString() ?? '';
@@ -560,7 +655,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: CustomBackground(
-        child: showLoading
+        child: Stack(
+          children: [
+            showLoading
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -581,34 +678,16 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                     Text('Datos del Solicitante'.tr(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
                     Center(
-                      child: FutureBuilder<String>(
-                        // 1. Verificar si el path está en el caché:
-                        future: _userAvatarPath != null && _profilePictureUrlCache.containsKey(_userAvatarPath)
-                            ? Future.value(_profilePictureUrlCache[_userAvatarPath]!)
-                            // 2. Si no está en caché, llamar a Storage:
-                            : _userAvatarPath != null && _userAvatarPath!.isNotEmpty
-                                ? _storage.ref().child(_userAvatarPath!).getDownloadURL()
-                                : Future.value(''),
-                        builder: (context, urlSnapshot) {
-                          final String? finalImageUrl = urlSnapshot.data;
-                          
-                          // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
-                          if (urlSnapshot.connectionState == ConnectionState.done && 
-                              finalImageUrl != null && 
-                              finalImageUrl.isNotEmpty && 
-                              _userAvatarPath != null && 
-                              !_profilePictureUrlCache.containsKey(_userAvatarPath)) {
-                            _profilePictureUrlCache[_userAvatarPath!] = finalImageUrl;
-                          }
-                          
-                          return CircleAvatar(
-                            radius: 40,
-                            backgroundColor: Colors.grey[700],
-                            backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
-                                ? NetworkImage(finalImageUrl)
-                                : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                          );
-                        },
+                      child: AvatarOptimizado(
+                        url: (_userAvatarPath != null && _userAvatarPath!.startsWith('http')) ? _userAvatarPath : null,
+                        storagePath: (_userAvatarPath != null && !_userAvatarPath!.startsWith('http')) ? _userAvatarPath : null,
+                        radius: 40,
+                        backgroundColor: Colors.grey[700],
+                        placeholder: const CircleAvatar(
+                          radius: 40,
+                          backgroundColor: Colors.grey,
+                          backgroundImage: AssetImage('assets/default_avatar.png'),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -739,7 +818,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                       runSpacing: 8.0,
                       children: [
                         GestureDetector(
-                          onTap: _selectedImages.length < 5 ? _pickImages : null,
+                          onTap: (_selectedImages.length < 5 && !_isPickingMedia) ? _pickImages : null,
                           child: Container(
                             width: 80,
                             height: 80,
@@ -748,7 +827,24 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.white54),
                             ),
-                            child: const Icon(Icons.add_a_photo, color: Colors.white70, size: 30),
+                            child: _isPickingMedia
+                                ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber))
+                                : const Icon(Icons.add_a_photo, color: Colors.white70, size: 30),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: (_selectedImages.length < 5 && !_isPickingMedia) ? _captureImageFromCamera : null,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[800],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white54),
+                            ),
+                            child: _isPickingMedia
+                                ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber))
+                                : const Icon(Icons.photo_camera, color: Colors.white70, size: 30),
                           ),
                         ),
                         ..._selectedImages.asMap().entries.map((entry) {
@@ -808,7 +904,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                       runSpacing: 8.0,
                       children: [
                         GestureDetector(
-                          onTap: _selectedVideos.length < 3 ? _pickVideos : null,
+                          onTap: (_selectedVideos.length < 3 && !_isPickingMedia) ? _pickVideos : null,
                           child: Container(
                             width: 80,
                             height: 80,
@@ -817,7 +913,24 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.white54),
                             ),
-                            child: const Icon(Icons.video_call, color: Colors.white70, size: 30),
+                            child: _isPickingMedia
+                                ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber))
+                                : const Icon(Icons.video_call, color: Colors.white70, size: 30),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: (_selectedVideos.length < 3 && !_isPickingMedia) ? _captureVideoFromCamera : null,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[800],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white54),
+                            ),
+                            child: _isPickingMedia
+                                ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber))
+                                : const Icon(Icons.videocam, color: Colors.white70, size: 30),
                           ),
                         ),
                         ..._selectedVideos.asMap().entries.map((entry) {
@@ -876,7 +989,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
                     Text('Publicidad Destacada'.tr(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
-                    const BannerAdWidget(),
+                    AdBannerWidget(adUnitId: AdsIds.banner),
                     const SizedBox(height: 20),
 
                     Center(
@@ -903,6 +1016,28 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                 ),
               ),
             ),
+            if (_isPickingMedia)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.amber),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Abriendo el selector, por favor espere...'.tr(),
+                          style: const TextStyle(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

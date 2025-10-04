@@ -1,5 +1,6 @@
 // lib/screens/chat_list_screen.dart
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +9,8 @@ import 'package:easy_localization/easy_localization.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
-import '../widgets/spinning_image_loader.dart';
+import '../widgets/skeleton_list.dart';
+import '../services/remote_config_service.dart';
 import '../widgets/avatar_optimizado.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -22,19 +24,32 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   User? _currentUser;
   List<DocumentSnapshot> _searchResults = [];
   bool _isSearching = false;
+  // Paginación de chats
+  List<DocumentSnapshot> _chats = [];
+  DocumentSnapshot? _lastChatDoc;
+  bool _isLoadingChats = true;
+  bool _hasMoreChats = true;
+  int _pageSize = 20;
+  // Debounce de búsqueda
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _currentUser = _auth.currentUser;
+    _pageSize = RemoteConfigService().getPageSize(fallback: 20);
+    _loadInitialChats();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -57,33 +72,70 @@ class _ChatListScreenState extends State<ChatListScreen> {
       });
       return;
     }
-
-    setState(() {
-      _isSearching = true;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      setState(() {
+        _isSearching = true;
+      });
+      try {
+        final QuerySnapshot result = await _firestore
+            .collection('users')
+            .where('lowercaseName', isGreaterThanOrEqualTo: query.toLowerCase())
+            .where('lowercaseName', isLessThan: '${query.toLowerCase()}\uf8ff')
+            .limit(10)
+            .get();
+        final filteredResults = result.docs.where((doc) => doc.id != _currentUser!.uid).toList();
+        setState(() {
+          _searchResults = filteredResults;
+          _isSearching = false;
+        });
+      } catch (e) {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
     });
+  }
 
-    try {
-      // Buscar usuarios por nombre (case insensitive)
-      final QuerySnapshot result = await _firestore
-          .collection('users')
-          .where('name', isGreaterThanOrEqualTo: query)
-          .where('name', isLessThan: query + 'z')
-          .limit(10)
-          .get();
+  Future<void> _loadInitialChats() async {
+    if (_currentUser == null) return;
+    setState(() {
+      _isLoadingChats = true;
+      _hasMoreChats = true;
+      _chats.clear();
+      _lastChatDoc = null;
+    });
+    final QuerySnapshot firstPage = await _firestore
+        .collection('chats')
+        .where('participants', arrayContains: _currentUser!.uid)
+        .orderBy('lastMessage.timestamp', descending: true)
+        .limit(_pageSize)
+        .get();
+    setState(() {
+      _chats = firstPage.docs;
+      _lastChatDoc = _chats.isNotEmpty ? _chats.last : null;
+      _isLoadingChats = false;
+      _hasMoreChats = firstPage.docs.length == _pageSize;
+    });
+  }
 
-      // Filtrar para excluir al usuario actual
-      final filteredResults = result.docs.where((doc) => doc.id != _currentUser!.uid).toList();
-
-      setState(() {
-        _searchResults = filteredResults;
-        _isSearching = false;
-      });
-    } catch (e) {
-      setState(() {
-        _searchResults = [];
-        _isSearching = false;
-      });
-    }
+  Future<void> _loadMoreChats() async {
+    if (!_hasMoreChats || _isLoadingChats || _lastChatDoc == null || _currentUser == null) return;
+    setState(() => _isLoadingChats = true);
+    final QuerySnapshot nextPage = await _firestore
+        .collection('chats')
+        .where('participants', arrayContains: _currentUser!.uid)
+        .orderBy('lastMessage.timestamp', descending: true)
+        .startAfterDocument(_lastChatDoc!)
+        .limit(_pageSize)
+        .get();
+    setState(() {
+      _chats.addAll(nextPage.docs);
+      _lastChatDoc = _chats.isNotEmpty ? _chats.last : _lastChatDoc;
+      _isLoadingChats = false;
+      _hasMoreChats = nextPage.docs.length == _pageSize;
+    });
   }
 
   Future<void> _startChatWithUser(String userId, String userName, String? userAvatar) async {
@@ -211,7 +263,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                       child: ListTile(
                         leading: AvatarOptimizado(
-                          url: userAvatar,
+                          url: (userAvatar != null && userAvatar is String && userAvatar.startsWith('http')) ? userAvatar : null,
+                          storagePath: (userAvatar != null && userAvatar is String && !userAvatar.startsWith('http')) ? userAvatar : null,
                           radius: 20,
                           backgroundColor: Colors.grey[600],
                         ),
@@ -231,34 +284,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ),
               ),
             
-            // Lista de chats existentes
+            // Lista de chats existentes (paginada)
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore
-                    .collection('chats')
-                    .where('participants', arrayContains: _currentUser!.uid)
-                    .orderBy('lastMessage.timestamp', descending: true)
-                    .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: SpinningImageLoader());
-            }
-
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Center(
-                child: Text(
-                  'no_messages'.tr(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white54, fontSize: 16),
-                ),
-              );
-            }
-
-            final chats = snapshot.data!.docs;
-            return ListView.builder(
-              itemCount: chats.length,
-              itemBuilder: (context, index) {
-                final chatDoc = chats[index];
+              child: _isLoadingChats && _chats.isEmpty
+                  ? const SkeletonList()
+                  : NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200) {
+                          _loadMoreChats();
+                        }
+                        return false;
+                      },
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        itemCount: _chats.length + (_hasMoreChats ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index >= _chats.length) {
+                            return const Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: SkeletonList(itemCount: 1),
+                            );
+                          }
+                          final chatDoc = _chats[index];
                 final chatData = chatDoc.data() as Map<String, dynamic>;
                 final List participants = chatData['participants'] ?? [];
                 final String otherUserId = participants.firstWhere((id) => id != _currentUser!.uid, orElse: () => '');
@@ -294,7 +341,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           child: ListTile(
                             leading: AvatarOptimizado(
-                              url: otherUserAvatar,
+                              url: (otherUserAvatar != null && otherUserAvatar is String && otherUserAvatar.startsWith('http')) ? otherUserAvatar : null,
+                              storagePath: (otherUserAvatar != null && otherUserAvatar is String && !otherUserAvatar.startsWith('http')) ? otherUserAvatar : null,
                               radius: 20,
                               backgroundColor: Colors.grey[700],
                             ),
@@ -340,10 +388,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     );
                   },
                 );
-              },
-            );
-                },
-              ),
+                        },
+                      ),
+                    ),
             ),
           ],
         ),

@@ -150,17 +150,20 @@ Future<void> openNotificationAndMarkRead(
             final helperName = acceptedOffer['helperName']?.toString();
 
             if (helperId != null && helperName != null) {
-                 // 1. Verificar si ya calificó al ayudador (el solicitante)
-                 final existingRating = await FirebaseFirestore.instance
+                // 1. Verificar si ya calificó al ayudador (evitar índices compuestos)
+                final ratingSnap = await FirebaseFirestore.instance
                     .collection('ratings')
                     .where('requestId', isEqualTo: requestId)
-                    .where('sourceUserId', isEqualTo: currentUser.uid)
-                    .where('targetUserId', isEqualTo: helperId)
-                    .where('type', isEqualTo: 'helper_rating')
-                    .limit(1)
                     .get();
+                final hasRated = ratingSnap.docs.any((doc) {
+                  final data = doc.data();
+                  final targetId = data['ratedUserId'] ?? data['targetUserId'];
+                  return data['sourceUserId'] == currentUser.uid &&
+                         targetId == helperId &&
+                         (data['type'] == 'helper_rating');
+                });
 
-                if (existingRating.docs.isEmpty) {
+                if (!hasRated) {
                      // 🎯 NO ha calificado: Redirigir a la pantalla de calificación
                     target = '/rate-helper/$requestId?helperId=$helperId&helperName=${Uri.encodeComponent(helperName)}';
                     print('🧭 [MARK_READ] 🎯 Redirigiendo a Calificación (estado: aceptada, no calificado)');

@@ -8,16 +8,19 @@ import '../screens/global_chat_screen.dart';
 import '../screens/chat_list_screen.dart';
 import '../screens/main_screen.dart';
 import '../screens/auth_screen.dart';
+import '../screens/login_screen.dart';
+import '../screens/register_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/request_detail_screen.dart';
 import '../screens/create_request_screen.dart';
 import '../screens/rate_requester_screen.dart';
 import '../screens/rate_helper_screen.dart';
 import '../screens/rating_confirmation_screen.dart';
-import '../screens/push_notification_test_screen.dart';
 import '../screens/ratings_screen.dart';
 import '../screens/help_history_screen.dart';
 import '../screens/user_profile_view_screen.dart';
+import '../screens/profile_screen.dart';
+import '../screens/my_requests_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/faq_screen.dart';
 import '../screens/report_problem_screen.dart';
@@ -36,6 +39,15 @@ class AppRouter {
         path: '/auth',
         builder: (BuildContext context, GoRouterState state) => const AuthScreen(),
       ),
+      // Rutas explícitas para Login y Registro (usadas por múltiples botones)
+      GoRoute(
+        path: '/login',
+        builder: (BuildContext context, GoRouterState state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (BuildContext context, GoRouterState state) => const RegisterScreen(),
+      ),
       GoRoute(
         path: '/',
         builder: (BuildContext context, GoRouterState state) => const AuthGate(),
@@ -43,6 +55,11 @@ class AppRouter {
       GoRoute(
         path: '/main',
         builder: (BuildContext context, GoRouterState state) => const MainScreen(),
+      ),
+      // Ruta para el perfil propio
+      GoRoute(
+        path: '/profile',
+        builder: (BuildContext context, GoRouterState state) => const ProfileScreen(),
       ),
       GoRoute(
         name: 'chat_screen',
@@ -72,6 +89,11 @@ class AppRouter {
       GoRoute(
         path: '/messages',
         builder: (BuildContext context, GoRouterState state) => const ChatListScreen(),
+      ),
+      // Ruta para "Mis solicitudes"
+      GoRoute(
+        path: '/my_requests',
+        builder: (BuildContext context, GoRouterState state) => const MyRequestsScreen(),
       ),
       // Ruta para crear solicitud de ayuda
       GoRoute(
@@ -160,12 +182,7 @@ class AppRouter {
           );
         },
       ),
-      // Ruta para pruebas de notificaciones
-      GoRoute(
-        name: 'notification_test',
-        path: '/notification-test',
-        builder: (BuildContext context, GoRouterState state) => const PushNotificationTestScreen(),
-      ),
+      // (Eliminada) Ruta de pruebas de notificaciones
       // Ruta para el ranking/calificaciones
       GoRoute(
         name: 'ratings',

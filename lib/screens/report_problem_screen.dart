@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_text_field.dart';
+import '../widgets/ad_banner_widget.dart';
+import '../services/ads_ids.dart';
 
 class ReportProblemScreen extends StatefulWidget {
   const ReportProblemScreen({Key? key}) : super(key: key);
@@ -83,6 +85,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   style: const TextStyle(fontSize: 16, color: Colors.white70),
                 ),
                 const SizedBox(height: 20),
+                AdBannerWidget(adUnitId: AdsIds.banner),
+                const SizedBox(height: 20),
                 TextFormField(
                   controller: _emailController,
                   style: const TextStyle(color: Colors.white),
@@ -154,6 +158,8 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
+                const SizedBox(height: 16),
+                AdBannerWidget(adUnitId: AdsIds.banner),
               ],
             ),
           ),

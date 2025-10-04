@@ -9,6 +9,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../widgets/avatar_optimizado.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
@@ -19,7 +20,8 @@ import 'package:eslabon_flutter/providers/location_provider.dart';
 import 'package:eslabon_flutter/providers/help_requests_provider.dart';
 import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import 'package:eslabon_flutter/models/user_model.dart';
-import 'package:eslabon_flutter/widgets/banner_ad_widget.dart';
+import 'package:eslabon_flutter/widgets/ad_banner_widget.dart';
+import 'package:eslabon_flutter/services/ads_ids.dart';
 import '../widgets/custom_app_bar.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
@@ -132,27 +134,29 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
     }
   }
 
-  // ✅ OPTIMIZACIÓN: Método para obtener URL de imagen de perfil con caché
+  // ✅ Método robusto para obtener URL de imagen (soporta http y Storage path) con caché
   Future<String> _getProfilePictureUrl(String? profilePicturePath) async {
-    // 1. Verificar si el path está en el caché:
-    if (profilePicturePath != null && _profilePictureUrlCache.containsKey(profilePicturePath)) {
-      return _profilePictureUrlCache[profilePicturePath] ?? '';
+    if (profilePicturePath == null || profilePicturePath.isEmpty) return '';
+
+    // Devolver si está en caché
+    final cached = _profilePictureUrlCache[profilePicturePath];
+    if (cached != null && cached.isNotEmpty) return cached;
+
+    // Si ya es una URL http/https, cachear y devolver directamente
+    if (profilePicturePath.startsWith('http://') || profilePicturePath.startsWith('https://')) {
+      _profilePictureUrlCache[profilePicturePath] = profilePicturePath;
+      return profilePicturePath;
     }
-    
-    // 2. Si no está en caché, llamar a Storage:
-    if (profilePicturePath != null && profilePicturePath.isNotEmpty) {
-      try {
-        final String downloadUrl = await _storage.ref().child(profilePicturePath).getDownloadURL();
-        // 3. Guardar en el caché:
-        _profilePictureUrlCache[profilePicturePath] = downloadUrl;
-        return downloadUrl;
-      } catch (e) {
-        print('Error loading profile picture: $e');
-        return '';
-      }
+
+    // Caso Storage path: intentar obtener download URL
+    try {
+      final String downloadUrl = await _storage.ref().child(profilePicturePath).getDownloadURL();
+      _profilePictureUrlCache[profilePicturePath] = downloadUrl;
+      return downloadUrl;
+    } catch (e) {
+      print('Error loading image URL for "$profilePicturePath": $e');
+      return '';
     }
-    
-    return '';
   }
 
   void _showCommentsModal(String requestId, firebase_auth.User? currentUser) {
@@ -235,12 +239,15 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                CircleAvatar(
+                                AvatarOptimizado(
+                                  url: (userAvatar != null && userAvatar.startsWith('http')) ? userAvatar : null,
                                   radius: 18,
-                                  backgroundImage: (userAvatar != null && userAvatar.startsWith('http'))
-                                      ? NetworkImage(userAvatar)
-                                      : const AssetImage('assets/default_avatar.png') as ImageProvider,
                                   backgroundColor: Colors.grey[700],
+                                  placeholder: const CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: Colors.grey,
+                                    backgroundImage: AssetImage('assets/default_avatar.png'),
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -478,20 +485,15 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         children: [
                           Row(
                             children: [
-                              FutureBuilder<String>(
-                                future: profilePicturePath != null
-                                    ? _storage.ref().child(profilePicturePath).getDownloadURL()
-                                    : Future.value(''),
-                                builder: (context, urlSnapshot) {
-                                  final String? finalImageUrl = urlSnapshot.data;
-                                  return CircleAvatar(
-                                    radius: 20,
-                                    backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
-                                        ? NetworkImage(finalImageUrl)
-                                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                                    backgroundColor: Colors.grey[700],
-                                  );
-                                },
+                              AvatarOptimizado(
+                                storagePath: profilePicturePath,
+                                radius: 20,
+                                backgroundColor: Colors.grey[700],
+                                placeholder: const CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: Colors.grey,
+                                  backgroundImage: AssetImage('assets/default_avatar.png'),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -667,22 +669,31 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                                   child: FutureBuilder<String>(
                                     future: _getProfilePictureUrl(imagePath),
                                     builder: (context, urlSnapshot) {
-                                      if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData && urlSnapshot.data!.isNotEmpty) {
-                                        return ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: Image.network(
-                                            urlSnapshot.data!,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => Container(
-                                              color: Colors.grey[700],
-                                              child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
-                                            ),
-                                          ),
+                                      if (urlSnapshot.connectionState == ConnectionState.waiting) {
+                                        return Container(
+                                          color: Colors.grey[700],
+                                          child: const Center(child: CircularProgressIndicator(color: Colors.amber)),
                                         );
                                       }
-                                      return Container(
-                                        color: Colors.grey[700],
-                                        child: const Center(child: CircularProgressIndicator(color: Colors.amber)),
+
+                                      final hasUrl = urlSnapshot.hasData && (urlSnapshot.data?.isNotEmpty ?? false);
+                                      if (!hasUrl || urlSnapshot.hasError) {
+                                        return Container(
+                                          color: Colors.grey[700],
+                                          child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                        );
+                                      }
+
+                                      return ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          urlSnapshot.data!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            color: Colors.grey[700],
+                                            child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                          ),
+                                        ),
                                       );
                                     },
                                   ),
@@ -1149,6 +1160,11 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
       body: CustomBackground(
         child: Column(
           children: [
+            // Banner fijo al inicio de la pantalla "Mine"
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: AdBannerWidget(adUnitId: AdsIds.banner),
+            ),
             Expanded(
               child: filteredRequestsAsyncValue.when(
                 data: (allHelpRequestDocs) {
@@ -1169,8 +1185,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'No hay solicitudes de ayuda disponibles para el filtro: '
-                            '${currentFilterScope.tr()}' +
+                            'No hay solicitudes de ayuda disponibles para el filtro: ${currentFilterScope.tr()}' +
                             (currentFilterScope == 'Cercano' && userLocation.locality.isNotEmpty
                               ? ' dentro de ${proximityRadiusKm.toStringAsFixed(1)} km de ${userLocation.locality}.'
                               : '.'),
@@ -1183,8 +1198,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                               _showFilterDialog(context, currentFilterScope, proximityRadiusKm);
                             },
                             style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.amber,
-                                  foregroundColor: Colors.black,
+                              backgroundColor: Colors.amber,
+                              foregroundColor: Colors.black,
                             ),
                             child: Text('Cambiar Filtro'.tr()),
                           ),
@@ -1210,15 +1225,16 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                           final distance = _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon);
                           distanceText = 'a ${distance.toStringAsFixed(1)} km'.tr();
                         }
-                        
+
+                        // Banner adicional cada 2 tarjetas de ayuda
                         final bool shouldShowAd = (index + 1) % 3 == 0;
                         return Column(
                           children: [
                             _buildHelpCard(context, requestData, doc.id, _auth.currentUser, distanceText: distanceText),
                             if (shouldShowAd)
-                              const Padding(
+                              Padding(
                                 padding: EdgeInsets.symmetric(vertical: 8.0),
-                                child: BannerAdWidget(),
+                                 child: AdBannerWidget(adUnitId: AdsIds.banner),
                               ),
                           ],
                         );
@@ -1226,12 +1242,10 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                     ),
                   );
                 },
-                loading: () {
-                  return const Center(child: SpinningImageLoader());
-                },
-                error: (err, stack) {
-                  return Center(child: Text('Error al cargar datos: $err', style: const TextStyle(color: Colors.red)));
-                },
+                loading: () => const Center(child: SpinningImageLoader()),
+                error: (err, stack) => Center(
+                  child: Text('Error al cargar datos: $err', style: const TextStyle(color: Colors.red)),
+                ),
               ),
             ),
           ],
@@ -1271,21 +1285,17 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                       crossAxisAlignment: CrossAxisAlignment.center,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // ✅ OPTIMIZACIÓN: Sistema de caché mejorado para imágenes de perfil
-                        FutureBuilder<String>(
-                          // 1. Verificar si el path está en el caché:
-                          future: _getProfilePictureUrl(profilePicturePath),
-                          builder: (context, urlSnapshot) {
-                            final String finalImageUrl = urlSnapshot.data ?? '';
-                            
-                            return CircleAvatar(
-                              radius: 40,
-                              backgroundColor: Colors.grey[700],
-                              backgroundImage: finalImageUrl.isNotEmpty
-                                  ? NetworkImage(finalImageUrl)
-                                  : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                            );
-                          },
+                        // ✅ Uso unificado de AvatarOptimizado con soporte para Storage path o URL
+                        AvatarOptimizado(
+                          url: (profilePicturePath != null && profilePicturePath.startsWith('http')) ? profilePicturePath : null,
+                          storagePath: (profilePicturePath != null && !profilePicturePath.startsWith('http')) ? profilePicturePath : null,
+                          radius: 40,
+                          backgroundColor: Colors.grey[700],
+                          placeholder: const CircleAvatar(
+                            radius: 40,
+                            backgroundColor: Colors.grey,
+                            backgroundImage: AssetImage('assets/default_avatar.png'),
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -1377,15 +1387,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   },
             ),
             const Divider(color: Colors.white12),
-            // 🧪 BOTÓN TEMPORAL PARA PRUEBAS DE NOTIFICACIÓN
-            ListTile(
-              leading: const Icon(Icons.bug_report, color: Colors.orange),
-              title: const Text('🧪 Pruebas Notificación', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/notification-test');
-              },
-            ),
+            // (Eliminado) Botón temporal para pruebas de notificación
             ListTile(
               leading: const Icon(Icons.settings, color: Colors.white70),
               title: Text('settings'.tr(), style: const TextStyle(color: Colors.white)),

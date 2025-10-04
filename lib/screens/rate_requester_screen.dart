@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:eslabon_flutter/utils/firestore_utils.dart';
 import 'package:eslabon_flutter/theme/app_colors.dart';
+import '../widgets/avatar_optimizado.dart';
 
 class RateRequesterScreen extends StatefulWidget {
   final String requestId;
@@ -28,6 +29,8 @@ class _RateRequesterScreenState extends State<RateRequesterScreen>
   bool _isLoading = false;
   bool _hasRated = false;
   bool _isValidHelper = false;
+  // ✅ Foto de perfil del solicitante (path en Storage)
+  String? _requesterProfilePath;
   late AnimationController _animationController;
   late AnimationController _starAnimationController;
   late Animation<double> _fadeAnimation;
@@ -91,17 +94,31 @@ class _RateRequesterScreenState extends State<RateRequesterScreen>
         _isValidHelper = true;
       });
 
-      // Verificar si ya calificó
-      final ratingDoc = await FirebaseFirestore.instance
+      // Obtener foto de perfil del solicitante (si existe)
+      final requesterDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.requesterId)
+          .get();
+      if (requesterDoc.exists) {
+        setState(() {
+          _requesterProfilePath = requesterDoc.data()?['profilePicture'] as String?;
+        });
+      }
+
+      // Verificar si ya calificó (evitar índices compuestos)
+      final ratingSnap = await FirebaseFirestore.instance
           .collection('ratings')
           .where('requestId', isEqualTo: widget.requestId)
-          .where('sourceUserId', isEqualTo: currentUser.uid)
-          .where('targetUserId', isEqualTo: widget.requesterId)
           .get();
+      final hasRated = ratingSnap.docs.any((doc) {
+        final data = doc.data();
+        return data['sourceUserId'] == currentUser.uid &&
+               (data['targetUserId'] == widget.requesterId || data['ratedUserId'] == widget.requesterId);
+      });
 
       if (mounted) {
         setState(() {
-          _hasRated = ratingDoc.docs.isNotEmpty;
+          _hasRated = hasRated;
         });
       }
     } catch (e) {
@@ -338,13 +355,18 @@ class _RateRequesterScreenState extends State<RateRequesterScreen>
                       ),
                       child: Column(
                         children: [
-                          CircleAvatar(
+                          AvatarOptimizado(
+                            storagePath: _requesterProfilePath,
                             radius: 40,
                             backgroundColor: Colors.white,
-                            child: Icon(
-                              Icons.person,
-                              size: 50,
-                              color: AppColors.accent,
+                            placeholder: const CircleAvatar(
+                              radius: 40,
+                              backgroundColor: Colors.white,
+                              child: Icon(
+                                Icons.person,
+                                size: 50,
+                                color: AppColors.accent,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 15),

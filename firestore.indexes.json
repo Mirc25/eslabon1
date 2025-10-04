@@ -1,21 +1,45 @@
-ï»¿{
-    "indexes":  [
-                    {
-                        "collectionGroup":  "solicitudes-de-ayuda",
-                        "queryScope":  "COLLECTION",
-                        "fields":  [
-                                       {
-                                           "fieldPath":  "estado",
-                                           "order":  "ASCENDING"
-                                       },
-                                       {
-                                           "fieldPath":  "timestamp",
-                                           "order":  "DESCENDING"
-                                       }
-                                   ]
-                    }
-                ],
-    "fieldOverrides":  [
-
-                       ]
+{
+  "indexes": [
+    {
+      "collectionGroup": "solicitudes-de-ayuda",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "solicitudes-de-ayuda",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "helperId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "solicitudes-de-ayuda",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+    ,
+    {
+      "collectionGroup": "chats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "lastMessage.timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
 }

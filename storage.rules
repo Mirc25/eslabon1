@@ -1,11 +1,50 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Lectura pública (imágenes de perfil, adjuntos, etc.)
-    // Escritura solo para usuarios autenticados
-    match /{allPaths=**} {
+    // Lectura pública SOLO en public/*
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // HOTFIX: permitir lectura pública de imágenes actuales subidas en requests/* y videos/*
+    // Esto desbloquea vistas hasta migrar definitivamente a pending/ + moderación -> public/
+    match /requests/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null; // mantiene subida autenticada
+    }
+    match /videos/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth != null;
+    }
+
+    // Subidas del cliente SIEMPRE a pending/{tipo}/{uid}/...
+    match /pending/{type}/{uid}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == uid;
+      // Lectura opcional para dueño; el resto bloqueado
+      allow read: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Fotos de perfil del usuario: permitir que el dueño suba y que todos lean
+    // Ruta esperada por la app: users/{uid}/profile_picture.jpg
+    match /users/{uid}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read: if true;
+    }
+
+    // Contenido en cuarentena o rechazado: solo Functions/Admin podrán mover/escribir
+    match /quarantine/{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /rejected/{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Bloquear cualquier otra ruta
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

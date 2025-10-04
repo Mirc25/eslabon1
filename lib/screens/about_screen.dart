@@ -1,10 +1,12 @@
-﻿// lib/screens/about_screen.dart
+// lib/screens/about_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
+import '../widgets/ad_banner_widget.dart';
+import '../services/ads_ids.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({Key? key}) : super(key: key);
@@ -46,6 +48,9 @@ class AboutScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 18, color: Colors.white70),
                 ),
+                const SizedBox(height: 16),
+                // Usar AdsIds.banner (test en debug, prod en release)
+                AdBannerWidget(adUnitId: AdsIds.banner),
                 const SizedBox(height: 30),
                 Text(
                   'developed_by'.tr(),
@@ -77,6 +82,9 @@ class AboutScreen extends StatelessWidget {
                   'pablooviedo58@gmail.com',
                   style: const TextStyle(fontSize: 14, color: Colors.white70),
                 ),
+                const SizedBox(height: 16),
+                // Usar AdsIds.banner (test en debug, prod en release)
+                AdBannerWidget(adUnitId: AdsIds.banner),
               ],
             ),
           ),

@@ -9,6 +9,7 @@ import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../reputation_utils.dart'; // �Y"" CORRECCI�"N: Usamos el archivo correcto
 import '../widgets/spinning_image_loader.dart';
+import '../widgets/avatar_optimizado.dart';
 
 class UserRatingDetailsScreen extends StatelessWidget {
   final String userId;
@@ -55,21 +56,16 @@ class UserRatingDetailsScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  FutureBuilder<String>(
-                    future: profileImagePath != null ? FirebaseStorage.instance.ref().child(profileImagePath).getDownloadURL() : Future.value(''),
-                    builder: (context, urlSnapshot) {
-                      final String? finalImageUrl = urlSnapshot.data;
-                      return CircleAvatar(
-                        radius: 60,
-                        backgroundColor: Colors.grey[700],
-                        backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
-                            ? NetworkImage(finalImageUrl) as ImageProvider
-                            : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                        child: (finalImageUrl == null || finalImageUrl.isEmpty)
-                            ? const Icon(Icons.person, size: 60, color: Colors.white70)
-                            : null,
-                      );
-                    },
+                  AvatarOptimizado(
+                    url: (profileImagePath != null && profileImagePath.startsWith('http')) ? profileImagePath : null,
+                    storagePath: (profileImagePath != null && !profileImagePath.startsWith('http')) ? profileImagePath : null,
+                    radius: 60,
+                    backgroundColor: Colors.grey[700],
+                    placeholder: const CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.grey,
+                      backgroundImage: AssetImage('assets/default_avatar.png'),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(

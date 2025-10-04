@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:intl/intl.dart';
 import 'dart:math' show cos, asin, sqrt, sin, atan2, pi;
@@ -26,8 +27,8 @@ class GlobalChatScreen extends ConsumerStatefulWidget {
 }
 
 class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with TickerProviderStateMixin {
-  // Desactiva el mapa temporalmente para evitar crash si falta API key
-  static const bool kEnableGlobalMap = false;
+  // Reactivar el mapa en chat global
+  static const bool kEnableGlobalMap = true;
   GoogleMapController? _mapController;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -84,11 +85,14 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
       return;
     }
 
+    final messageText = _messageController.text.trim();
+    final docRef = _firestore.collection('global_chat_messages').doc();
+
     final messageData = {
       'userId': authUid,
       'userName': user.name,
       'userAvatarUrl': user.profilePicture,
-      'text': _messageController.text.trim(),
+      'text': messageText,
       'timestamp': FieldValue.serverTimestamp(),
       'latitude': userLocation.latitude,
       'longitude': userLocation.longitude,
@@ -101,7 +105,7 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
       // DEBUG: registrar los IDs para diagnosticar permisos
       // ignore: avoid_print
       print('GlobalChat: sending as authUid=' + authUid + ' profileId=' + user.id);
-      await _firestore.collection('global_chat_messages').add(messageData);
+      await docRef.set(messageData);
       _messageController.clear();
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -110,6 +114,8 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
           curve: Curves.easeOut,
         );
       }
+
+      // Moderación deshabilitada: envío directo sin revisión para mayor rapidez
     } catch (e) {
       if (mounted) {
         String msg = 'Error al enviar el mensaje';
@@ -318,7 +324,11 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
 
   Widget _buildChatList(User user, UserLocationData userLocation, String filterType, {double? radius, String? provinceFilter, String? countryFilter}) {
     return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('global_chat_messages').orderBy('timestamp', descending: true).limit(50).snapshots(),
+      stream: _firestore
+          .collection('global_chat_messages')
+          .orderBy('timestamp', descending: true)
+          .limit(50)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: SpinningImageLoader());
@@ -403,7 +413,8 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
               GestureDetector(
                 onTap: onUserTap,
                 child: AvatarOptimizado(
-                  url: avatarUrl,
+                  url: (avatarUrl != null && avatarUrl.startsWith('http')) ? avatarUrl : null,
+                  storagePath: (avatarUrl != null && !avatarUrl.startsWith('http')) ? avatarUrl : null,
                   radius: 16,
                   backgroundColor: Colors.grey[700],
                 ),
@@ -450,7 +461,8 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
               GestureDetector(
                 onTap: onUserTap,
                 child: AvatarOptimizado(
-                  url: avatarUrl,
+                  url: (avatarUrl != null && avatarUrl.startsWith('http')) ? avatarUrl : null,
+                  storagePath: (avatarUrl != null && !avatarUrl.startsWith('http')) ? avatarUrl : null,
                   radius: 16,
                   backgroundColor: Colors.grey[700],
                 ),

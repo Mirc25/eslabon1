@@ -8,6 +8,8 @@ import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import 'my_ratings_section.dart';
 import 'ranking_section.dart';
+import '../widgets/ad_banner_widget.dart';
+import '../services/ads_ids.dart';
 
 class RatingsScreen extends ConsumerStatefulWidget {
   final int initialTabIndex;
@@ -51,6 +53,8 @@ class _RatingsScreenState extends ConsumerState<RatingsScreen> {
                   Tab(text: 'ranking_tab'.tr()),
                 ],
               ),
+              const SizedBox(height: 8),
+              AdBannerWidget(adUnitId: AdsIds.banner),
               const Expanded(
                 child: TabBarView(
                   children: [
@@ -59,6 +63,8 @@ class _RatingsScreenState extends ConsumerState<RatingsScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 8),
+              AdBannerWidget(adUnitId: AdsIds.banner),
             ],
           ),
         ),

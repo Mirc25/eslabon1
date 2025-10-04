@@ -11,15 +11,20 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
+import '../widgets/avatar_optimizado.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/utils/firestore_utils.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
-import 'package:eslabon_flutter/widgets/banner_ad_widget.dart';
+import 'package:eslabon_flutter/widgets/ad_banner_widget.dart';
+import 'package:eslabon_flutter/services/ads_ids.dart';
 import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import '../widgets/custom_app_bar.dart';
 import 'package:eslabon_flutter/services/inapp_notification_service.dart';
+import 'package:eslabon_flutter/services/ads_service.dart';
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -47,6 +52,25 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   // ✅ Sistema de caché para URLs de imágenes de perfil
   final Map<String, String> _profilePictureUrlCache = {};
   
+  // ✅ Resolver URL de imagen con soporte de rutas http y Storage path
+  Future<String> _resolveImageUrl(String path) async {
+    if (path.isEmpty) return '';
+    final cached = _profilePictureUrlCache[path];
+    if (cached != null && cached.isNotEmpty) return cached;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      _profilePictureUrlCache[path] = path;
+      return path;
+    }
+    try {
+      final url = await _storage.ref().child(path).getDownloadURL();
+      _profilePictureUrlCache[path] = url;
+      return url;
+    } catch (e) {
+      print('Error resolving image URL for "$path": $e');
+      return '';
+    }
+  }
+  
   bool _hasOfferedHelp = false;
   bool _isLoading = true;
   bool _canRate = false;
@@ -67,8 +91,8 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
   void _loadRewardedAd() {
     RewardedAd.load(
-      adUnitId: 'ca-app-pub-5954730659186346/2964239873',
-      request: const AdRequest(),
+      adUnitId: AdsIds.rewarded,
+      request: AdsService.request(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (RewardedAd ad) {
           if (mounted) {
@@ -103,7 +127,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               _isRewardedAdLoaded = false;
             });
           }
-          print('❌ Error al cargar RewardedAd: $error');
+          AdsService.logLoadError(error, where: 'RequestDetailScreen.Rewarded');
         },
       ),
     );
@@ -149,6 +173,17 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
   }
 
+  void _showVideoPlayerBottomSheet(String videoUrl) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      builder: (context) {
+        return _VideoPlayerSheet(videoUrl: videoUrl);
+      },
+    );
+  }
+
   void _navigateToRateHelper() {
     if (_acceptedHelperId != null && _acceptedHelperName != null) {
       context.push('/rate-helper/${widget.requestId}?helperId=$_acceptedHelperId&helperName=${Uri.encodeComponent(_acceptedHelperName!)}');
@@ -163,14 +198,25 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     });
 
     try {
-      // 1. Actualizar el estado de la solicitud a 'finalizada'
-      await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
-        'estado': 'finalizada',
-        'finalizedAt': FieldValue.serverTimestamp(),
-      });
-      
-      _showSnackBar('Ayuda marcada como finalizada. ¡Gracias!'.tr(), Colors.green);
-      
+      // 1. Verificar existencia del documento antes de actualizar
+      final docRef = _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId);
+      final docSnap = await docRef.get();
+      if (!docSnap.exists) {
+        _showSnackBar('La solicitud no existe o fue eliminada.'.tr(), Colors.red);
+      } else {
+        // Actualizar el estado de la solicitud a 'finalizada'
+        await docRef.update({
+          'estado': 'finalizada',
+          'finalizedAt': FieldValue.serverTimestamp(),
+        });
+        _showSnackBar('Ayuda marcada como finalizada. ¡Gracias!'.tr(), Colors.green);
+      }
+    } on FirebaseException catch (e) {
+      if (e.code == 'failed-precondition') {
+        _showSnackBar('No se pudo finalizar: condición previa fallida.'.tr(), Colors.red);
+      } else {
+        _showSnackBar('Error al finalizar la ayuda: ${e.message}'.tr(), Colors.red);
+      }
     } catch (e) {
       _showSnackBar('Error al finalizar la ayuda: $e'.tr(), Colors.red);
     } finally {
@@ -190,19 +236,28 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     });
 
     try {
-      // 1. Marcar el estado de la solicitud como ACEPTADA (CLAVE)
-      await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
-        'estado': 'aceptada', // ESTO ES LO QUE DESBLOQUEA LA NAVEGACIÓN
-        'helperId': helperId,
-        'helperName': helperName,
-        'acceptedOfferId': offerId,
-      });
+      final requestRef = _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId);
+      final requestSnap = await requestRef.get();
+      if (!requestSnap.exists) {
+        _showSnackBar('La solicitud no existe o fue eliminada.'.tr(), Colors.red);
+      } else {
+        // 1. Marcar el estado de la solicitud como ACEPTADA (CLAVE)
+        await requestRef.update({
+          'estado': 'aceptada', // ESTO ES LO QUE DESBLOQUEA LA NAVEGACIÓN
+          'helperId': helperId,
+          'helperName': helperName,
+          'acceptedOfferId': offerId,
+        });
 
-      // 2. Marcar la oferta específica como aceptada
-      await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId)
-          .collection('offers').doc(offerId).update({
-        'status': 'accepted'
-      });
+        // 2. Marcar la oferta específica como aceptada, si existe
+        final offerRef = requestRef.collection('offers').doc(offerId);
+        final offerSnap = await offerRef.get();
+        if (offerSnap.exists) {
+          await offerRef.update({'status': 'accepted'});
+        } else {
+          _showSnackBar('La oferta no existe o fue eliminada.'.tr(), Colors.red);
+        }
+      }
 
       // ✅ ACTUALIZAR ESTADO LOCAL para la navegación inmediata
       setState(() {
@@ -214,6 +269,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       
       _showSnackBar('Oferta de $helperName aceptada. ¡Redirigiendo a calificación!'.tr(), Colors.green);
       
+    } on FirebaseException catch (e) {
+      if (e.code == 'failed-precondition') {
+        _showSnackBar('No se pudo aceptar: condición previa fallida.'.tr(), Colors.red);
+      } else {
+        _showSnackBar('Error al aceptar la oferta: ${e.message}'.tr(), Colors.red);
+      }
     } catch (e) {
       _showSnackBar('Error al aceptar la oferta: $e'.tr(), Colors.red);
     } finally {
@@ -290,17 +351,18 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                     acceptedHelperId = acceptedOffer['helperId'];
                     acceptedHelperName = acceptedOffer['helperName'];
 
-                    // 4. Verificar si ya calificó a este ayudador
-                    final existingRating = await _firestore
+                    // 4. Verificar si ya calificó a este ayudador (evitar índices compuestos)
+                    final ratingSnap = await _firestore
                         .collection('ratings')
                         .where('requestId', isEqualTo: widget.requestId)
-                        .where('sourceUserId', isEqualTo: currentUser.uid)
-                        .where('targetUserId', isEqualTo: acceptedHelperId)
-                        .where('type', isEqualTo: 'helper_rating')
-                        .limit(1)
                         .get();
-
-                    bool hasAlreadyRated = existingRating.docs.isNotEmpty;
+                    final hasAlreadyRated = ratingSnap.docs.any((doc) {
+                        final data = doc.data();
+                        final targetId = data['ratedUserId'] ?? data['targetUserId'];
+                        return data['sourceUserId'] == currentUser.uid &&
+                               targetId == acceptedHelperId &&
+                               (data['type'] == 'helper_rating');
+                    });
                     canRate = !hasAlreadyRated && currentRequestStatus == 'aceptada';
                 }
             }
@@ -405,10 +467,22 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         'requesterId': requesterUserId,
       });
 
-      // PASO C: Incrementando contador de ofertas
-      await _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).update({
-        'offersCount': FieldValue.increment(1),
-      });
+      // PASO C: Incrementando contador de ofertas (verificación de existencia)
+      final reqRef = _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId);
+      final reqSnap = await reqRef.get();
+      if (reqSnap.exists) {
+        try {
+          await reqRef.update({'offersCount': FieldValue.increment(1)});
+        } on FirebaseException catch (e) {
+          if (e.code == 'failed-precondition') {
+            print('WARN: Incremento offersCount omitido por failed-precondition');
+          } else {
+            rethrow;
+          }
+        }
+      } else {
+        print('WARN: Request no existe, omito incremento de offersCount');
+      }
 
       // PASO D: Llamando a createOfferAndNotifyRequester (Cloud Function)
       await _appServices.createOfferAndNotifyRequester(
@@ -851,7 +925,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     }
     
     if (_pendingOffers.isEmpty && _requestStatus == 'activa') {
-      return const Padding(
+          return Padding(
         padding: EdgeInsets.only(top: 16),
         child: Text('Aún no tienes ofertas de ayuda.', style: TextStyle(color: Colors.white54)),
       );
@@ -907,7 +981,14 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: CustomBackground(
-        child: FutureBuilder<Map<String, dynamic>>(
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: AdBannerWidget(adUnitId: AdsIds.banner),
+            ),
+            Expanded(
+              child: FutureBuilder<Map<String, dynamic>>(
           future: requestDataFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
@@ -921,8 +1002,19 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
             }
 
             final requestData = snapshot.data!;
-            return _buildBodyWithData(context, requestData);
+            return Column(
+              children: [
+                Expanded(child: _buildBodyWithData(context, requestData)),
+            Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  child: AdBannerWidget(adUnitId: AdsIds.banner),
+                ),
+              ],
+            );
           },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1016,6 +1108,17 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         }
         String? imagePathToDisplay = imagePaths.isNotEmpty ? imagePaths.first : null;
 
+        // ✅ Extraer y normalizar rutas de videos
+        List<String> videoPaths = [];
+        dynamic rawVideos = requestData['videos'];
+        if (rawVideos != null) {
+          if (rawVideos is List) {
+            videoPaths = List<String>.from(rawVideos.where((item) => item is String).map((e) => e.toString()));
+          } else if (rawVideos is String && rawVideos.isNotEmpty) {
+            videoPaths = [rawVideos.toString()];
+          }
+        }
+
         final double? latitude = (requestData['latitude'] as num?)?.toDouble();
         final double? longitude = (requestData['longitude'] as num?)?.toDouble();
         final bool hasDetails = requestDetail.isNotEmpty && requestDetail != 'Sin detalles'.tr();
@@ -1062,7 +1165,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const BannerAdWidget(),
+              AdBannerWidget(adUnitId: AdsIds.banner),
               const SizedBox(height: 16),
 
               Row(
@@ -1075,34 +1178,16 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                       children: [
                         Row(
                           children: [
-                            FutureBuilder<String>(
-                              // 1. Verificar si el path está en el caché:
-                              future: requesterAvatarPath != null && _profilePictureUrlCache.containsKey(requesterAvatarPath)
-                                  ? Future.value(_profilePictureUrlCache[requesterAvatarPath]!)
-                                  // 2. Si no está en caché, llamar a Storage:
-                                  : requesterAvatarPath != null && requesterAvatarPath.isNotEmpty
-                                      ? _storage.ref().child(requesterAvatarPath).getDownloadURL()
-                                      : Future.value(''),
-                              builder: (context, urlSnapshot) {
-                                final String? finalImageUrl = urlSnapshot.data;
-                                
-                                // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
-                                if (urlSnapshot.connectionState == ConnectionState.done && 
-                                    finalImageUrl != null && 
-                                    finalImageUrl.isNotEmpty && 
-                                    requesterAvatarPath != null && 
-                                    !_profilePictureUrlCache.containsKey(requesterAvatarPath)) {
-                                  _profilePictureUrlCache[requesterAvatarPath] = finalImageUrl;
-                                }
-                                
-                                return CircleAvatar(
-                                  radius: 25,
-                                  backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
-                                      ? NetworkImage(finalImageUrl)
-                                      : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                                  backgroundColor: Colors.grey[700],
-                                );
-                              },
+                            AvatarOptimizado(
+                              url: (requesterAvatarPath != null && requesterAvatarPath.startsWith('http')) ? requesterAvatarPath : null,
+                              storagePath: (requesterAvatarPath != null && !requesterAvatarPath.startsWith('http')) ? requesterAvatarPath : null,
+                              radius: 25,
+                              backgroundColor: Colors.grey[700],
+                              placeholder: const CircleAvatar(
+                                radius: 25,
+                                backgroundColor: Colors.grey,
+                                backgroundImage: AssetImage('assets/default_avatar.png'),
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -1204,16 +1289,10 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         margin: const EdgeInsets.only(right: 12, bottom: 16),
                         child: GestureDetector(
                           onTap: () async {
-                            try {
-                              String imageUrl;
-                              if (_profilePictureUrlCache.containsKey(imagePath)) {
-                                imageUrl = _profilePictureUrlCache[imagePath]!;
-                              } else {
-                                imageUrl = await _storage.ref().child(imagePath).getDownloadURL();
-                                _profilePictureUrlCache[imagePath] = imageUrl;
-                              }
+                            final imageUrl = await _resolveImageUrl(imagePath);
+                            if (imageUrl.isNotEmpty) {
                               _showImageFullScreen(context, imageUrl);
-                            } catch (e) {
+                            } else {
                               _showSnackBar('Error al cargar la imagen. Intenta de nuevo.'.tr(), Colors.red);
                             }
                           },
@@ -1225,50 +1304,117 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                                 color: Colors.grey[800],
                               ),
                               child: FutureBuilder<String>(
-                                future: _profilePictureUrlCache.containsKey(imagePath)
-                                    ? Future.value(_profilePictureUrlCache[imagePath]!)
-                                    : _storage.ref().child(imagePath).getDownloadURL(),
+                                future: _resolveImageUrl(imagePath),
                                 builder: (context, urlSnapshot) {
-                                  if (urlSnapshot.connectionState == ConnectionState.done && urlSnapshot.hasData) {
-                                    final imageUrl = urlSnapshot.data!;
-                                    if (!_profilePictureUrlCache.containsKey(imagePath)) {
-                                      _profilePictureUrlCache[imagePath] = imageUrl;
-                                    }
-                                    return Stack(
-                                      children: [
-                                        Image.network(
-                                          imageUrl,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              color: Colors.grey[700],
-                                              child: const Center(
-                                                child: Icon(Icons.error, color: Colors.white54, size: 50),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                        if (index == 0)
-                                          Align(
-                                            alignment: Alignment.bottomRight,
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(8.0),
-                                              child: CircleAvatar(
-                                                backgroundColor: Colors.black54,
-                                                child: Text(
-                                                  '${imagePaths.length}',
-                                                  style: const TextStyle(color: Colors.white),
-                                                ),
+                                  if (urlSnapshot.connectionState == ConnectionState.waiting) {
+                                    return const Center(child: CircularProgressIndicator(color: Colors.amber));
+                                  }
+                                  final hasUrl = urlSnapshot.hasData && (urlSnapshot.data?.isNotEmpty ?? false);
+                                  if (!hasUrl || urlSnapshot.hasError) {
+                                    return Container(
+                                      color: Colors.grey[700],
+                                      child: const Center(
+                                        child: Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                      ),
+                                    );
+                                  }
+                                  final imageUrl = urlSnapshot.data!;
+                                  if (!_profilePictureUrlCache.containsKey(imagePath)) {
+                                    _profilePictureUrlCache[imagePath] = imageUrl;
+                                  }
+                                  return Stack(
+                                    children: [
+                                      Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                      ),
+                                      if (index == 0)
+                                        Align(
+                                          alignment: Alignment.bottomRight,
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(8.0),
+                                            child: CircleAvatar(
+                                              backgroundColor: Colors.black54,
+                                              child: Text(
+                                                '${imagePaths.length}',
+                                                style: const TextStyle(color: Colors.white),
                                               ),
                                             ),
                                           ),
-                                      ],
-                                    );
-                                  }
-                                  return const Center(child: CircularProgressIndicator(color: Colors.amber));
+                                        ),
+                                    ],
+                                  );
                                 },
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+              if (videoPaths.isNotEmpty)
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: videoPaths.length,
+                    itemBuilder: (context, index) {
+                      final videoPath = videoPaths[index];
+                      return Container(
+                        width: 300,
+                        margin: const EdgeInsets.only(right: 12, bottom: 16),
+                        child: GestureDetector(
+                          onTap: () async {
+                            try {
+                              String videoUrl;
+                              if (_profilePictureUrlCache.containsKey(videoPath)) {
+                                videoUrl = _profilePictureUrlCache[videoPath]!;
+                              } else {
+                                videoUrl = await _storage.ref().child(videoPath).getDownloadURL();
+                                _profilePictureUrlCache[videoPath] = videoUrl;
+                              }
+                              _showVideoPlayerBottomSheet(videoUrl);
+                            } catch (e) {
+                              _showSnackBar('Error al abrir el video. Intenta de nuevo.'.tr(), Colors.red);
+                            }
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.black,
+                              ),
+                              child: Stack(
+                                children: [
+                                  // Placeholder oscuro con ícono de play
+                                  Positioned.fill(
+                                    child: Container(
+                                      color: Colors.black,
+                                      child: const Center(
+                                        child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 64),
+                                      ),
+                                    ),
+                                  ),
+                                  if (index == 0)
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: CircleAvatar(
+                                          backgroundColor: Colors.black54,
+                                          child: Text(
+                                            '${videoPaths.length}',
+                                            style: const TextStyle(color: Colors.white),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -1393,6 +1539,161 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _VideoPlayerSheet extends StatefulWidget {
+  final String videoUrl;
+  const _VideoPlayerSheet({required this.videoUrl});
+
+  @override
+  State<_VideoPlayerSheet> createState() => _VideoPlayerSheetState();
+}
+
+class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
+  late VideoPlayerController _controller;
+  bool _initializing = true;
+  double _volume = 1.0;
+  bool _muted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      await _controller.initialize();
+      await _controller.setVolume(_volume);
+      await _controller.play();
+    } catch (e) {
+      // Si falla, cerramos y notificamos
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo reproducir el video'.tr()), backgroundColor: Colors.red),
+        );
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _initializing = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AspectRatio(
+              aspectRatio: _controller.value.isInitialized ? _controller.value.aspectRatio : 16 / 9,
+              child: _initializing
+                  ? const Center(child: CircularProgressIndicator(color: Colors.amber))
+                  : VideoPlayer(_controller),
+            ),
+            const SizedBox(height: 12),
+            if (!_initializing)
+              Column(
+                children: [
+                  VideoProgressIndicator(
+                    _controller,
+                    allowScrubbing: true,
+                    colors: VideoProgressColors(playedColor: Colors.amber, bufferedColor: Colors.white24, backgroundColor: Colors.white10),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(_controller.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill, color: Colors.white, size: 36),
+                        onPressed: () {
+                          setState(() {
+                            if (_controller.value.isPlaying) {
+                              _controller.pause();
+                            } else {
+                              _controller.play();
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        icon: const Icon(Icons.replay_10, color: Colors.white, size: 28),
+                        onPressed: () async {
+                          final pos = await _controller.position ?? Duration.zero;
+                          _controller.seekTo(pos - const Duration(seconds: 10));
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.forward_10, color: Colors.white, size: 28),
+                        onPressed: () async {
+                          final pos = await _controller.position ?? Duration.zero;
+                          _controller.seekTo(pos + const Duration(seconds: 10));
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(_muted ? Icons.volume_off : Icons.volume_up, color: Colors.white),
+                        onPressed: () {
+                          setState(() {
+                            _muted = !_muted;
+                            _volume = _muted ? 0.0 : 1.0;
+                          });
+                          _controller.setVolume(_volume);
+                        },
+                      ),
+                      Expanded(
+                        child: Slider(
+                          value: _volume,
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 10,
+                          label: (_volume * 100).round().toString(),
+                          activeColor: Colors.amber,
+                          inactiveColor: Colors.white24,
+                          onChanged: (v) {
+                            setState(() {
+                              _volume = v;
+                              _muted = v == 0.0;
+                            });
+                            _controller.setVolume(v);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('Cerrar'.tr(), style: const TextStyle(color: Colors.amber)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

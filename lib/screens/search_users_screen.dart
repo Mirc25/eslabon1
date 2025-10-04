@@ -8,6 +8,9 @@ import 'package:easy_localization/easy_localization.dart';
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
 import '../user_reputation_widget.dart';
+import '../widgets/avatar_optimizado.dart';
+import '../widgets/ad_banner_widget.dart';
+import '../services/ads_ids.dart';
 
 class SearchUsersScreen extends StatefulWidget {
   const SearchUsersScreen({Key? key}) : super(key: key);
@@ -92,6 +95,8 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
         ),
         body: Column(
           children: [
+            const SizedBox(height: 8),
+            AdBannerWidget(adUnitId: AdsIds.banner),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: TextField(
@@ -152,12 +157,16 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
                                   padding: const EdgeInsets.all(16.0),
                                   child: Row(
                                     children: [
-                                      CircleAvatar(
+                                      AvatarOptimizado(
+                                        url: (profilePicture != null && profilePicture.startsWith('http')) ? profilePicture : null,
+                                        storagePath: (profilePicture != null && !profilePicture.startsWith('http')) ? profilePicture : null,
                                         radius: 30,
-                                        backgroundImage: (profilePicture != null && profilePicture.startsWith('http'))
-                                            ? NetworkImage(profilePicture)
-                                            : const AssetImage('assets/default_avatar.png') as ImageProvider,
                                         backgroundColor: Colors.grey[700],
+                                        placeholder: const CircleAvatar(
+                                          radius: 30,
+                                          backgroundColor: Colors.grey,
+                                          backgroundImage: AssetImage('assets/default_avatar.png'),
+                                        ),
                                       ),
                                       const SizedBox(width: 16),
                                       Expanded(
@@ -182,6 +191,8 @@ class _SearchUsersScreenState extends State<SearchUsersScreen> {
                           },
                         ),
             ),
+            const SizedBox(height: 8),
+            AdBannerWidget(adUnitId: AdsIds.banner),
           ],
         ),
       ),

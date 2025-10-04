@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../widgets/avatar_optimizado.dart';
 
 class UserProfileViewScreen extends StatefulWidget {
   final String userId;
@@ -114,15 +115,16 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  CircleAvatar(
+                  AvatarOptimizado(
+                    url: (_displayPhotoUrl.isNotEmpty && _displayPhotoUrl.startsWith('http')) ? _displayPhotoUrl : null,
+                    storagePath: (_displayPhotoUrl.isNotEmpty && !_displayPhotoUrl.startsWith('http')) ? _displayPhotoUrl : null,
                     radius: 60,
                     backgroundColor: Colors.grey[700],
-                    backgroundImage: (_displayPhotoUrl.isNotEmpty && _displayPhotoUrl.startsWith('http'))
-                        ? NetworkImage(_displayPhotoUrl)
-                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                    child: _displayPhotoUrl.isEmpty || !_displayPhotoUrl.startsWith('http')
-                        ? const Icon(Icons.person, size: 60, color: Colors.white70)
-                        : null,
+                    placeholder: const CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.grey,
+                      backgroundImage: AssetImage('assets/default_avatar.png'),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   Text(

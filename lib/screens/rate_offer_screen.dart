@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../widgets/avatar_optimizado.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:easy_localization/easy_localization.dart';
@@ -86,18 +87,22 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
               currentRequestData['descripcion']?.toString() ??
               'Solicitud de ayuda'.tr());
 
-      final existing = await _firestore
+      // Evitar índices compuestos: consultar por requestId y filtrar en cliente
+      final existingSnap = await _firestore
           .collection('ratings')
           .where('requestId', isEqualTo: widget.requestId)
-          .where('sourceUserId', isEqualTo: _requesterId)
-          .where('ratedUserId', isEqualTo: widget.helperId)
-          .where('type', isEqualTo: 'helper_rating')
-          .limit(1)
           .get();
+      final hasRated = existingSnap.docs.any((doc) {
+        final data = doc.data();
+        final targetId = data['ratedUserId'] ?? data['targetUserId'];
+        return data['sourceUserId'] == _requesterId &&
+               targetId == widget.helperId &&
+               (data['type'] == 'helper_rating');
+      });
 
       if (!mounted) return;
       setState(() {
-        _hasRated = existing.docs.isNotEmpty;
+        _hasRated = hasRated;
         _loading = false;
       });
 
@@ -180,15 +185,16 @@ class _RateOfferScreenState extends ConsumerState<RateOfferScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: (_helperAvatarUrl != null &&
-                                _helperAvatarUrl!.isNotEmpty)
-                            ? NetworkImage(_helperAvatarUrl!)
-                            : null,
-                        child: (_helperAvatarUrl == null ||
-                                _helperAvatarUrl!.isEmpty)
-                            ? const Icon(Icons.person)
-                            : null,
+                      leading: AvatarOptimizado(
+                        url: (_helperAvatarUrl != null && _helperAvatarUrl!.startsWith('http')) ? _helperAvatarUrl : null,
+                        storagePath: (_helperAvatarUrl != null && !_helperAvatarUrl!.startsWith('http')) ? _helperAvatarUrl : null,
+                        radius: 24,
+                        backgroundColor: Colors.grey[700],
+                        placeholder: const CircleAvatar(
+                          radius: 24,
+                          backgroundColor: Colors.grey,
+                          child: Icon(Icons.person),
+                        ),
                       ),
                       title: Text(_helperName ?? 'Ayudador'.tr()),
                       subtitle: Text(_requestTitle ?? 'Solicitud de ayuda'.tr()),

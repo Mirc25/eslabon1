@@ -339,7 +339,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           actions: [
             AvatarOptimizado(
-              url: _chatPartnerAvatarUrl,
+              url: (_chatPartnerAvatarUrl != null && _chatPartnerAvatarUrl!.startsWith('http')) ? _chatPartnerAvatarUrl : null,
+              storagePath: (_chatPartnerAvatarUrl != null && !_chatPartnerAvatarUrl!.startsWith('http')) ? _chatPartnerAvatarUrl : null,
               radius: 20,
               backgroundColor: Colors.grey[700],
             ),
@@ -444,7 +445,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           children: [
             if (!isMe)
               AvatarOptimizado(
-                url: avatarUrl,
+                url: (avatarUrl != null && avatarUrl.startsWith('http')) ? avatarUrl : null,
+                storagePath: (avatarUrl != null && !avatarUrl.startsWith('http')) ? avatarUrl : null,
                 radius: 16,
                 backgroundColor: Colors.grey[700],
               ),
@@ -481,7 +483,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (isMe) const SizedBox(width: 8),
             if (isMe)
               AvatarOptimizado(
-                url: avatarUrl,
+                url: (avatarUrl != null && avatarUrl.startsWith('http')) ? avatarUrl : null,
+                storagePath: (avatarUrl != null && !avatarUrl.startsWith('http')) ? avatarUrl : null,
                 radius: 16,
                 backgroundColor: Colors.grey[700],
               ),

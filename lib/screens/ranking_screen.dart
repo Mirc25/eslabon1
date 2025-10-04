@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../widgets/avatar_optimizado.dart';
 
 import '../widgets/custom_background.dart';
 import '../widgets/custom_app_bar.dart';
@@ -99,12 +100,16 @@ class _RankingScreenState extends ConsumerState<RankingScreen> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        CircleAvatar(
+                        AvatarOptimizado(
+                          url: (profilePicture != null && profilePicture.startsWith('http')) ? profilePicture : null,
+                          storagePath: (profilePicture != null && !profilePicture.startsWith('http')) ? profilePicture : null,
                           radius: 30,
-                          backgroundImage: (profilePicture != null && profilePicture.startsWith('http'))
-                              ? NetworkImage(profilePicture)
-                              : const AssetImage('assets/default_avatar.png') as ImageProvider,
                           backgroundColor: Colors.grey[700],
+                          placeholder: const CircleAvatar(
+                            radius: 30,
+                            backgroundColor: Colors.grey,
+                            backgroundImage: AssetImage('assets/default_avatar.png'),
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(

@@ -96,7 +96,7 @@ class UserLocationNotifier extends Notifier<UserLocationData> {
 // Notifier para el filtro de alcance
 class FilterScopeNotifier extends Notifier<String> {
   @override
-  String build() => 'Internacional'; // 'Cercano', 'Provincial', 'Nacional', 'Internacional'
+  String build() => 'Cercano'; // 'Cercano', 'Provincial', 'Nacional', 'Internacional'
   
   void setScope(String scope) {
     state = scope;

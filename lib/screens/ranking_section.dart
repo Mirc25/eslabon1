@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_storage/firebase_storage.dart'; // ✅ IMPORTADO: Necesario para obtener la URL de la imagen
+import '../widgets/avatar_optimizado.dart';
 
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
@@ -84,15 +85,26 @@ class _RankingSectionState extends State<RankingSection> {
     } else {
       query = _firestore.collection('users')
           .where('helpedCount', isGreaterThan: 0)
+          // Evita índice compuesto: ordenar solo por el mismo campo del filtro
           .orderBy('helpedCount', descending: true)
-          .orderBy('averageRating', descending: true)
           .limit(20);
     }
 
     final snapshot = await query.get();
     if (snapshot.docs.isNotEmpty) {
       _lastDocument = snapshot.docs.last;
-      _users = snapshot.docs;
+      // Ordena en cliente: helpedCount DESC, luego averageRating DESC
+      _users = List<DocumentSnapshot>.from(snapshot.docs);
+      _users.sort((a, b) {
+        final am = (a.data() as Map<String, dynamic>? ?? {});
+        final bm = (b.data() as Map<String, dynamic>? ?? {});
+        final ah = (am['helpedCount'] ?? 0) as num;
+        final bh = (bm['helpedCount'] ?? 0) as num;
+        if (bh.compareTo(ah) != 0) return bh.compareTo(ah);
+        final ar = (am['averageRating'] ?? 0) as num;
+        final br = (bm['averageRating'] ?? 0) as num;
+        return br.compareTo(ar);
+      });
       _hasMore = snapshot.docs.length == 20 && _searchQuery.isEmpty;
     } else {
       _hasMore = false;
@@ -112,8 +124,8 @@ class _RankingSectionState extends State<RankingSection> {
 
     Query query = _firestore.collection('users')
         .where('helpedCount', isGreaterThan: 0)
+        // Evita índice compuesto: ordenar solo por helpedCount
         .orderBy('helpedCount', descending: true)
-        .orderBy('averageRating', descending: true)
         .startAfterDocument(_lastDocument!)
         .limit(20);
 
@@ -121,6 +133,17 @@ class _RankingSectionState extends State<RankingSection> {
     if (snapshot.docs.isNotEmpty) {
       _lastDocument = snapshot.docs.last;
       _users.addAll(snapshot.docs);
+      // Reordenar en cliente tras cargar más
+      _users.sort((a, b) {
+        final am = (a.data() as Map<String, dynamic>? ?? {});
+        final bm = (b.data() as Map<String, dynamic>? ?? {});
+        final ah = (am['helpedCount'] ?? 0) as num;
+        final bh = (bm['helpedCount'] ?? 0) as num;
+        if (bh.compareTo(ah) != 0) return bh.compareTo(ah);
+        final ar = (am['averageRating'] ?? 0) as num;
+        final br = (bm['averageRating'] ?? 0) as num;
+        return br.compareTo(ar);
+      });
       _hasMore = snapshot.docs.length == 20;
     } else {
       _hasMore = false;
@@ -225,39 +248,16 @@ class _RankingSectionState extends State<RankingSection> {
                                     ),
                                   ),
                                   const SizedBox(width: 16),
-                                  // 🚀 LÓGICA CORREGIDA: Obtener la URL de Storage
-                                  FutureBuilder<String>(
-                                    // 1. Verificar si el path está en el caché:
-                                    future: profilePicturePath != null && _profilePictureUrlCache.containsKey(profilePicturePath)
-                                        ? Future.value(_profilePictureUrlCache[profilePicturePath]!)
-                                        // 2. Si no está en caché, llamar a Storage:
-                                        : profilePicturePath != null && profilePicturePath.isNotEmpty
-                                            ? _storage.ref().child(profilePicturePath).getDownloadURL()
-                                            : Future.value(''),
-                                    builder: (context, urlSnapshot) {
-                                      final String? finalImageUrl = urlSnapshot.data;
-                                      
-                                      // 3. Si la URL se obtuvo de Storage (es nueva), guardarla en el caché:
-                                      if (urlSnapshot.connectionState == ConnectionState.done && 
-                                          finalImageUrl != null && 
-                                          finalImageUrl.isNotEmpty && 
-                                          profilePicturePath != null && 
-                                          !_profilePictureUrlCache.containsKey(profilePicturePath)) {
-                                        _profilePictureUrlCache[profilePicturePath] = finalImageUrl;
-                                      }
-                                      
-                                      return CircleAvatar(
-                                        radius: 30,
-                                        backgroundImage: (finalImageUrl != null && finalImageUrl.isNotEmpty)
-                                            ? NetworkImage(finalImageUrl)
-                                            : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                                        backgroundColor: Colors.grey[700],
-                                        // Muestra un ícono solo si no hay imagen de perfil
-                                        child: (finalImageUrl == null || finalImageUrl.isEmpty) 
-                                            ? const Icon(Icons.person, size: 30, color: Colors.white70) 
-                                            : null,
-                                      );
-                                    },
+                                  AvatarOptimizado(
+                                    url: (profilePicturePath != null && profilePicturePath.startsWith('http')) ? profilePicturePath : null,
+                                    storagePath: (profilePicturePath != null && !profilePicturePath.startsWith('http')) ? profilePicturePath : null,
+                                    radius: 30,
+                                    backgroundColor: Colors.grey[700],
+                                    placeholder: const CircleAvatar(
+                                      radius: 30,
+                                      backgroundColor: Colors.grey,
+                                      backgroundImage: AssetImage('assets/default_avatar.png'),
+                                    ),
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(

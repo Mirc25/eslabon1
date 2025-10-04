@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart'; // Importado para obtener la ubicación
+import 'package:firebase_storage/firebase_storage.dart';
 
 class AppServices {
   final FirebaseFirestore _firestore;
@@ -23,6 +24,60 @@ class AppServices {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  /// Sube un archivo a Storage en `pending/{type}/{uid}/...` con metadata `docPath` (y `thumbnailPath` opcional)
+  /// y marca el documento en Firestore como `pending`.
+  /// Retorna la ruta completa en Storage donde quedó el archivo.
+  Future<String> uploadPendingMedia({
+    required String uid,
+    required String type, // 'images' | 'videos'
+    required File file,
+    required String docPath,
+    String? contentType,
+    String? filename,
+    String? thumbnailPath,
+  }) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final ext = file.path.split('.').last.toLowerCase();
+    final name = filename ?? 'media_$ts.$ext';
+    final storagePath = 'pending/$type/$uid/$name';
+
+    final ref = FirebaseStorage.instance.ref(storagePath);
+    final metadata = SettableMetadata(
+      contentType: contentType,
+      customMetadata: {
+        'docPath': docPath,
+        if (thumbnailPath != null) 'thumbnailPath': thumbnailPath,
+      },
+    );
+
+    await ref.putFile(file, metadata);
+
+    // Marca el documento como pendiente para que la UI muestre "En revisión" al dueño
+    await _firestore.doc(docPath).set({
+      'moderation': {
+        'status': 'pending',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }
+    }, SetOptions(merge: true));
+
+    return storagePath;
+  }
+
+  /// Crea un reporte de contenido para moderación manual
+  Future<void> createReport({
+    required String reporterUid,
+    required String docPath,
+    String? reason,
+  }) async {
+    await _firestore.collection('reports').add({
+      'reporterUid': reporterUid,
+      'docPath': docPath,
+      'reason': reason,
+      'status': 'open',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> addComment(BuildContext context, String requestId, String commentText) async {
@@ -97,12 +152,24 @@ class AppServices {
       });
       print('✅ PASO 1: Oferta agregada a Firestore exitosamente');
 
-      // Incrementar el contador de ofertas
+      // Incrementar el contador de ofertas (verificar existencia y manejar FAILED_PRECONDITION)
       print('📝 PASO 2: Incrementando contador de ofertas...');
-      await _firestore.collection('solicitudes-de-ayuda').doc(requestId).update({
-        'offersCount': FieldValue.increment(1),
-      });
-      print('✅ PASO 2: Contador incrementado exitosamente');
+      final reqRef = _firestore.collection('solicitudes-de-ayuda').doc(requestId);
+      final reqSnap = await reqRef.get();
+      if (reqSnap.exists) {
+        try {
+          await reqRef.update({'offersCount': FieldValue.increment(1)});
+          print('✅ PASO 2: Contador incrementado exitosamente');
+        } on FirebaseException catch (e) {
+          if (e.code == 'failed-precondition') {
+            print('⚠️ PASO 2: Incremento omitido por FAILED_PRECONDITION');
+          } else {
+            rethrow;
+          }
+        }
+      } else {
+        print('⚠️ PASO 2: Request no existe, omito incremento de offersCount');
+      }
 
       // Preparar datos para la notificación HTTP
       print('📝 PASO 3: Preparando datos para notificación HTTP...');
