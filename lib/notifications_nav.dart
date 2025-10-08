@@ -103,6 +103,26 @@ String routeFor(Map<String, dynamic> d) {
       }
       break;
     
+    case 'request_created':
+      // Navegar a detalle de la solicitud recién creada
+      final requestId = _extract('requestId') as String?;
+      if (requestId != null && requestId.isNotEmpty) {
+        final route = '/request/$requestId';
+        print('🧭 [NAV] 🆕 Solicitud creada, navegando a detalle: $route');
+        return _abs(route);
+      }
+      break;
+
+    case 'request_uploaded':
+      // Navegar a detalle después de subir imágenes/videos
+      final requestId = _extract('requestId') as String?;
+      if (requestId != null && requestId.isNotEmpty) {
+        final route = '/request/$requestId';
+        print('🧭 [NAV] ✅ Solicitud subida, navegando a detalle: $route');
+        return _abs(route);
+      }
+      break;
+  
     default:
       break;
   }
@@ -204,8 +224,13 @@ void _safeNavigateFromNotification(BuildContext context, String target) {
   
   try {
     if (context.mounted) {
-      print('🧭 [SAFE_NAV] 🚀 MÉTODO 1: Context directo');
-      context.go(target);
+      print('🧭 [SAFE_NAV] 🚀 MÉTODO 1: Context directo (siembra Main y push)');
+      if (target == '/main' || target == '/') {
+        context.go('/main');
+      } else {
+        context.go('/main');
+        Future.microtask(() => context.push(target));
+      }
       navigationSuccessful = true;
       print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN CON CONTEXT EXITOSA');
       return; 
@@ -223,7 +248,12 @@ void _safeNavigateFromNotification(BuildContext context, String target) {
         print('🧭 [SAFE_NAV] 🔑 MÉTODO 2: GlobalKey del router');
         final globalContext = navigatorState.context;
         if (globalContext.mounted) {
-          globalContext.go(target);
+          if (target == '/main' || target == '/') {
+            globalContext.go('/main');
+          } else {
+            globalContext.go('/main');
+            Future.microtask(() => globalContext.push(target));
+          }
           navigationSuccessful = true;
           print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN CON GLOBALKEY EXITOSA');
           return; 
@@ -244,7 +274,12 @@ void _safeNavigateFromNotification(BuildContext context, String target) {
       
       try {
         if (context.mounted) {
-          context.go(target);
+          if (target == '/main' || target == '/') {
+            context.go('/main');
+          } else {
+            context.go('/main');
+            Future.microtask(() => context.push(target));
+          }
           navigationSuccessful = true;
           print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN POST-FRAME CON CONTEXT EXITOSA');
           return;
@@ -258,7 +293,12 @@ void _safeNavigateFromNotification(BuildContext context, String target) {
         if (navigatorState != null) {
           final globalContext = navigatorState.context;
           if (globalContext.mounted) {
-            globalContext.go(target);
+            if (target == '/main' || target == '/') {
+              globalContext.go('/main');
+            } else {
+              globalContext.go('/main');
+              Future.microtask(() => globalContext.push(target));
+            }
             navigationSuccessful = true;
             print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN POST-FRAME CON GLOBALKEY EXITOSA');
             return;
@@ -294,7 +334,12 @@ void _safeNavigateFromNotification(BuildContext context, String target) {
         if (navigatorState != null) {
           final globalContext = navigatorState.context;
           if (globalContext.mounted) {
-            globalContext.go(target);
+            if (target == '/main' || target == '/') {
+              globalContext.go('/main');
+            } else {
+              globalContext.go('/main');
+              Future.microtask(() => globalContext.push(target));
+            }
             print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN CON DELAY EXITOSA');
             return;
           }
@@ -305,7 +350,12 @@ void _safeNavigateFromNotification(BuildContext context, String target) {
       
       try {
         if (context.mounted) {
-          context.go(target);
+          if (target == '/main' || target == '/') {
+            context.go('/main');
+          } else {
+            context.go('/main');
+            Future.microtask(() => context.push(target));
+          }
           print('🧭 [SAFE_NAV] ✅ NAVEGACIÓN FINAL CON CONTEXT EXITOSA');
         }
       } catch (e) {

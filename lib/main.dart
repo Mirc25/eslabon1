@@ -50,6 +50,8 @@ Future<void> main() async {
             .set({
               'fcmToken': token,
               'lastTokenUpdate': FieldValue.serverTimestamp(),
+              // Habilitar push por defecto también en actualización de token al inicio
+              'pushNotificationsEnabled': true,
             }, SetOptions(merge: true));
         debugPrint('✅ FCM token actualizado al inicio: $token');
       } else {

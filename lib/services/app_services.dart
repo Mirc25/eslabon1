@@ -368,7 +368,7 @@ class AppServices {
       print('🔔 Request Body: ${json.encode(requestBody)}');
       
       final response = await http.post(
-        Uri.parse('https://us-central1-pablo-oviedo.cloudfunctions.net/sendChatNotificationHTTP2'),
+        Uri.parse('https://us-central1-pablo-oviedo.cloudfunctions.net/sendChatNotificationHTTP'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

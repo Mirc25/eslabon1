@@ -10,3 +10,4 @@ export { moderateImageUpload } from "./moderateImage.js";
 export { moderateVideoUpload } from "./moderateVideo.js";
 export { moderateTextAndSet } from "./moderateTextHTTP.js";
 export { helpRequestNotificationTrigger } from "./helpRequestNotificationTrigger.js";
+export { requestApprovalNotificationTrigger } from "./requestApprovalNotificationTrigger.js";

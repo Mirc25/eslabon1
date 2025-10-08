@@ -14,6 +14,9 @@ import '../widgets/custom_app_bar.dart';
 import '../services/app_services.dart';
 import '../services/inapp_notification_service.dart';
 import '../widgets/avatar_optimizado.dart';
+import '../services/notification_service.dart';
+import '../widgets/ad_banner_widget.dart';
+import '../services/ads_ids.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -57,6 +60,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _appServices = AppServices(_firestore, _auth);
     _currentUser = _auth.currentUser;
     _updateUserPresence(widget.chatId);
+    // Indicar al NotificationService que este chat está activo para suprimir push duplicado
+    try {
+      NotificationService.setActiveChatId(widget.chatId);
+    } catch (_) {}
     _loadCurrentUserData();
     _loadChatPartnerAvatarUrl();
     _loadChatPartnerToken();
@@ -71,6 +78,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void dispose() {
     _updateUserPresence(null);
+    // Limpiar estado de chat activo en el NotificationService
+    try {
+      NotificationService.setActiveChatId(null);
+    } catch (_) {}
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -246,9 +257,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
+      final position = _scrollController.position;
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
+        position.minScrollExtent,
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
     }
@@ -338,17 +350,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
           ),
           actions: [
-            AvatarOptimizado(
-              url: (_chatPartnerAvatarUrl != null && _chatPartnerAvatarUrl!.startsWith('http')) ? _chatPartnerAvatarUrl : null,
-              storagePath: (_chatPartnerAvatarUrl != null && !_chatPartnerAvatarUrl!.startsWith('http')) ? _chatPartnerAvatarUrl : null,
-              radius: 20,
-              backgroundColor: Colors.grey[700],
+            GestureDetector(
+              onTap: () {
+                context.pushNamed(
+                  'user_profile_view',
+                  pathParameters: {'userId': widget.chatPartnerId},
+                  extra: {
+                    'userName': widget.chatPartnerName,
+                    'userPhotoUrl': _chatPartnerAvatarUrl ?? widget.chatPartnerAvatar,
+                  },
+                );
+              },
+              child: Hero(
+                tag: 'profile-${widget.chatPartnerId}',
+                child: AvatarOptimizado(
+                  url: (_chatPartnerAvatarUrl != null && _chatPartnerAvatarUrl!.startsWith('http')) ? _chatPartnerAvatarUrl : null,
+                  storagePath: (_chatPartnerAvatarUrl != null && !_chatPartnerAvatarUrl!.startsWith('http')) ? _chatPartnerAvatarUrl : null,
+                  radius: 20,
+                  backgroundColor: Colors.grey[700],
+                ),
+              ),
             ),
             const SizedBox(width: 10),
           ],
         ),
         body: Column(
           children: [
+            const SizedBox(height: 8),
+            AdBannerWidget(adUnitId: AdsIds.banner),
+            const SizedBox(height: 8),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore
@@ -369,9 +399,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   }
 
                   final messages = snapshot.data!.docs;
+                  // Asegurar que tras construir se mantenga el scroll al final (último mensaje)
+                  WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
                   return ListView.builder(
-                    reverse: true,
                     controller: _scrollController,
+                    reverse: true,
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final message = messages[index].data() as Map<String, dynamic>;

@@ -583,7 +583,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       if (mounted) {
         // Asegurarse de que el nombre esté codificado para la URL
         final encodedName = Uri.encodeComponent(chatPartnerName);
-        context.go('/chat/$chatId?partnerId=$chatPartnerId&partnerName=$encodedName&partnerAvatar=${chatPartnerAvatar ?? ''}');
+        context.push('/chat/$chatId?partnerId=$chatPartnerId&partnerName=$encodedName&partnerAvatar=${chatPartnerAvatar ?? ''}');
       }
     } catch (e) {
       print("Error starting chat: $e");
@@ -965,14 +965,6 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Future<Map<String, dynamic>> requestDataFuture = widget.requestData != null
-        ? Future.value(widget.requestData!)
-        : _firestore.collection('solicitudes-de-ayuda').doc(widget.requestId).get().then((doc) {
-      if (doc.exists) {
-        return doc.data() as Map<String, dynamic>;
-      }
-      return {};
-    });
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -988,30 +980,49 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               child: AdBannerWidget(adUnitId: AdsIds.banner),
             ),
             Expanded(
-              child: FutureBuilder<Map<String, dynamic>>(
-          future: requestDataFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
-              return const Center(child: CircularProgressIndicator(color: Colors.amber));
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Error al cargar la solicitud: ${snapshot.error}'.tr(), style: const TextStyle(color: Colors.red)));
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(child: Text('Solicitud no encontrada.'.tr(), style: const TextStyle(color: Colors.white)));
-            }
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: _firestore
+                    .collection('solicitudes-de-ayuda')
+                    .doc(widget.requestId)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  // Si tenemos datos iniciales en memoria, úsalos como fallback
+                  if (snapshot.connectionState == ConnectionState.waiting && widget.requestData != null) {
+                    return Column(
+                      children: [
+                        Expanded(child: _buildBodyWithData(context, widget.requestData!)),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: AdBannerWidget(adUnitId: AdsIds.banner),
+                        ),
+                      ],
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'Error al cargar la solicitud: ${snapshot.error}'.tr(),
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+                  if (!snapshot.hasData || !snapshot.data!.exists) {
+                    return Center(
+                      child: Text('Solicitud no encontrada.'.tr(), style: const TextStyle(color: Colors.white)),
+                    );
+                  }
 
-            final requestData = snapshot.data!;
-            return Column(
-              children: [
-                Expanded(child: _buildBodyWithData(context, requestData)),
-            Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: AdBannerWidget(adUnitId: AdsIds.banner),
-                ),
-              ],
-            );
-          },
+                  final requestData = (snapshot.data!.data() as Map<String, dynamic>?) ?? {};
+                  return Column(
+                    children: [
+                      Expanded(child: _buildBodyWithData(context, requestData)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: AdBannerWidget(adUnitId: AdsIds.banner),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],

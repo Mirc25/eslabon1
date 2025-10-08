@@ -2,6 +2,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
 // Modelo para la ubicación del usuario
 class UserLocationData {
@@ -81,6 +83,26 @@ class UserLocationNotifier extends Notifier<UserLocationData> {
         locality: localityName,
         statusMessage: 'Ubicación obtenida: $localityName',
       );
+
+      // Persistir ubicación en el documento del usuario (requerido por el trigger de cercanía)
+      try {
+        final currentUser = firebase_auth.FirebaseAuth.instance.currentUser;
+        if (currentUser != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUser.uid)
+              .set({
+                'latitude': position.latitude,
+                'longitude': position.longitude,
+                'lastLocationUpdate': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+          print('DEBUG: Ubicación del usuario persistida en Firestore (lat=${position.latitude}, lon=${position.longitude})');
+        } else {
+          print('DEBUG: Usuario no autenticado, no se persiste ubicación en Firestore');
+        }
+      } catch (e) {
+        print('DEBUG: Error al persistir ubicación en Firestore: $e');
+      }
     } catch (e) {
       state = state.copyWith(
         latitude: null,

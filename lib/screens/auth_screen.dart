@@ -121,8 +121,10 @@ class _AuthScreenState extends State<AuthScreen> {
         await _firestore.collection('users').doc(user.uid).set({ 
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
+          // Habilitar push por defecto al iniciar sesión/guardar token
+          'pushNotificationsEnabled': true,
         }, SetOptions(merge: true));
-        debugPrint('✅ Token FCM guardado correctamente: $token');
+        debugPrint('✅ Token FCM guardado y push habilitado por defecto: $token');
       } else {
         debugPrint('⚠️ No se pudo obtener el token FCM.');
       }

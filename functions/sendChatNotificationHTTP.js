@@ -66,8 +66,9 @@ export const sendChatNotificationHTTP = onRequest(async (req, res) => {
     const receiverDoc = await db.collection('users').doc(receiverId).get();
     const receiverData = receiverDoc.data();
     
-    // Don't send notification if user is in the same chat
-    if (receiverData && receiverData.activeChatId === chatId) {
+    // Don't send notification if user is in the same chat (check both fields)
+    const activeChat = receiverData?.activeChatId || receiverData?.currentChatId;
+    if (activeChat === chatId) {
       console.log("User is in active chat, skipping notification");
       res.status(200).json({ success: true, message: "User in active chat, notification skipped" });
       return;
@@ -80,12 +81,14 @@ export const sendChatNotificationHTTP = onRequest(async (req, res) => {
         imageUrl: senderPhotoUrl || undefined
       },
       data: {
+        type: "chat",
         notificationType: "chat",
         chatPartnerId: senderId,
         chatPartnerName: senderName,
         chatPartnerPhotoUrl: senderPhotoUrl || "",
-        route: "/chat",
-        chatId: chatId
+        chatRoomId: chatId,
+        chatId: chatId,
+        route: `/chat/${chatId}?partnerId=${senderId}&partnerName=${encodeURIComponent(senderName || '')}&partnerAvatar=${encodeURIComponent(senderPhotoUrl || '')}`,
       },
       android: {
         notification: {

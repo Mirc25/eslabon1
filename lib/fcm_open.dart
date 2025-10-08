@@ -47,12 +47,17 @@ void _safeNavigate(GlobalKey<NavigatorState> navKey, String route, String source
   
   bool navigationSuccessful = false;
   
-  // 🚀 MÉTODO 1: Navegación con context directo
+  // 🚀 MÉTODO 1: Navegación con context directo (siembra Main y luego push)
   try {
     final context = navKey.currentState?.context;
     if (context != null && context.mounted) {
       print('🔥 [SAFE_NAV] 🚀 MÉTODO 1: Context directo');
-      context.go(route);
+      if (route == '/main' || route == '/') {
+        context.go('/main');
+      } else {
+        context.go('/main');
+        Future.microtask(() => context.push(route));
+      }
       navigationSuccessful = true;
       print('🔥 [SAFE_NAV] ✅ NAVEGACIÓN CON CONTEXT EXITOSA');
       return; // Salir si fue exitosa
@@ -63,7 +68,7 @@ void _safeNavigate(GlobalKey<NavigatorState> navKey, String route, String source
     print('🔥 [SAFE_NAV] ❌ ERROR en navegación con context: $e');
   }
   
-  // 🚀 MÉTODO 2: Navegación con GlobalKey del router
+  // 🚀 MÉTODO 2: Navegación con GlobalKey del router (siembra Main y luego push)
   if (!navigationSuccessful) {
     try {
       final navigatorState = AppRouter.navigatorKey.currentState;
@@ -71,7 +76,12 @@ void _safeNavigate(GlobalKey<NavigatorState> navKey, String route, String source
         print('🔥 [SAFE_NAV] 🔑 MÉTODO 2: GlobalKey del router');
         final context = navigatorState.context;
         if (context.mounted) {
-          context.go(route);
+          if (route == '/main' || route == '/') {
+            context.go('/main');
+          } else {
+            context.go('/main');
+            Future.microtask(() => context.push(route));
+          }
           navigationSuccessful = true;
           print('🔥 [SAFE_NAV] ✅ NAVEGACIÓN CON GLOBALKEY EXITOSA');
           return; // Salir si fue exitosa
@@ -91,11 +101,16 @@ void _safeNavigate(GlobalKey<NavigatorState> navKey, String route, String source
       
       print('🔥 [SAFE_NAV] 🔄 MÉTODO 3: PostFrameCallback');
       
-      // Intentar con context original
+      // Intentar con context original (siembra Main y luego push)
       try {
         final context = navKey.currentState?.context;
         if (context != null && context.mounted) {
-          context.go(route);
+          if (route == '/main' || route == '/') {
+            context.go('/main');
+          } else {
+            context.go('/main');
+            Future.microtask(() => context.push(route));
+          }
           navigationSuccessful = true;
           print('🔥 [SAFE_NAV] ✅ NAVEGACIÓN POST-FRAME CON CONTEXT EXITOSA');
           return;
@@ -104,13 +119,18 @@ void _safeNavigate(GlobalKey<NavigatorState> navKey, String route, String source
         print('🔥 [SAFE_NAV] ❌ ERROR PostFrame con context: $e');
       }
       
-      // Intentar con GlobalKey
+      // Intentar con GlobalKey (siembra Main y luego push)
       try {
         final navigatorState = AppRouter.navigatorKey.currentState;
         if (navigatorState != null) {
           final globalContext = navigatorState.context;
           if (globalContext.mounted) {
-            globalContext.go(route);
+            if (route == '/main' || route == '/') {
+              globalContext.go('/main');
+            } else {
+              globalContext.go('/main');
+              Future.microtask(() => globalContext.push(route));
+            }
             navigationSuccessful = true;
             print('🔥 [SAFE_NAV] ✅ NAVEGACIÓN POST-FRAME CON GLOBALKEY EXITOSA');
             return;
@@ -143,13 +163,18 @@ void _safeNavigate(GlobalKey<NavigatorState> navKey, String route, String source
       
       print('🔥 [SAFE_NAV] ⏰ MÉTODO 4: Navegación con delay');
       
-      // Intentar con GlobalKey
+      // Intentar con GlobalKey (siembra Main y luego push)
       try {
         final navigatorState = AppRouter.navigatorKey.currentState;
         if (navigatorState != null) {
           final globalContext = navigatorState.context;
           if (globalContext.mounted) {
-            globalContext.go(route);
+            if (route == '/main' || route == '/') {
+              globalContext.go('/main');
+            } else {
+              globalContext.go('/main');
+              Future.microtask(() => globalContext.push(route));
+            }
             print('🔥 [SAFE_NAV] ✅ NAVEGACIÓN CON DELAY EXITOSA');
             return;
           }
@@ -158,11 +183,16 @@ void _safeNavigate(GlobalKey<NavigatorState> navKey, String route, String source
         print('🔥 [SAFE_NAV] ❌ ERROR en navegación con delay: $e');
       }
       
-      // Último intento con context original
+      // Último intento con context original (siembra Main y luego push)
       try {
         final context = navKey.currentState?.context;
         if (context != null && context.mounted) {
-          context.go(route);
+          if (route == '/main' || route == '/') {
+            context.go('/main');
+          } else {
+            context.go('/main');
+            Future.microtask(() => context.push(route));
+          }
           print('🔥 [SAFE_NAV] ✅ NAVEGACIÓN FINAL CON CONTEXT EXITOSA');
         }
       } catch (e) {

@@ -57,14 +57,18 @@ final filteredHelpRequestsProvider = Provider<AsyncValue<List<QueryDocumentSnaps
         bool passesFilter = false;
         
         if (currentFilterScope == 'Cercano') {
-          passesFilter = isNearbyLocal;
-          if (requestLat != null && requestLon != null) {
-            final distance = userLocation.latitude != null && userLocation.longitude != null 
-              ? _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon)
-              : -1;
-            print('DEBUG FILTRO: Solicitud lat=$requestLat, lon=$requestLon, distancia=${distance.toStringAsFixed(1)}km, pasa filtro: $passesFilter');
+          // Fallback: si no tenemos ubicación del usuario, mostramos todas las solicitudes activas de terceros
+          if (userLocation.latitude == null || userLocation.longitude == null) {
+            passesFilter = true;
+            print('DEBUG FILTRO: Cercano sin ubicación de usuario → mostrando todas solicitudes activas (fallback)');
           } else {
-            print('DEBUG FILTRO: Solicitud sin coordenadas válidas');
+            passesFilter = isNearbyLocal;
+            if (requestLat != null && requestLon != null) {
+              final distance = _calculateDistance(userLocation.latitude!, userLocation.longitude!, requestLat, requestLon);
+              print('DEBUG FILTRO: Solicitud lat=$requestLat, lon=$requestLon, distancia=${distance.toStringAsFixed(1)}km, pasa filtro: $passesFilter');
+            } else {
+              print('DEBUG FILTRO: Solicitud sin coordenadas válidas');
+            }
           }
         } else if (currentFilterScope == 'Provincial') {
           // 2. Filtrado Provincial (Usa la provincia guardada en el perfil del usuario)

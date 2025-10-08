@@ -377,20 +377,68 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> with Ticker
               message['userAvatarUrl']?.toString(),
               isMe,
               () {
-                context.pushNamed(
-                  'user_profile_view',
-                  pathParameters: {'userId': message['userId']?.toString() ?? 'error'},
-                  extra: {
-                    'userName': message['userName']?.toString(),
-                    'userPhotoUrl': message['userAvatarUrl']?.toString(),
-                  },
-                );
+                final String targetUserId = message['userId']?.toString() ?? '';
+                final String targetUserName = message['userName']?.toString() ?? 'Usuario';
+                final String? targetAvatar = message['userAvatarUrl']?.toString();
+                _startPrivateChatFromGlobal(targetUserId, targetUserName, targetAvatar);
               },
             );
           },
         );
       },
     );
+  }
+
+  Future<void> _startPrivateChatFromGlobal(String userId, String userName, String? userAvatar) async {
+    try {
+      final String? currentUid = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+      if (currentUid == null) {
+        AppServices.showSnackBar(context, 'Debes iniciar sesión para chatear.', Colors.red);
+        return;
+      }
+
+      if (userId.isEmpty || userId == currentUid) {
+        return; // Evitar chats consigo mismo o usuario inválido
+      }
+
+      // Buscar chat existente entre ambos usuarios
+      final QuerySnapshot existingChats = await _firestore
+          .collection('chats')
+          .where('participants', arrayContains: currentUid)
+          .get();
+
+      String? chatId;
+      for (final doc in existingChats.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final participants = List<String>.from(data['participants'] ?? []);
+        if (participants.contains(userId)) {
+          chatId = doc.id;
+          break;
+        }
+      }
+
+      if (chatId == null) {
+        // Crear nuevo chat
+        final DocumentReference newChatRef = await _firestore.collection('chats').add({
+          'participants': [currentUid, userId],
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastMessage': {
+            'text': '',
+            'senderId': '',
+            'timestamp': FieldValue.serverTimestamp(),
+          },
+        });
+        chatId = newChatRef.id;
+      }
+
+      // Navegar al chat privado usando push para respetar la pila
+      final String encodedName = Uri.encodeComponent(userName);
+      context.push('/chat/$chatId?partnerId=$userId&partnerName=$encodedName&partnerAvatar=${userAvatar ?? ''}');
+    } catch (e) {
+      // ignore: avoid_print
+      print('GlobalChat: error iniciando chat privado: $e');
+      AppServices.showSnackBar(context, 'No se pudo abrir el chat privado.', Colors.red);
+    }
   }
 
   Widget _buildMessageBubble(String text, Timestamp timestamp, String userName, String? avatarUrl, bool isMe, VoidCallback onUserTap) {

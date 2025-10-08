@@ -32,6 +32,13 @@ export const sendChatNotification = onDocumentCreated('chats/{chatId}/messages/{
     const receiverData = receiverDoc.data();
     const receiverToken = receiverData.fcmToken;
 
+    // Supresión si el receptor está en el chat activo actual
+    const activeChat = receiverData.activeChatId || receiverData.currentChatId;
+    if (activeChat === chatId) {
+      console.log('Receiver currently in active chat, skipping push.', { receiverId, chatId, activeChat });
+      return null;
+    }
+
     // Log de presencia de token FCM del receptor
     console.log('Receiver FCM token:', receiverToken ? 'present' : 'missing');
 
@@ -62,11 +69,13 @@ export const sendChatNotification = onDocumentCreated('chats/{chatId}/messages/{
         body: message.text,
       },
       data: {
+        type: 'chat',
         notificationType: 'chat_message',
         chatPartnerId: senderId,
         chatPartnerName: senderName,
         chatPartnerAvatar: senderAvatarUrl,
         chatRoomId: chatId,
+        chatId: chatId,
         // La ruta a la que la aplicación navegará al hacer clic en la notificación
         route: `/chat/${chatId}?partnerId=${senderId}&partnerName=${senderName}&partnerAvatar=${encodeURIComponent(senderAvatarUrl)}`,
       },

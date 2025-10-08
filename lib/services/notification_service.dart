@@ -28,9 +28,41 @@ class NotificationService {
   static String? _lastChatNotificationId;
   static DateTime? _lastChatNotificationTime;
   static bool _isAppInForeground = false;
+  static bool _onMainScreen = false;
 
   static void setActiveChatId(String? chatId) => _activeChatId = chatId;
   static void setAppInForeground(bool inForeground) => _isAppInForeground = inForeground;
+  static void setOnMainScreen(bool onMain) => _onMainScreen = onMain;
+
+  // 📣 Notificación local sencilla para eventos del cliente (p.ej., solicitud publicada)
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+    String? payloadRoute,
+  }) async {
+    try {
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'eslabon_channel',
+        'Eslabón Notificaciones',
+        channelDescription: 'Canal por defecto para notificaciones locales',
+        importance: Importance.high,
+        priority: Priority.high,
+      );
+
+      const NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
+      final int notifId = DateTime.now().millisecondsSinceEpoch & 0x7FFFFFFF;
+      await _flutterLocalNotificationsPlugin.show(
+        notifId,
+        title,
+        body,
+        platformDetails,
+        payload: payloadRoute,
+      );
+      print('🔔 [LOCAL] Notificación mostrada: $title - $body (payload: '+(payloadRoute??'null')+')');
+    } catch (e) {
+      print('🔔 [LOCAL] Error mostrando notificación: $e');
+    }
+  }
 
   // 🧪 MÉTODO DE PRUEBA: Simular navegación de notificación sin FCM
   Future<void> testNotificationNavigation({
@@ -94,6 +126,14 @@ class NotificationService {
     await _restoreDedupeCache();
     await _initLocalNotifications();
 
+    // Solicitar permiso FCM con flags explícitos
+    try {
+      await _messaging.requestPermission(alert: true, badge: true, sound: true);
+      print('📲 Permiso FCM solicitado (alert/badge/sound)');
+    } catch (e) {
+      print('📲 ⚠️ Error solicitando permiso FCM: $e');
+    }
+
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       // 📨 DEBUGGING: Capturar exactamente lo que llega al teléfono
       print('📨 === FCM onMessage RECEIVED ===');
@@ -107,12 +147,21 @@ class NotificationService {
       print('📨 FCM.requesterId: ${message.data['requesterId']}');
       print('📨 === END FCM onMessage ===');
       
-      final String? chatRoomId = message.data['chatRoomId']?.toString();
-      final String? notificationType = message.data['notificationType']?.toString();
+      // Normalizar ids y tipo para suprimir correctamente en foreground
+      final String? chatRoomId = (message.data['chatRoomId'] ?? message.data['chatId'])?.toString();
+      final String? notificationType = (message.data['notificationType'] ?? message.data['type'])?.toString();
 
       // En primer plano: suprimir solo chats del hilo activo; mostrar demás tipos
-      if (_isAppInForeground && notificationType == 'chat_message' && _activeChatId == chatRoomId) {
+      if (_isAppInForeground && (notificationType == 'chat_message' || notificationType == 'chat') && _activeChatId == chatRoomId) {
         debugPrint('Mensaje de chat en chat activo, se ignora en foreground.');
+        return;
+      }
+
+      // En primer plano: NO suprimir notificaciones de ayuda cercanas en MainScreen
+      // Permitimos que "help_nearby" se muestre incluso si el usuario está en Main
+      // Mantenemos supresión solo para notificaciones de tipo "help" generales si se requiere
+      if (_isAppInForeground && _onMainScreen && notificationType == 'help') {
+        debugPrint('Notificación de ayuda general suprimida en foreground porque el usuario está en MainScreen.');
         return;
       }
       await _handleMessage(message);
@@ -156,6 +205,49 @@ class NotificationService {
       initializationSettings,
       onDidReceiveNotificationResponse: _handleNotificationTap,
     );
+
+    // Solicitar permiso para mostrar notificaciones (Android 13+)
+    try {
+      final androidPlugin = _flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      // En Android 13+, solicitar permiso mediante la API específica del plugin
+      final granted = await androidPlugin?.requestNotificationsPermission();
+      print('🔔 Permiso de notificaciones solicitado (Android): ${granted == true}');
+    } catch (e) {
+      print('🔔 ⚠️ Error solicitando permiso de notificaciones: $e');
+    }
+
+    // Crear el canal por defecto para FCM indicado en AndroidManifest (eslabon_channel)
+    try {
+      final androidPlugin = _flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      const AndroidNotificationChannel defaultChannel = AndroidNotificationChannel(
+        'eslabon_channel',
+        'Eslabón Notificaciones',
+        description: 'Canal por defecto para notificaciones FCM',
+        importance: Importance.high,
+      );
+      await androidPlugin?.createNotificationChannel(defaultChannel);
+      print('🔔 Canal de notificaciones "eslabon_channel" creado/asegurado');
+    } catch (e) {
+      print('🔔 ⚠️ Error creando canal de notificaciones por defecto: $e');
+    }
+
+    // Crear/asegurar canal específico usado por FCM para chat
+    try {
+      final androidPlugin = _flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      const AndroidNotificationChannel chatChannel = AndroidNotificationChannel(
+        'chat_notifications',
+        'Chat',
+        description: 'Notificaciones de chat privadas',
+        importance: Importance.high,
+      );
+      await androidPlugin?.createNotificationChannel(chatChannel);
+      print('🔔 Canal de notificaciones "chat_notifications" creado/asegurado');
+    } catch (e) {
+      print('🔔 ⚠️ Error creando canal de chat: $e');
+    }
   }
 
   Future<void> _handleNotificationTap(NotificationResponse response) async {
@@ -188,7 +280,12 @@ class NotificationService {
           await _markChatNotificationsAsRead(chatId);
         }
         
-        _router.go(route);
+        if (route == '/main' || route == '/') {
+          _router.go('/main');
+        } else {
+          _router.go('/main');
+          Future.microtask(() => _router.push(route));
+        }
         print('🔔 ✅ NAVEGACIÓN LOCAL EXITOSA');
       } catch (e) {
         print('🔔 ❌ ERROR EN NAVEGACIÓN LOCAL: $e');
@@ -249,7 +346,12 @@ class NotificationService {
         try {
           // Verificar que el router esté disponible
           if (_router.routerDelegate.currentConfiguration.isNotEmpty) {
-            _router.go(route);
+            if (route == '/main' || route == '/') {
+              _router.go('/main');
+            } else {
+              _router.go('/main');
+              Future.microtask(() => _router.push(route));
+            }
             navigationSuccessful = true;
             print('🔔 ✅ NAVEGACIÓN EXITOSA POST-FRAME');
           } else {
@@ -259,7 +361,7 @@ class NotificationService {
           print('🔔 ❌ ERROR EN NAVEGACIÓN POST-FRAME: $e');
           // Fallback seguro: ir a home
           try {
-            _router.go('/');
+            _router.go('/main');
             navigationSuccessful = true;
             print('🔔 🏠 NAVEGACIÓN A HOME EXITOSA (FALLBACK POST-FRAME)');
           } catch (e2) {
@@ -274,14 +376,19 @@ class NotificationService {
         
         print('🔔 🔄 INTENTANDO NAVEGACIÓN CON DELAY: $route');
         try {
-          _router.go(route);
+          if (route == '/main' || route == '/') {
+            _router.go('/main');
+          } else {
+            _router.go('/main');
+            Future.microtask(() => _router.push(route));
+          }
           navigationSuccessful = true;
           print('🔔 ✅ NAVEGACIÓN CON DELAY EXITOSA');
         } catch (e) {
           print('🔔 ⚠️ NAVEGACIÓN CON DELAY FALLÓ: $e');
           // Último intento: ir a home
           try {
-            _router.go('/');
+            _router.go('/main');
             navigationSuccessful = true;
             print('🔔 🏠 NAVEGACIÓN A HOME EXITOSA (FALLBACK DELAY)');
           } catch (e2) {
@@ -346,32 +453,54 @@ class NotificationService {
     print('🔔 Message data completo: ${message.data}');
     print('🔔 Message notification: ${message.notification?.toMap()}');
     
+    // Evitar duplicados: si la app está en segundo plano y el payload incluye
+    // una sección "notification", Android ya mostrará la notificación del sistema.
+    // En ese caso, NO mostramos una notificación local adicional.
+    final bool systemWillShowNotification = (message.notification != null) && !NotificationService._isAppInForeground;
+    if (systemWillShowNotification) {
+      print('🔔 ⚠️ Sistema mostrará la notificación (background + notification payload). Se omite local.');
+      return;
+    }
+    
     // Usar title y body de notification si están disponibles, sino usar los de data
     final String? title = message.notification?.title ?? message.data['title'];
     final String? body = message.notification?.body ?? message.data['body'];
     final String? route = message.data['route'] as String?;
-    final String? senderAvatarUrl = message.data['senderPhotoUrl'] as String?;
+    // final String? senderAvatarUrl = message.data['senderPhotoUrl'] as String?; // No usar URL como icono
 
     print('🔔 Title extraído: $title');
     print('🔔 Body extraído: $body');
     print('🔔 Route extraída para payload: $route');
-    print('🔔 Sender avatar URL: $senderAvatarUrl');
+    // print('🔔 Sender avatar URL: $senderAvatarUrl');
 
     if (title != null && body != null) {
       print('🔔 ✅ CREANDO NOTIFICACIÓN LOCAL con payload: $route');
-      
+      // Elegir canal según tipo: chat vs general (ayuda, rating, etc.)
+      final String notificationType = (message.data['notificationType'] ?? message.data['type'] ?? '').toString();
+      final bool isChat = notificationType == 'chat' || notificationType == 'chat_message';
+      final String channelId = isChat ? 'chat_notifications' : 'eslabon_channel';
+      final String channelName = isChat ? 'Chat' : 'Eslabón Notificaciones';
+      final String channelDescription = isChat ? 'Notificaciones de chat privadas' : 'Notificaciones generales de Eslabón';
+
+      // Importante: el icono debe ser un recurso local (no URL).
+      // Usamos el launcher por defecto y dejamos la imagen remota para futuro via largeIcon descargado.
       final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'chat_channel_id',
-        'Chat Notifications',
-        channelDescription: 'Canal para notificaciones de chat.',
+        // Unificar canal según tipo de notificación
+        channelId,
+        channelName,
+        channelDescription: channelDescription,
         importance: Importance.max,
         priority: Priority.high,
-        icon: senderAvatarUrl,
+        icon: '@mipmap/ic_launcher',
+        // Acento negro para cumplir con estética solicitada en notificaciones generales
+        color: isChat ? null : Colors.black,
       );
 
       final NotificationDetails platformDetails = NotificationDetails(android: androidDetails);
+      // ID único por notificación para evitar sobrescritura
+      final int notifId = (message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch) & 0x7FFFFFFF;
       await _flutterLocalNotificationsPlugin.show(
-        0,
+        notifId,
         title,
         body,
         platformDetails,

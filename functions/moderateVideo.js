@@ -75,7 +75,7 @@ export const moderateVideoUpload = onObjectFinalized({
 
   if (docPath) {
     try {
-      await db.doc(docPath).set({
+      const updateData = {
         moderation: {
           status: decision.status,
           reason: decision.reason,
@@ -85,7 +85,12 @@ export const moderateVideoUpload = onObjectFinalized({
           videoPath: destName,
           thumbnailPath: thumbPath || null,
         },
-      }, { merge: true });
+      };
+      // Mantener compatibilidad con UI existente: poblar 'videos' cuando esté aprobado
+      if (decision.status === 'approved') {
+        updateData.videos = FieldValue.arrayUnion(destName);
+      }
+      await db.doc(docPath).set(updateData, { merge: true });
       console.log(`[MOD][VID] Updated doc ${docPath} → ${decision.status}`);
     } catch (e) {
       console.error('[MOD][VID] Firestore update failed:', e);

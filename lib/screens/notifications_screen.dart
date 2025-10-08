@@ -225,26 +225,25 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         return !(data['read'] ?? false);
       }).length;
 
-      if (unreadCount > 0) {
-        final latestNotification = chatNotifications.first;
-        final latestData = latestNotification.data();
+      // Mostrar siempre la conversación en la lista, incluso si no hay no leídos
+      final latestNotification = chatNotifications.first;
+      final latestData = latestNotification.data();
 
-        final partnerName = latestData['data']?['chatPartnerName'] ??
-            latestData['data']?['senderName'] ??
-            'Usuario desconocido';
+      final partnerName = latestData['data']?['chatPartnerName'] ??
+          latestData['data']?['senderName'] ??
+          'Usuario desconocido';
 
-        groupedChatNotifications.add(GroupedChatNotification(
-          chatPartnerId: chatPartnerId,
-          chatPartnerName: 'Chat $partnerName',
-          chatPartnerAvatar: latestData['data']?['senderAvatar'],
-          chatRoomId: latestData['data']?['chatRoomId'] ?? '',
-          unreadCount: unreadCount,
-          lastMessageTime: (latestData['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          lastMessageText: unreadCount > 1
-              ? '$unreadCount mensajes nuevos'
-              : latestData['body'] ?? 'Nuevo mensaje',
-        ));
-      }
+      groupedChatNotifications.add(GroupedChatNotification(
+        chatPartnerId: chatPartnerId,
+        chatPartnerName: 'Chat $partnerName',
+        chatPartnerAvatar: latestData['data']?['senderAvatar'],
+        chatRoomId: latestData['data']?['chatRoomId'] ?? '',
+        unreadCount: unreadCount,
+        lastMessageTime: (latestData['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        lastMessageText: unreadCount > 1
+            ? '$unreadCount mensajes nuevos'
+            : latestData['body'] ?? 'Nuevo mensaje',
+      ));
     }
 
     groupedChatNotifications.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
@@ -294,7 +293,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           
           // Navegar al chat
           if (context.mounted) {
-            context.go('/chat/${groupedNotification.chatRoomId}?partnerId=${groupedNotification.chatPartnerId}&partnerName=${Uri.encodeComponent(groupedNotification.chatPartnerName)}&partnerAvatar=${groupedNotification.chatPartnerAvatar ?? ''}');
+            context.push('/chat/${groupedNotification.chatRoomId}?partnerId=${groupedNotification.chatPartnerId}&partnerName=${Uri.encodeComponent(groupedNotification.chatPartnerName)}&partnerAvatar=${groupedNotification.chatPartnerAvatar ?? ''}');
           }
         },
         borderRadius: BorderRadius.circular(12),

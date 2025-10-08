@@ -158,7 +158,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
       if (existingChatId != null) {
         // Navegar al chat existente
-        context.go('/chat/$existingChatId?partnerId=$userId&partnerName=${Uri.encodeComponent(userName)}&partnerAvatar=${userAvatar ?? ''}');
+      context.push('/chat/$existingChatId?partnerId=$userId&partnerName=${Uri.encodeComponent(userName)}&partnerAvatar=${userAvatar ?? ''}');
       } else {
         // Crear nuevo chat
         final DocumentReference newChatRef = await _firestore.collection('chats').add({
@@ -172,7 +172,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         });
 
         // Navegar al nuevo chat
-        context.go('/chat/${newChatRef.id}?partnerId=$userId&partnerName=${Uri.encodeComponent(userName)}&partnerAvatar=${userAvatar ?? ''}');
+      context.push('/chat/${newChatRef.id}?partnerId=$userId&partnerName=${Uri.encodeComponent(userName)}&partnerAvatar=${userAvatar ?? ''}');
       }
 
       // Limpiar búsqueda
@@ -380,7 +380,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               ],
                             ),
                             onTap: () {
-                              context.go('/chat/${chatDoc.id}?partnerId=$otherUserId&partnerName=${Uri.encodeComponent(otherUserName)}&partnerAvatar=${otherUserAvatar ?? ''}');
+      context.push('/chat/${chatDoc.id}?partnerId=$otherUserId&partnerName=${Uri.encodeComponent(otherUserName)}&partnerAvatar=${otherUserAvatar ?? ''}');
                             },
                           ),
                         );

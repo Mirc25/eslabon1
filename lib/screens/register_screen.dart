@@ -118,13 +118,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         await _firestore.collection('users').doc(user.uid).set({
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
+          // Habilitar push por defecto al registrar/guardar token
+          'pushNotificationsEnabled': true,
         }, SetOptions(merge: true));
-        debugPrint('�o. Token FCM guardado correctamente: $token');
+        debugPrint('✅ Token FCM guardado y push habilitado por defecto: $token');
       } else {
-        debugPrint('�s�️ No se pudo obtener el token FCM.');
+        debugPrint('⚠️ No se pudo obtener el token FCM.');
       }
     } catch (e) {
-      debugPrint('�O Error guardando token FCM: $e');
+      debugPrint('❌ Error guardando token FCM: $e');
     }
   }
 

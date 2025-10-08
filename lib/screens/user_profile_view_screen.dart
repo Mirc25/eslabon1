@@ -115,15 +115,43 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  AvatarOptimizado(
-                    url: (_displayPhotoUrl.isNotEmpty && _displayPhotoUrl.startsWith('http')) ? _displayPhotoUrl : null,
-                    storagePath: (_displayPhotoUrl.isNotEmpty && !_displayPhotoUrl.startsWith('http')) ? _displayPhotoUrl : null,
-                    radius: 60,
-                    backgroundColor: Colors.grey[700],
-                    placeholder: const CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.grey,
-                      backgroundImage: AssetImage('assets/default_avatar.png'),
+                  Hero(
+                    tag: 'profile-${widget.userId}',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        color: Colors.black,
+                        constraints: const BoxConstraints(maxHeight: 350),
+                        child: InteractiveViewer(
+                          minScale: 1.0,
+                          maxScale: 4.0,
+                          child: _displayPhotoUrl.isNotEmpty
+                              ? Image.network(
+                                  _displayPhotoUrl,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const SizedBox(
+                                      height: 200,
+                                      child: Center(
+                                        child: Text(
+                                          'No se pudo cargar la imagen',
+                                          style: TextStyle(color: Colors.white70),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : SizedBox(
+                                  height: 200,
+                                  child: Center(
+                                    child: Image.asset(
+                                      'assets/default_avatar.png',
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),

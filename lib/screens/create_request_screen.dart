@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:eslabon_flutter/providers/help_requests_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -18,6 +19,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../widgets/avatar_optimizado.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
+import 'package:eslabon_flutter/services/notification_service.dart';
 import 'package:eslabon_flutter/providers/user_provider.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/spinning_image_loader.dart';
@@ -77,6 +79,13 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   List<XFile> _selectedImages = []; // ✅ Usar XFile directamente
   List<XFile> _selectedVideos = []; // ✅ Usar XFile directamente
   static const int _maxFileSizeMB = 20;
+  final Map<String, double> _videoUploadProgress = {}; // progreso por nombre de archivo
+  final Map<String, double> _imageUploadProgress = {}; // progreso por nombre de archivo
+  double _overallUploadProgress = 0.0; // 0..1 progreso total
+  int _overallTotalItems = 0; // total de archivos a subir
+  int _completedUploadItems = 0; // ítems subidos completamente
+  bool _showGlobalUploadOverlay = false; // mostrar overlay de subida
+  String _globalUploadMessage = 'Subiendo archivos...';
 
   bool _isLoading = false;
   bool _isDataLoading = true;
@@ -90,6 +99,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   late AppServices _appServices;
+  late NotificationService _notificationService;
   
   // Sistema de caché para URLs de imágenes de perfil
   final Map<String, String> _profilePictureUrlCache = {};
@@ -101,6 +111,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   void initState() {
     super.initState();
     _appServices = AppServices(_firestore, _auth);
+    _notificationService = NotificationService();
     _loadUserData();
     _determinePosition();
   }
@@ -288,28 +299,110 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _isPickingMedia = true;
     try {
       final ImagePicker picker = ImagePicker();
-      final List<XFile>? images = await picker.pickMultiImage(
-        imageQuality: 70,
-        maxWidth: 800,
-        maxHeight: 600,
-      );
-
-      if (images != null && images.isNotEmpty) {
-        if (!mounted) return;
-        setState(() {
-          int remainingSlots = 5 - _selectedImages.length;
-          for (XFile xFile in images) {
-            if (remainingSlots <= 0) {
-              _showSnackBar('Has alcanzado el límite de 5 imágenes.'.tr(), Colors.orange);
-              break;
+      if (kIsWeb) {
+        // Web: usar pickMultiImage
+        final List<XFile>? images = await picker.pickMultiImage(
+          imageQuality: 70,
+          maxWidth: 800,
+          maxHeight: 600,
+        );
+        if (images != null && images.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            int remainingSlots = 5 - _selectedImages.length;
+            for (XFile xFile in images) {
+              if (remainingSlots <= 0) {
+                _showSnackBar('Has alcanzado el límite de 5 imágenes.'.tr(), Colors.orange);
+                break;
+              }
+              _selectedImages.add(xFile);
+              remainingSlots--;
             }
-            _selectedImages.add(xFile); // ✅ FIX: Almacena XFile directamente
-            remainingSlots--;
+          });
+        }
+      } else {
+        // Móvil (Android/iOS): intentar pickMultipleMedia y filtrar imágenes con fallback
+        List<XFile>? media;
+        try {
+          media = await picker.pickMultipleMedia();
+        } on PlatformException catch (e) {
+          debugPrint('pickMultipleMedia falló: ${e.code} - ${e.message}');
+        }
+
+        // Si pickMultipleMedia no devuelve nada, usar pickMultiImage como fallback
+        if (media == null || media.isEmpty) {
+          try {
+            media = await picker.pickMultiImage(
+              imageQuality: 70,
+              maxWidth: 800,
+              maxHeight: 600,
+            );
+          } on PlatformException catch (e) {
+            debugPrint('pickMultiImage fallback falló: ${e.code} - ${e.message}');
           }
-        });
+        }
+
+        if (media != null && media.isNotEmpty) {
+          final List<XFile> imagesOnly = [];
+          for (XFile file in media) {
+            try {
+              if (await _isImageFile(file)) {
+                imagesOnly.add(file);
+              }
+            } catch (e) {
+              debugPrint('Detección de imagen falló para ${file.name}: $e');
+            }
+          }
+          if (imagesOnly.isEmpty) {
+            _showSnackBar('No se seleccionaron imágenes. Usa el botón de fotos.'.tr(), Colors.orange);
+          } else {
+            if (!mounted) return;
+            setState(() {
+              int remainingSlots = 5 - _selectedImages.length;
+              for (XFile xFile in imagesOnly) {
+                if (remainingSlots <= 0) {
+                  _showSnackBar('Has alcanzado el límite de 5 imágenes.'.tr(), Colors.orange);
+                  break;
+                }
+                _selectedImages.add(xFile);
+                remainingSlots--;
+              }
+            });
+          }
+        } else {
+          _showSnackBar('No se seleccionaron fotos.'.tr(), Colors.orange);
+        }
       }
+    } on PlatformException catch (e) {
+      debugPrint('ERROR PICK IMAGES: ${e.code} - ${e.message}');
+      _showSnackBar('No se pudo abrir el selector de imágenes: ${e.message}'.tr(), Colors.red);
+    } catch (e) {
+      debugPrint('ERROR PICK IMAGES (general): ${e.toString()}');
+      _showSnackBar('Error al seleccionar imágenes: ${e.toString()}'.tr(), Colors.red);
     } finally {
       _isPickingMedia = false;
+    }
+  }
+
+  // Heurística robusta para detectar si un XFile es imagen
+  Future<bool> _isImageFile(XFile file) async {
+    try {
+      final String? mt = file.mimeType;
+      if (mt != null && mt.startsWith('image/')) return true;
+
+      final String pathLower = file.path.toLowerCase();
+      if (pathLower.endsWith('.jpg') ||
+          pathLower.endsWith('.jpeg') ||
+          pathLower.endsWith('.png') ||
+          pathLower.endsWith('.gif') ||
+          pathLower.endsWith('.bmp') ||
+          pathLower.endsWith('.webp')) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error inspeccionando archivo ${file.name}: $e');
+      return false;
     }
   }
 
@@ -321,36 +414,40 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _isPickingMedia = true;
     try {
       final ImagePicker picker = ImagePicker();
-      final List<XFile>? media = await picker.pickMultipleMedia();
+      // ✅ Estabilidad: usar selección de un solo video
+      final XFile? singleVideo = await picker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(minutes: 1),
+      );
 
-      if (media != null && media.isNotEmpty) {
-        List<XFile> videosToAdd = [];
-        for (XFile file in media) {
-          if (file.mimeType != null && file.mimeType!.startsWith('video/')) {
-            final fileSize = await file.length();
-            if (fileSize > (_maxFileSizeMB * 1024 * 1024)) {
-              _showSnackBar('El video ${file.name} excede el tamaño máximo de ${_maxFileSizeMB}MB.'.tr(), Colors.red);
-              continue;
-            }
-            videosToAdd.add(file);
-          } else if (file.mimeType != null && file.mimeType!.startsWith('image/')) {
-            _showSnackBar('Por favor, selecciona solo videos, o usa el botón de imágenes para fotos.'.tr(), Colors.orange);
-            continue;
-          }
+      if (singleVideo != null) {
+        int? fileSize;
+        try {
+          fileSize = await singleVideo.length();
+        } catch (e) {
+          debugPrint('No se pudo leer tamaño de video ${singleVideo.name}: $e');
         }
-        if (!mounted) return;
-        setState(() {
-          int remainingSlots = 3 - _selectedVideos.length;
-          for (XFile videoFile in videosToAdd) {
-            if (remainingSlots <= 0) {
+        if (fileSize != null && fileSize > (_maxFileSizeMB * 1024 * 1024)) {
+          _showSnackBar('El video ${singleVideo.name} excede el tamaño máximo de ${_maxFileSizeMB}MB.'.tr(), Colors.red);
+        } else {
+          if (!mounted) return;
+          setState(() {
+            if (_selectedVideos.length < 3) {
+              _selectedVideos.add(singleVideo);
+            } else {
               _showSnackBar('Has alcanzado el límite de 3 videos.'.tr(), Colors.orange);
-              break;
             }
-            _selectedVideos.add(videoFile); // ✅ FIX: Almacena XFile directamente
-            remainingSlots--;
-          }
-        });
+          });
+        }
+      } else {
+        _showSnackBar('No se seleccionó ningún video.'.tr(), Colors.orange);
       }
+    } on PlatformException catch (e) {
+      debugPrint('ERROR PICK VIDEOS: ${e.code} - ${e.message}');
+      _showSnackBar('No se pudo abrir el selector de videos: ${e.message}'.tr(), Colors.red);
+    } catch (e) {
+      debugPrint('ERROR PICK VIDEOS (general): ${e.toString()}');
+      _showSnackBar('Error al seleccionar videos: ${e.toString()}'.tr(), Colors.red);
     } finally {
       _isPickingMedia = false;
     }
@@ -381,6 +478,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           }
         });
       }
+    } on PlatformException catch (e) {
+      debugPrint('ERROR CAPTURE IMAGE: ${e.code} - ${e.message}');
+      _showSnackBar('No se pudo abrir la cámara: ${e.message}'.tr(), Colors.red);
+    } catch (e) {
+      debugPrint('ERROR CAPTURE IMAGE (general): ${e.toString()}');
+      _showSnackBar('Error al capturar imagen: ${e.toString()}'.tr(), Colors.red);
     } finally {
       _isPickingMedia = false;
     }
@@ -400,8 +503,13 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       );
 
       if (video != null) {
-        final fileSize = await video.length();
-        if (fileSize > (_maxFileSizeMB * 1024 * 1024)) {
+        int? fileSize;
+        try {
+          fileSize = await video.length();
+        } catch (e) {
+          debugPrint('No se pudo leer tamaño de video capturado ${video.name}: $e');
+        }
+        if (fileSize != null && fileSize > (_maxFileSizeMB * 1024 * 1024)) {
           _showSnackBar('El video ${video.name} excede el tamaño máximo de ${_maxFileSizeMB}MB.'.tr(), Colors.red);
         } else {
           if (!mounted) return;
@@ -414,6 +522,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           });
         }
       }
+    } on PlatformException catch (e) {
+      debugPrint('ERROR CAPTURE VIDEO: ${e.code} - ${e.message}');
+      _showSnackBar('No se pudo abrir la cámara de video: ${e.message}'.tr(), Colors.red);
+    } catch (e) {
+      debugPrint('ERROR CAPTURE VIDEO (general): ${e.toString()}');
+      _showSnackBar('Error al capturar video: ${e.toString()}'.tr(), Colors.red);
     } finally {
       _isPickingMedia = false;
     }
@@ -451,6 +565,10 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
+      _showGlobalUploadOverlay = true;
+      _globalUploadMessage = 'Preparando subida...';
+      _overallUploadProgress = 0.0;
+      _overallTotalItems = _selectedImages.length + _selectedVideos.length;
     });
 
     final firebase_auth.User? currentUser = _auth.currentUser;
@@ -470,54 +588,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         return;
       }
       
-      // Subir imágenes en paralelo con manejo de errores por archivo
-      final imageUploadFutures = _selectedImages.map((imageSource) async {
-        try {
-          final fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource.name}';
-          final ref = _storage.ref().child(fileName);
-          if (kIsWeb) {
-            final bytes = await imageSource.readAsBytes();
-            await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-          } else {
-            await ref.putFile(File(imageSource.path), SettableMetadata(contentType: 'image/jpeg'));
-          }
-          print('DEBUG CREATE: Imagen subida: $fileName');
-          return fileName;
-        } catch (e) {
-          print('ERROR CREATE: Falló subida imagen ${imageSource.name}: $e');
-          _showSnackBar('Falló subir imagen ${imageSource.name}'.tr(), Colors.red);
-          return null; // devolvemos null para filtrar luego
-        }
-      }).toList();
-
-      final imagePaths = (await Future.wait(imageUploadFutures)).whereType<String>().toList();
-
-      // Subir videos en paralelo con manejo de errores por archivo
-      final videoUploadFutures = _selectedVideos.map((videoSource) async {
-        try {
-          final fileName = 'videos/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${videoSource.name}';
-          final contentType = videoSource.mimeType?.toString() ?? 'video/mp4';
-          final ref = _storage.ref().child(fileName);
-          if (kIsWeb) {
-            final bytes = await videoSource.readAsBytes();
-            await ref.putData(bytes, SettableMetadata(contentType: contentType));
-          } else {
-            await ref.putFile(File(videoSource.path), SettableMetadata(contentType: contentType));
-          }
-          print('DEBUG CREATE: Video subido: $fileName');
-          return fileName;
-        } catch (e) {
-          print('ERROR CREATE: Falló subida video ${videoSource.name}: $e');
-          _showSnackBar('Falló subir video ${videoSource.name}'.tr(), Colors.red);
-          return null; // devolvemos null para filtrar luego
-        }
-      }).toList();
-
-      final videoPaths = (await Future.wait(videoUploadFutures)).whereType<String>().toList();
-      
+      // Datos base de la solicitud (sin esperar a subir medios)
       final requesterName = userData['name']?.toString() ?? 'Usuario anónimo'.tr();
       final profileImagePath = userData['profilePicture']?.toString() ?? '';
-
       final requestDataToSave = {
         'userId': currentUser.uid,
         'requesterName': requesterName,
@@ -539,20 +612,349 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         'longitude': _requestLongitude,
         'timestamp': FieldValue.serverTimestamp(),
         'estado': 'activa',
-        'imagenes': imagePaths,
-        'videos': videoPaths,
+        'imagenes': [],
+        'videos': [],
         'offersCount': 0,
         'commentsCount': 0,
         'showWhatsapp': _showWhatsapp,
         'showEmail': _showEmail,
         'showAddress': _showAddress,
+        'publishedAt': FieldValue.serverTimestamp(),
+        'moderation': {
+          'status': 'approved',
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
       };
 
-      await _firestore.collection('solicitudes-de-ayuda').add(requestDataToSave);
+      final docRef = await _firestore.collection('solicitudes-de-ayuda').add(requestDataToSave);
+      final String docPath = docRef.path;
 
-      print('DEBUG CREATE: Solicitud guardada en Firestore con Lat: $_requestLatitude, Lon: $_requestLongitude');
-      _showSnackBar('¡Solicitud creada con éxito!'.tr(), Colors.green);
+      print('DEBUG CREATE: Solicitud guardada. Iniciando subidas en segundo plano (docPath=$docPath)');
+      _showSnackBar('Solicitud enviada. Estamos subiendo tus medios en segundo plano.'.tr(), Colors.green);
+      // Refrescar inmediatamente el listado principal para que aparezca la tarjeta al instante
+      try {
+        ref.invalidate(rawHelpRequestsStreamProvider);
+        ref.invalidate(filteredHelpRequestsProvider);
+      } catch (e) {
+        debugPrint('WARN: No se pudo invalidar proveedores tras crear solicitud: $e');
+      }
+
+      // Inicializar contadores de subida para emitir una notificación de éxito al finalizar
       if (mounted) {
+        setState(() {
+          _overallTotalItems = _selectedImages.length + _selectedVideos.length;
+          _completedUploadItems = 0;
+        });
+      }
+
+      // No enviamos notificación "en verificación" inmediata; se enviará éxito al finalizar todas las subidas
+
+      // Lanzar subidas en segundo plano a carpetas públicas (requests/, videos/) con metadata docPath
+      // Imágenes
+      for (final imageSource in _selectedImages) {
+        try {
+          // Inicializar progreso para evitar quedarse en "guardando" si falla temprano
+          if (mounted) {
+            setState(() {
+              _imageUploadProgress[imageSource.name] = 0.0;
+              _updateOverallProgress();
+            });
+          }
+          final String fileName = 'requests/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${imageSource.name}';
+          final ref = _storage.ref().child(fileName);
+          if (kIsWeb) {
+            final bytes = await imageSource.readAsBytes();
+            final uploadTask = ref.putData(bytes, SettableMetadata(
+              contentType: imageSource.mimeType ?? 'image/jpeg',
+              customMetadata: { 'docPath': docPath },
+            ));
+            uploadTask.snapshotEvents.listen((snapshot) {
+              if (!mounted) return;
+              final int total = snapshot.totalBytes;
+              final int transferred = snapshot.bytesTransferred;
+              final double progress = total > 0 ? (transferred / total) : 0.0;
+              setState(() {
+                _imageUploadProgress[imageSource.name] = progress;
+                _updateOverallProgress();
+              });
+            });
+            uploadTask.whenComplete(() async {
+              if (!mounted) return;
+              setState(() {
+                _imageUploadProgress.remove(imageSource.name);
+                _updateOverallProgress();
+              });
+              try {
+                await docRef.update({'imagenes': FieldValue.arrayUnion([fileName])});
+              } catch (e) {
+                debugPrint('WARN: No se pudo actualizar imagenes con $fileName: $e');
+              }
+              _onUploadItemCompleted(docRef.id);
+            });
+          } else {
+            final metadata = SettableMetadata(
+              contentType: imageSource.mimeType ?? 'image/jpeg',
+              customMetadata: { 'docPath': docPath },
+            );
+            if (imageSource.path.toLowerCase().startsWith('content://')) {
+              final String tempPath = '${Directory.systemTemp.path}/${DateTime.now().millisecondsSinceEpoch}_${imageSource.name}';
+              bool savedToTemp = false;
+              try {
+                await imageSource.saveTo(tempPath);
+                savedToTemp = true;
+              } catch (e) {
+                debugPrint('WARN: saveTo falló para imagen ${imageSource.name}: $e');
+              }
+
+              if (savedToTemp) {
+                final File tempFile = File(tempPath);
+                final uploadTask = ref.putFile(tempFile, metadata);
+                uploadTask.whenComplete(() async {
+                  try { await tempFile.delete(); } catch (_) {}
+                  if (!mounted) return;
+                  setState(() {
+                    _imageUploadProgress.remove(imageSource.name);
+                    _updateOverallProgress();
+                  });
+                  try {
+                    await docRef.update({'imagenes': FieldValue.arrayUnion([fileName])});
+                  } catch (e) {
+                    debugPrint('WARN: No se pudo actualizar imagenes con $fileName: $e');
+                  }
+                  _onUploadItemCompleted(docRef.id);
+                });
+                uploadTask.snapshotEvents.listen((snapshot) {
+                  if (!mounted) return;
+                  final int total = snapshot.totalBytes;
+                  final int transferred = snapshot.bytesTransferred;
+                  final double progress = total > 0 ? (transferred / total) : 0.0;
+                  setState(() {
+                    _imageUploadProgress[imageSource.name] = progress;
+                    _updateOverallProgress();
+                  });
+                }, onError: (error, stack) {
+                  debugPrint('ERROR CREATE: snapshotEvents imagen ${imageSource.name} (tempFile): $error');
+                  if (mounted) {
+                    setState(() {
+                      _imageUploadProgress.remove(imageSource.name);
+                      _updateOverallProgress();
+                    });
+                  }
+                  _onUploadItemCompleted(docRef.id);
+                });
+              } else {
+                // Fallback: subir como bytes
+                try {
+                  final bytes = await imageSource.readAsBytes();
+                  final uploadTask = ref.putData(bytes, metadata);
+                  uploadTask.snapshotEvents.listen((snapshot) {
+                    if (!mounted) return;
+                    final int total = snapshot.totalBytes;
+                    final int transferred = snapshot.bytesTransferred;
+                    final double progress = total > 0 ? (transferred / total) : 0.0;
+                    setState(() {
+                      _imageUploadProgress[imageSource.name] = progress;
+                      _updateOverallProgress();
+                    });
+                  }, onError: (error, stack) {
+                    debugPrint('ERROR CREATE: snapshotEvents imagen ${imageSource.name} (putData): $error');
+                    if (mounted) {
+                      setState(() {
+                        _imageUploadProgress.remove(imageSource.name);
+                        _updateOverallProgress();
+                      });
+                    }
+                    _onUploadItemCompleted(docRef.id);
+                  });
+                  uploadTask.whenComplete(() async {
+                    if (!mounted) return;
+                    setState(() {
+                      _imageUploadProgress.remove(imageSource.name);
+                      _updateOverallProgress();
+                    });
+                    try {
+                      await docRef.update({'imagenes': FieldValue.arrayUnion([fileName])});
+                    } catch (e) {
+                      debugPrint('WARN: No se pudo actualizar imagenes con $fileName: $e');
+                    }
+                    _onUploadItemCompleted(docRef.id);
+                  });
+                } catch (e) {
+                  debugPrint('ERROR CREATE: Fallback putData imagen ${imageSource.name} falló: $e');
+                  if (mounted) {
+                    setState(() {
+                      _imageUploadProgress.remove(imageSource.name);
+                      _updateOverallProgress();
+                    });
+                  }
+                  _onUploadItemCompleted(docRef.id);
+                }
+              }
+            } else {
+              final uploadTask = ref.putFile(File(imageSource.path), metadata);
+                uploadTask.snapshotEvents.listen((snapshot) {
+                  if (!mounted) return;
+                  final int total = snapshot.totalBytes;
+                  final int transferred = snapshot.bytesTransferred;
+                  final double progress = total > 0 ? (transferred / total) : 0.0;
+                  setState(() {
+                    _imageUploadProgress[imageSource.name] = progress;
+                    _updateOverallProgress();
+                  });
+                }, onError: (error, stack) {
+                  debugPrint('ERROR CREATE: snapshotEvents imagen ${imageSource.name} (direct): $error');
+                  if (mounted) {
+                    setState(() {
+                      _imageUploadProgress.remove(imageSource.name);
+                      _updateOverallProgress();
+                    });
+                  }
+                  _onUploadItemCompleted(docRef.id);
+                });
+              uploadTask.whenComplete(() async {
+                if (!mounted) return;
+                setState(() {
+                  _imageUploadProgress.remove(imageSource.name);
+                  _updateOverallProgress();
+                });
+                try {
+                  await docRef.update({'imagenes': FieldValue.arrayUnion([fileName])});
+                } catch (e) {
+                  debugPrint('WARN: No se pudo actualizar imagenes con $fileName: $e');
+                }
+                _onUploadItemCompleted(docRef.id);
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint('ERROR CREATE: Falla subida imagen bg ${imageSource.name}: $e');
+          // Marcar como completado para no dejar el overlay colgado
+          if (mounted) {
+            setState(() {
+              _imageUploadProgress.remove(imageSource.name);
+              _updateOverallProgress();
+            });
+          }
+          _onUploadItemCompleted(docRef.id);
+          _showSnackBar('Error subiendo imagen: ${imageSource.name}'.tr(), Colors.red);
+        }
+      }
+
+      // Videos
+      for (final videoSource in _selectedVideos) {
+        try {
+          if (mounted) {
+            setState(() { _videoUploadProgress[videoSource.name] = 0.0; _updateOverallProgress(); });
+          }
+          final String fileName = 'videos/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}_${videoSource.name}';
+          final String contentType = videoSource.mimeType?.toString() ?? 'video/mp4';
+          final ref = _storage.ref().child(fileName);
+          UploadTask uploadTask;
+          final metadata = SettableMetadata(contentType: contentType, customMetadata: { 'docPath': docPath });
+          if (kIsWeb) {
+            final bytes = await videoSource.readAsBytes();
+            uploadTask = ref.putData(bytes, metadata);
+          } else {
+            if (videoSource.path.startsWith('content://')) {
+              final String tempPath = '${Directory.systemTemp.path}/${DateTime.now().millisecondsSinceEpoch}_${videoSource.name}';
+              bool savedToTemp = false;
+              try {
+                await videoSource.saveTo(tempPath);
+                savedToTemp = true;
+              } catch (e) {
+                debugPrint('WARN: saveTo falló para video ${videoSource.name} (content://): $e');
+              }
+              if (savedToTemp) {
+                final File tempFile = File(tempPath);
+                uploadTask = ref.putFile(tempFile, metadata);
+                uploadTask.whenComplete(() async { try { await tempFile.delete(); } catch (_) {} });
+              } else {
+                // Fallback: copiar por stream a archivo temporal, y si falla, usar ruta directa
+                try {
+                  final File tempFile = File(tempPath);
+                  final IOSink sink = tempFile.openWrite();
+                  // Corrige el tipo genérico del stream: Stream<Uint8List> -> Stream<List<int>>
+                  await sink.addStream(videoSource.openRead().cast<List<int>>());
+                  await sink.close();
+                  uploadTask = ref.putFile(tempFile, metadata);
+                  uploadTask.whenComplete(() async { try { await tempFile.delete(); } catch (_) {} });
+                } catch (e) {
+                  debugPrint('ERROR CREATE: Fallback stream copy video ${videoSource.name} falló: $e');
+                  // Último recurso seguro en content://: subir como bytes
+                  try {
+                    final Uint8List bytes = await videoSource.readAsBytes();
+                    uploadTask = ref.putData(bytes, metadata);
+                  } catch (e2) {
+                    debugPrint('ERROR CREATE: readAsBytes falló para video ${videoSource.name}: $e2');
+                    // Si también falla, intenta ruta directa (puede no funcionar con content://)
+                    uploadTask = ref.putFile(File(videoSource.path), metadata);
+                  }
+                }
+              }
+            } else {
+              // 📦 Unificar manejo: copiar siempre a archivo temporal para evitar issues con rutas
+              final String tempPath = '${Directory.systemTemp.path}/${DateTime.now().millisecondsSinceEpoch}_${videoSource.name}';
+              try {
+                await videoSource.saveTo(tempPath);
+              } catch (e) {
+                debugPrint('WARN: saveTo falló para video ${videoSource.name}, usando ruta directa: $e');
+              }
+              final File tempFile = File(tempPath);
+              if (await tempFile.exists()) {
+                uploadTask = ref.putFile(tempFile, metadata);
+                uploadTask.whenComplete(() async { try { await tempFile.delete(); } catch (_) {} });
+              } else {
+                // Fallback si la copia falla: intentar ruta directa
+                uploadTask = ref.putFile(File(videoSource.path), metadata);
+              }
+            }
+          }
+          uploadTask.snapshotEvents.listen((snapshot) {
+            if (!mounted) return;
+            final int total = snapshot.totalBytes;
+            final int transferred = snapshot.bytesTransferred;
+            final double progress = total > 0 ? (transferred / total) : 0.0;
+            setState(() {
+              _videoUploadProgress[videoSource.name] = progress;
+              _updateOverallProgress();
+            });
+          }, onError: (error, stack) {
+            debugPrint('ERROR CREATE: snapshotEvents video ${videoSource.name}: $error');
+            if (mounted) {
+              setState(() {
+                _videoUploadProgress.remove(videoSource.name);
+                _updateOverallProgress();
+              });
+            }
+            _onUploadItemCompleted(docRef.id);
+          });
+          uploadTask.whenComplete(() async {
+            if (!mounted) return;
+            setState(() { _videoUploadProgress.remove(videoSource.name); _updateOverallProgress(); });
+            try {
+              await docRef.update({'videos': FieldValue.arrayUnion([fileName])});
+            } catch (e) {
+              debugPrint('WARN: No se pudo actualizar videos con $fileName: $e');
+            }
+            _onUploadItemCompleted(docRef.id);
+          });
+        } catch (e) {
+          debugPrint('ERROR CREATE: Falla subida video bg ${videoSource.name}: $e');
+          // Marcar como completado para no dejar el overlay colgado
+          if (mounted) {
+            setState(() {
+              _videoUploadProgress.remove(videoSource.name);
+              _updateOverallProgress();
+            });
+          }
+          _onUploadItemCompleted(docRef.id);
+          _showSnackBar('Error subiendo video: ${videoSource.name}'.tr(), Colors.red);
+        }
+      }
+
+      // Cerrar pantalla para que el usuario continúe usando la app
+      if (mounted) {
+        setState(() { _showGlobalUploadOverlay = false; });
         Navigator.pop(context);
       }
     } on firebase_auth.FirebaseAuthException catch (e) {
@@ -565,7 +967,83 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       debugPrint("DEBUG CREATE: Error general al crear solicitud: ${e.toString()}");
       _showSnackBar('Error al crear la solicitud: ${e.toString()}'.tr(), Colors.red);
     } finally {
-      if(mounted) setState(() { _isLoading = false; });
+      if(mounted) setState(() { 
+        _isLoading = false; 
+        _showGlobalUploadOverlay = false; 
+        _overallUploadProgress = 0.0;
+        _globalUploadMessage = 'Subida completa';
+      });
+    }
+  }
+
+  void _updateOverallProgress() {
+    // Calcula progreso global considerando imágenes y videos
+    final int totalItems = _overallTotalItems == 0 ? (_selectedImages.length + _selectedVideos.length) : _overallTotalItems;
+    final double imagesProgressSum = _imageUploadProgress.values.fold(0.0, (a, b) => a + b);
+    final double videosProgressSum = _videoUploadProgress.values.fold(0.0, (a, b) => a + b);
+    final int itemsInProgress = _imageUploadProgress.length + _videoUploadProgress.length;
+    final int completedItems = (totalItems - itemsInProgress).clamp(0, totalItems);
+    // completedItems cuentan como 1.0 cada uno
+    final double totalProgress = (imagesProgressSum + videosProgressSum + completedItems) / (totalItems == 0 ? 1 : totalItems);
+    _overallUploadProgress = totalProgress.clamp(0.0, 1.0);
+  }
+
+  void _onUploadItemCompleted(String requestId) {
+    _completedUploadItems++;
+    final int totalItems = _overallTotalItems == 0 ? (_selectedImages.length + _selectedVideos.length) : _overallTotalItems;
+    if (_completedUploadItems >= totalItems && totalItems > 0) {
+      _notifyUploadSuccess(requestId);
+    }
+  }
+
+  Future<void> _notifyUploadSuccess(String requestId) async {
+    // Marcar como publicado y aprobado para que aparezca en Main y dispare triggers
+    try {
+      await _firestore.collection('solicitudes-de-ayuda').doc(requestId).set({
+        'moderation': {
+          'status': 'approved',
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        'publishedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      // Refrescar los listados de Main inmediatamente después de aprobar/publicar
+      try {
+        ref.invalidate(rawHelpRequestsStreamProvider);
+        ref.invalidate(filteredHelpRequestsProvider);
+      } catch (e) {
+        debugPrint('WARN: No se pudo invalidar proveedores tras publicar: $e');
+      }
+    } catch (e) {
+      debugPrint('WARN: No se pudo marcar la solicitud como approved: $e');
+    }
+
+    try {
+      await _notificationService.showLocalNotification(
+        title: 'Solicitud publicada',
+        body: 'Tu solicitud fue cargada con éxito.',
+        payloadRoute: '/request/$requestId',
+      );
+    } catch (e) {
+      debugPrint('WARN: Falló notificación local de éxito: $e');
+    }
+
+    try {
+      final firebase_auth.User? currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        await _appServices.addNotification(
+          recipientId: currentUser.uid,
+          type: 'request_uploaded',
+          title: 'Solicitud publicada',
+          body: 'Tu solicitud fue cargada con éxito.',
+          data: {
+            'notificationType': 'request_uploaded',
+            'requestId': requestId,
+            'route': '/request/$requestId',
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('WARN: No se pudo registrar notificación de éxito: $e');
     }
   }
 
@@ -863,8 +1341,38 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                               },
                             );
                           } else {
-                            // ✅ Usamos File(path) para mostrar la previsualización en móvil (estable para UI)
-                            imageWidget = Image.file(File(imageSource.path), width: 80, height: 80, fit: BoxFit.cover);
+                            // ✅ En móvil: si es content:// (Google Fotos), renderizamos por bytes; si no, por File
+                            if (imageSource.path.startsWith('content://')) {
+                              imageWidget = FutureBuilder<Uint8List>(
+                                future: imageSource.readAsBytes(),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                                    return Image.memory(
+                                      snapshot.data!,
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: 160,
+                                      cacheHeight: 160,
+                                    );
+                                  }
+                                  return const SizedBox(
+                                    width: 80,
+                                    height: 80,
+                                    child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber)),
+                                  );
+                                },
+                              );
+                            } else {
+                              imageWidget = Image.file(
+                                File(imageSource.path),
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                                cacheWidth: 160,
+                                cacheHeight: 160,
+                              );
+                            }
                           }
 
                           return Stack(
@@ -966,6 +1474,37 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: videoPreviewWidget,
                               ),
+                              // Overlay de progreso si el video está subiendo
+                              if (_videoUploadProgress.containsKey(videoSource.name))
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            width: 40,
+                                            height: 40,
+                                            child: CircularProgressIndicator(
+                                              value: _videoUploadProgress[videoSource.name],
+                                              color: Colors.amber,
+                                              strokeWidth: 3,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            '${((_videoUploadProgress[videoSource.name] ?? 0.0) * 100).toStringAsFixed(0)}%',
+                                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               Positioned(
                                 right: 0,
                                 top: 0,
@@ -1032,6 +1571,44 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                           textAlign: TextAlign.center,
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+            if (_showGlobalUploadOverlay)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.7),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[900],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      width: 300,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _globalUploadMessage,
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          LinearProgressIndicator(
+                            value: _overallUploadProgress > 0.0 ? _overallUploadProgress : null,
+                            color: Colors.amber,
+                            backgroundColor: Colors.white10,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${(_overallUploadProgress * 100).toStringAsFixed(0)}%',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -13,6 +13,7 @@ import '../widgets/avatar_optimizado.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:eslabon_flutter/services/app_services.dart';
+import 'package:eslabon_flutter/services/notification_service.dart';
 import 'package:eslabon_flutter/user_reputation_widget.dart';
 import 'package:eslabon_flutter/providers/user_provider.dart';
 import 'package:eslabon_flutter/widgets/custom_background.dart';
@@ -23,6 +24,20 @@ import 'package:eslabon_flutter/models/user_model.dart';
 import 'package:eslabon_flutter/widgets/ad_banner_widget.dart';
 import 'package:eslabon_flutter/services/ads_ids.dart';
 import '../widgets/custom_app_bar.dart';
+
+// Ubicación personalizada del FloatingActionButton: permite ajustar X/Y
+class _StartTopWithOffset extends FloatingActionButtonLocation {
+  final double dy; // desplaza hacia arriba
+  final double dx; // desplaza hacia la izquierda
+  const _StartTopWithOffset({this.dy = 28, this.dx = 0});
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    final double fabX = kFloatingActionButtonMargin + scaffoldGeometry.minInsets.left - dx;
+    final double fabY = scaffoldGeometry.contentTop - dy;
+    return Offset(fabX, fabY);
+  }
+}
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -46,23 +61,36 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
 
   late AnimationController _blinkController;
   late Animation<double> _blinkAnimation;
+  late AnimationController _starController; // Controlador para animación de la estrellita dorada
 
   @override
   void initState() {
     super.initState();
     _appServices = AppServices(_firestore, _auth);
 
+    // Marcar que estamos en la pantalla principal para suprimir notifs de ayuda en foreground
+    try { NotificationService.setOnMainScreen(true); } catch (_) {}
+
     _blinkController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
     _blinkAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_blinkController);
+
+    // Animación suave de pulso para la estrellita dorada
+    _starController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
+    // Al salir de Main, dejar de suprimir notifs de ayuda en foreground
+    try { NotificationService.setOnMainScreen(false); } catch (_) {}
     _commentControllers.forEach((key, controller) => controller.dispose());
     _blinkController.dispose();
+    _starController.dispose();
     super.dispose();
   }
 
@@ -75,6 +103,153 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
         ),
       );
     }
+  }
+
+  // (Clase movida a nivel superior)
+
+  // Widget de estrellita dorada con la calificación en tiempo real del usuario
+  Widget _buildRankingStar() {
+    if (_auth.currentUser == null) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _firestore.collection('users').doc(_auth.currentUser!.uid).snapshots(),
+      builder: (context, snapshot) {
+        double? avgRating;
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>?
+              ?? <String, dynamic>{};
+          final num? ratingNum = data['averageRating'] as num?;
+          avgRating = ratingNum?.toDouble();
+        }
+        final String ratingText = (avgRating != null && avgRating! > 0)
+            ? avgRating!.toStringAsFixed(1)
+            : '--';
+
+        return GestureDetector(
+          onTap: () => context.pushNamed('ratings'),
+          child: AnimatedBuilder(
+            animation: _starController,
+            builder: (context, child) {
+              // Pulso y leve balanceo
+              final double t = _starController.value * pi * 2;
+              final double scale = 1.0 + 0.12 * sin(t);
+              final double angle = 0.06 * sin(t);
+              return Transform.rotate(
+                angle: angle,
+                child: Transform.scale(
+                  scale: scale,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/star.png',
+                            width: 118,
+                            height: 118,
+                          ),
+                          // Número de ranking con contorno y debajo el texto "Tu Reputación"
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Stack(
+                                children: [
+                                  Text(
+                                    ratingText,
+                                    style: TextStyle(
+                                      fontSize: 19.7,
+                                      fontWeight: FontWeight.w900,
+                                      foreground: Paint()
+                                        ..style = PaintingStyle.stroke
+                                        ..strokeWidth = 2.5
+                                        ..color = Colors.black,
+                                    ),
+                                  ),
+                                  Text(
+                                    ratingText,
+                                    style: const TextStyle(
+                                      fontSize: 19.7,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              // "Tu" arriba centrado y "Reputación" abajo, ambos con contorno negro
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Stack(
+                                    children: [
+                                      Text(
+                                        'Tu',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 9.8,
+                                          fontWeight: FontWeight.w900,
+                                          foreground: Paint()
+                                            ..style = PaintingStyle.stroke
+                                            ..strokeWidth = 2.5
+                                            ..color = Colors.black,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'Tu',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 9.8,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 0),
+                                  Stack(
+                                    children: [
+                                      Text(
+                                        'Reputación',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 9.8,
+                                          fontWeight: FontWeight.w900,
+                                          foreground: Paint()
+                                            ..style = PaintingStyle.stroke
+                                            ..strokeWidth = 2.5
+                                            ..color = Colors.black,
+                                        ),
+                                      ),
+                                      const Text(
+                                        'Reputación',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 9.8,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   void _checkAndNotifyNearbyRequest(List<QueryDocumentSnapshot> allRequests, UserLocationData userLocation, double proximityRadiusKm) {
@@ -485,14 +660,17 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                         children: [
                           Row(
                             children: [
-                              AvatarOptimizado(
-                                storagePath: profilePicturePath,
-                                radius: 20,
-                                backgroundColor: Colors.grey[700],
-                                placeholder: const CircleAvatar(
+                              GestureDetector(
+                                onTap: () => _showProfileImagePopup(context, profilePicturePath, requesterName),
+                                child: AvatarOptimizado(
+                                  storagePath: profilePicturePath,
                                   radius: 20,
-                                  backgroundColor: Colors.grey,
-                                  backgroundImage: AssetImage('assets/default_avatar.png'),
+                                  backgroundColor: Colors.grey[700],
+                                  placeholder: const CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Colors.grey,
+                                    backgroundImage: AssetImage('assets/default_avatar.png'),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -522,7 +700,7 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                                     Text(
                                       'Categoría: ${requestData['categoria']?.toString() ?? 'N/A'}',
                                       style: const TextStyle(
-                                          color: Colors.cyanAccent, fontSize: 11, fontWeight: FontWeight.w600),
+                                          color: Color(0xFFFFD700), fontSize: 11, fontWeight: FontWeight.w600),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -780,6 +958,52 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                   ],
                 ),
                 const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showProfileImagePopup(BuildContext context, String? profilePicturePath, String userName) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.grey[900],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AvatarOptimizado(
+                  url: (profilePicturePath != null && profilePicturePath.startsWith('http')) ? profilePicturePath : null,
+                  storagePath: (profilePicturePath != null && !profilePicturePath.startsWith('http')) ? profilePicturePath : null,
+                  radius: 80,
+                  backgroundColor: Colors.grey[700],
+                  placeholder: const CircleAvatar(
+                    radius: 80,
+                    backgroundColor: Colors.grey,
+                    backgroundImage: AssetImage('assets/default_avatar.png'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  userName,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Toca fuera para cerrar',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ),
@@ -1157,6 +1381,8 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
           ),
         ),
       ),
+      floatingActionButton: _buildRankingStar(),
+      floatingActionButtonLocation: const _StartTopWithOffset(dy: 118, dx: 30),
       body: CustomBackground(
         child: Column(
           children: [
@@ -1170,9 +1396,17 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                 data: (allHelpRequestDocs) {
                   _checkAndNotifyNearbyRequest(allHelpRequestDocs, userLocation, proximityRadiusKm);
 
+                  // Mantener siempre visibles las solicitudes propias, independientemente del filtro de categoría
                   final filteredByCategory = allHelpRequestDocs.where((doc) {
                     final request = doc.data() as Map<String, dynamic>;
                     final String requestCategory = request['categoria']?.toString() ?? '';
+                    final String ownerId = request['userId']?.toString() ?? '';
+
+                    // Si la solicitud pertenece al usuario actual, siempre mostrarla
+                    if (currentUser != null && ownerId == currentUser.id) {
+                      return true;
+                    }
+
                     if (_selectedCategory == 'Todas') {
                       return true;
                     }
@@ -1250,14 +1484,6 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          context.pushNamed('create_request');
-        },
-        backgroundColor: Colors.amber,
-        foregroundColor: Colors.black,
-        child: const Icon(Icons.add),
       ),
       drawer: Drawer(
         backgroundColor: Colors.grey[900],
