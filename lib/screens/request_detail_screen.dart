@@ -13,6 +13,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/avatar_optimizado.dart';
 
 import 'package:eslabon_flutter/services/app_services.dart';
@@ -25,6 +26,18 @@ import 'package:eslabon_flutter/widgets/spinning_image_loader.dart';
 import '../widgets/custom_app_bar.dart';
 import 'package:eslabon_flutter/services/inapp_notification_service.dart';
 import 'package:eslabon_flutter/services/ads_service.dart';
+
+// Helper para detectar URLs de video por extensión
+bool isVideoUrl(String url) {
+  final lower = url.toLowerCase();
+  return lower.endsWith('.mp4') ||
+      lower.endsWith('.mov') ||
+      lower.endsWith('.m4v') ||
+      lower.endsWith('.webm') ||
+      lower.endsWith('.mkv') ||
+      lower.endsWith('.avi') ||
+      lower.endsWith('.3gp');
+}
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -51,6 +64,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   
   // ✅ Sistema de caché para URLs de imágenes de perfil
   final Map<String, String> _profilePictureUrlCache = {};
+  // ✅ Caché de ImageProvider para evitar recargas al navegar entre imágenes
+  final Map<String, ImageProvider> _imageProviderCache = {};
+  final Set<String> _prefetchingImages = {};
   
   // ✅ Resolver URL de imagen con soporte de rutas http y Storage path
   Future<String> _resolveImageUrl(String path) async {
@@ -61,14 +77,72 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
       _profilePictureUrlCache[path] = path;
       return path;
     }
-    try {
-      final url = await _storage.ref().child(path).getDownloadURL();
-      _profilePictureUrlCache[path] = url;
-      return url;
-    } catch (e) {
-      print('Error resolving image URL for "$path": $e');
-      return '';
+    const int maxRetries = 5;
+    Duration delay = const Duration(milliseconds: 250);
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        final url = await _storage.ref().child(path).getDownloadURL();
+        _profilePictureUrlCache[path] = url;
+        return url;
+      } catch (e) {
+        debugPrint('WARN: getDownloadURL imagen intento ${attempt + 1}/$maxRetries para $path: $e');
+        if (attempt < maxRetries - 1) {
+          await Future.delayed(delay);
+          delay *= 2;
+          continue;
+        }
+      }
     }
+    return '';
+  }
+
+  // ✅ Prefetch y cacheo de imágenes para evitar recargas al volver a verlas
+  Future<void> _prefetchImage(String storageOrHttpPath) async {
+    if (storageOrHttpPath.isEmpty) return;
+    if (_imageProviderCache.containsKey(storageOrHttpPath)) return;
+    if (_prefetchingImages.contains(storageOrHttpPath)) return;
+    _prefetchingImages.add(storageOrHttpPath);
+    try {
+      final url = await _resolveImageUrl(storageOrHttpPath);
+      if (url.isEmpty) return;
+      _profilePictureUrlCache[storageOrHttpPath] = url;
+      final provider = NetworkImage(url);
+      try {
+        await precacheImage(provider, context);
+      } catch (_) {}
+      _imageProviderCache[storageOrHttpPath] = provider;
+      if (mounted) setState(() {});
+    } finally {
+      _prefetchingImages.remove(storageOrHttpPath);
+    }
+  }
+
+  // ✅ Resolver URL de video con reintentos
+  Future<String> _resolveVideoUrl(String path) async {
+    if (path.isEmpty) return '';
+    final cached = _profilePictureUrlCache[path];
+    if (cached != null && cached.isNotEmpty) return cached;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      _profilePictureUrlCache[path] = path;
+      return path;
+    }
+    const int maxRetries = 5;
+    Duration delay = const Duration(milliseconds: 250);
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        final url = await _storage.ref().child(path).getDownloadURL();
+        _profilePictureUrlCache[path] = url;
+        return url;
+      } catch (e) {
+        debugPrint('WARN: getDownloadURL video intento ${attempt + 1}/$maxRetries para $path: $e');
+        if (attempt < maxRetries - 1) {
+          await Future.delayed(delay);
+          delay *= 2;
+          continue;
+        }
+      }
+    }
+    return '';
   }
   
   bool _hasOfferedHelp = false;
@@ -77,6 +151,7 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   String? _acceptedHelperId;
   String? _acceptedHelperName;
   String _requestStatus = 'activa'; // ✅ CLAVE: Estado de la solicitud
+  bool _startedImagesPrefetch = false; // ✅ Evita iniciar el prefetch múltiples veces
   RewardedAd? _rewardedAd;
   bool _isRewardedAdLoaded = false;
   List<DocumentSnapshot> _pendingOffers = []; // ✅ LISTA DE OFERTAS PENDIENTES
@@ -806,10 +881,13 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               child: SizedBox(
                 width: MediaQuery.of(dialogContext).size.width,
                 height: MediaQuery.of(dialogContext).size.height,
-                child: Image.network(
-                  imageUrl,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Center(
+                  placeholder: (context, url) => const Center(
+                    child: CircularProgressIndicator(color: Colors.amber),
+                  ),
+                  errorWidget: (context, url, error) => const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1108,27 +1186,52 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
             break;
         }
 
-        List<String> imagePaths = [];
-        dynamic rawImages = requestData['imagenes'];
-        if (rawImages != null) {
-          if (rawImages is List) {
-            imagePaths = List<String>.from(rawImages.where((item) => item is String).map((e) => e.toString()));
-          } else if (rawImages is String && rawImages.isNotEmpty) {
-            imagePaths = [rawImages.toString()];
-          }
-        }
+        // ✅ Extraer y normalizar rutas de medios (prioriza campos modernos)
+        List<String> imagePaths = []; 
+        List<String> videoPaths = []; 
+ 
+        // 1. Campos modernos 
+        final List<String> imageUrls = List<String>.from(requestData['imageUrls'] ?? []); 
+        imagePaths.addAll(imageUrls.where((p) => !isVideoUrl(p))); // Asumir que son imágenes a menos que sean videos por error 
+ 
+        final String videoUrl = (requestData['videoUrl'] as String? ?? '').toString(); 
+        if (videoUrl.isNotEmpty && isVideoUrl(videoUrl)) { 
+          videoPaths.add(videoUrl); 
+        } 
+ 
+        // 2. Fallback a campos obsoletos si no se encontró nada en los modernos 
+        if (imagePaths.isEmpty) { 
+            final dynamic rawImages = requestData['imagenes']; // deprecated 
+            if (rawImages is List) { 
+                imagePaths.addAll(rawImages.map((e) => e.toString()).where((p) => p.isNotEmpty && !isVideoUrl(p))); 
+            } else if (rawImages is String && rawImages.isNotEmpty && !isVideoUrl(rawImages)) { 
+                imagePaths.add(rawImages); 
+            } 
+        } 
+        if (videoPaths.isEmpty) { 
+            final dynamic rawVideos = requestData['videos']; // deprecated 
+            if (rawVideos is List) { 
+                videoPaths.addAll(rawVideos.map((e) => e.toString()).where((p) => p.isNotEmpty && isVideoUrl(p))); 
+            } else if (rawVideos is String && rawVideos.isNotEmpty && isVideoUrl(rawVideos)) { 
+                videoPaths.add(rawVideos); 
+            } 
+        } 
+ 
+        // 3. Si se usa el campo 'mediaUrls' (lista combinada, obsoleto), usarlo como última opción 
+        if (imagePaths.isEmpty && videoPaths.isEmpty) { 
+          final dynamic rawMedia = requestData['mediaUrls']; 
+          if (rawMedia is List) { 
+             for (final path in rawMedia.map((e) => e.toString()).where((p) => p.isNotEmpty)) { 
+                if (isVideoUrl(path)) { 
+                   videoPaths.add(path); 
+                } else { 
+                   imagePaths.add(path); 
+                } 
+             } 
+          } 
+        } 
+ 
         String? imagePathToDisplay = imagePaths.isNotEmpty ? imagePaths.first : null;
-
-        // ✅ Extraer y normalizar rutas de videos
-        List<String> videoPaths = [];
-        dynamic rawVideos = requestData['videos'];
-        if (rawVideos != null) {
-          if (rawVideos is List) {
-            videoPaths = List<String>.from(rawVideos.where((item) => item is String).map((e) => e.toString()));
-          } else if (rawVideos is String && rawVideos.isNotEmpty) {
-            videoPaths = [rawVideos.toString()];
-          }
-        }
 
         final double? latitude = (requestData['latitude'] as num?)?.toDouble();
         final double? longitude = (requestData['longitude'] as num?)?.toDouble();
@@ -1287,16 +1390,28 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
               ),
               const Divider(height: 24, thickness: 1, color: Colors.grey),
 
+              // ✅ Prefetch de todas las imágenes al tener la lista disponible
+              if (imagePaths.isNotEmpty && !_startedImagesPrefetch)
+                Builder(builder: (context) {
+                  _startedImagesPrefetch = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    for (final p in imagePaths) {
+                      _prefetchImage(p);
+                    }
+                  });
+                  return const SizedBox.shrink();
+                }),
+
               if (imagePaths.isNotEmpty)
                 SizedBox(
-                  height: 200,
+                  height: 250,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     itemCount: imagePaths.length,
                     itemBuilder: (context, index) {
                       final imagePath = imagePaths[index];
                       return Container(
-                        width: 300,
+                        width: 350,
                         margin: const EdgeInsets.only(right: 12, bottom: 16),
                         child: GestureDetector(
                           onTap: () async {
@@ -1314,32 +1429,27 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 color: Colors.grey[800],
                               ),
-                              child: FutureBuilder<String>(
-                                future: _resolveImageUrl(imagePath),
-                                builder: (context, urlSnapshot) {
-                                  if (urlSnapshot.connectionState == ConnectionState.waiting) {
+                              child: Builder(
+                                builder: (context) {
+                                  final url = _profilePictureUrlCache[imagePath];
+                                  if (url == null || url.isEmpty) {
+                                    _prefetchImage(imagePath);
                                     return const Center(child: CircularProgressIndicator(color: Colors.amber));
-                                  }
-                                  final hasUrl = urlSnapshot.hasData && (urlSnapshot.data?.isNotEmpty ?? false);
-                                  if (!hasUrl || urlSnapshot.hasError) {
-                                    return Container(
-                                      color: Colors.grey[700],
-                                      child: const Center(
-                                        child: Icon(Icons.broken_image, color: Colors.white54, size: 40),
-                                      ),
-                                    );
-                                  }
-                                  final imageUrl = urlSnapshot.data!;
-                                  if (!_profilePictureUrlCache.containsKey(imagePath)) {
-                                    _profilePictureUrlCache[imagePath] = imageUrl;
                                   }
                                   return Stack(
                                     children: [
-                                      Image.network(
-                                        imageUrl,
+                                      CachedNetworkImage(
+                                        imageUrl: url,
+                                        cacheKey: imagePath,
                                         fit: BoxFit.cover,
                                         width: double.infinity,
                                         height: double.infinity,
+                                        placeholder: (context, _) => const Center(
+                                          child: CircularProgressIndicator(color: Colors.amber),
+                                        ),
+                                        errorWidget: (context, _, __) => const Center(
+                                          child: Icon(Icons.broken_image, color: Colors.white54, size: 48),
+                                        ),
                                       ),
                                       if (index == 0)
                                         Align(
@@ -1381,14 +1491,12 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
                         child: GestureDetector(
                           onTap: () async {
                             try {
-                              String videoUrl;
-                              if (_profilePictureUrlCache.containsKey(videoPath)) {
-                                videoUrl = _profilePictureUrlCache[videoPath]!;
+                              final videoUrl = await _resolveVideoUrl(videoPath);
+                              if (videoUrl.isNotEmpty) {
+                                _showVideoPlayerBottomSheet(videoUrl);
                               } else {
-                                videoUrl = await _storage.ref().child(videoPath).getDownloadURL();
-                                _profilePictureUrlCache[videoPath] = videoUrl;
+                                _showSnackBar('Error al abrir el video. Intenta de nuevo.'.tr(), Colors.red);
                               }
-                              _showVideoPlayerBottomSheet(videoUrl);
                             } catch (e) {
                               _showSnackBar('Error al abrir el video. Intenta de nuevo.'.tr(), Colors.red);
                             }
@@ -1581,11 +1689,22 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
       await _controller.setVolume(_volume);
       await _controller.play();
     } catch (e) {
+      debugPrint('ERROR: fallo al inicializar VideoPlayer para URL ${widget.videoUrl}: $e');
       // Si falla, cerramos y notificamos
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('No se pudo reproducir el video'.tr()), backgroundColor: Colors.red),
         );
+        // Fallback: intentar abrir con reproductor externo
+        try {
+          final uri = Uri.parse(widget.videoUrl);
+          final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          if (!launched) {
+            debugPrint('INFO: No se pudo lanzar reproductor externo para ${widget.videoUrl}');
+          }
+        } catch (launchErr) {
+          debugPrint('ERROR: fallo al lanzar reproductor externo: $launchErr');
+        }
         Navigator.of(context).pop();
       }
       return;

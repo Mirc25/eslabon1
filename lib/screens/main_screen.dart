@@ -1,4 +1,4 @@
-// lib/screens/main_screen.dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,6 +24,18 @@ import 'package:eslabon_flutter/models/user_model.dart';
 import 'package:eslabon_flutter/widgets/ad_banner_widget.dart';
 import 'package:eslabon_flutter/services/ads_ids.dart';
 import '../widgets/custom_app_bar.dart';
+
+// Helper para detectar URLs de video por extensión
+bool isVideoUrl(String url) {
+  final lower = url.toLowerCase();
+  return lower.endsWith('.mp4') ||
+      lower.endsWith('.mov') ||
+      lower.endsWith('.m4v') ||
+      lower.endsWith('.webm') ||
+      lower.endsWith('.mkv') ||
+      lower.endsWith('.avi') ||
+      lower.endsWith('.3gp');
+}
 
 // Ubicación personalizada del FloatingActionButton: permite ajustar X/Y
 class _StartTopWithOffset extends FloatingActionButtonLocation {
@@ -323,15 +335,25 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
       return profilePicturePath;
     }
 
-    // Caso Storage path: intentar obtener download URL
-    try {
-      final String downloadUrl = await _storage.ref().child(profilePicturePath).getDownloadURL();
-      _profilePictureUrlCache[profilePicturePath] = downloadUrl;
-      return downloadUrl;
-    } catch (e) {
-      print('Error loading image URL for "$profilePicturePath": $e');
-      return '';
+    // Caso Storage path: intentar obtener download URL con reintentos/backoff
+    const int maxRetries = 5;
+    Duration delay = const Duration(milliseconds: 250);
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        final String downloadUrl = await _storage.ref().child(profilePicturePath).getDownloadURL();
+        _profilePictureUrlCache[profilePicturePath] = downloadUrl;
+        return downloadUrl;
+      } catch (e) {
+        debugPrint('WARN: getDownloadURL intento ${attempt + 1}/$maxRetries para $profilePicturePath: $e');
+        if (attempt < maxRetries - 1) {
+          await Future.delayed(delay);
+          delay *= 2; // backoff exponencial
+          continue;
+        }
+        // última falla
+      }
     }
+    return '';
   }
 
   void _showCommentsModal(String requestId, firebase_auth.User? currentUser) {
@@ -812,69 +834,113 @@ class _MainScreenState extends ConsumerState<MainScreen> with TickerProviderStat
                       height: 120,
                       child: Builder(
                         builder: (context) {
-                          // Obtener la lista de rutas de imágenes
-                          List<String> imagePaths = [];
-                          if (rawImages != null) {
-                            if (rawImages is List) {
-                              imagePaths = rawImages.map((e) => e?.toString() ?? '').where((path) => path.isNotEmpty).toList();
-                            } else if (rawImages is String && rawImages.isNotEmpty) {
-                              imagePaths = [rawImages];
+                          // Obtener lista combinada de medios (imagenes + videos) o usar mediaUrls si existe
+                          List<String> mediaPaths = [];
+                          final dynamic rawMedia = requestData['mediaUrls'];
+                          if (rawMedia != null) {
+                            if (rawMedia is List) {
+                              mediaPaths = rawMedia
+                                  .map((e) => e?.toString() ?? '')
+                                  .where((path) => path.isNotEmpty)
+                                  .toList();
+                            } else if (rawMedia is String && rawMedia.isNotEmpty) {
+                              mediaPaths = [rawMedia];
                             }
+                          } else {
+                            // Fallback: usar imagenes y videos por separado si mediaUrls no existe
+                            List<String> imagePaths = [];
+                            if (rawImages != null) {
+                              if (rawImages is List) {
+                                imagePaths = rawImages
+                                    .map((e) => e?.toString() ?? '')
+                                    .where((path) => path.isNotEmpty)
+                                    .toList();
+                              } else if (rawImages is String && rawImages.isNotEmpty) {
+                                imagePaths = [rawImages];
+                              }
+                            }
+                            List<String> videoPaths = [];
+                            final dynamic rawVideos = requestData['videos'];
+                            if (rawVideos != null) {
+                              if (rawVideos is List) {
+                                videoPaths = rawVideos
+                                    .map((e) => e?.toString() ?? '')
+                                    .where((path) => path.isNotEmpty)
+                                    .toList();
+                              } else if (rawVideos is String && rawVideos.isNotEmpty) {
+                                videoPaths = [rawVideos];
+                              }
+                            }
+                            mediaPaths = [...imagePaths, ...videoPaths];
                           }
 
-                          if (imagePaths.isEmpty) {
-                            return AspectRatio(
-                              aspectRatio: 1,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[700],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.image_not_supported, color: Colors.white54, size: 40),
-                              ),
-                            );
+                          if (mediaPaths.isEmpty) {
+                            // No renderizar contenedor vacío si no hay medios
+                            return const SizedBox.shrink();
                           }
 
                           return ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            itemCount: imagePaths.length,
+                            itemCount: mediaPaths.length,
                             itemBuilder: (context, index) {
-                              final imagePath = imagePaths[index];
+                              final mediaPath = mediaPaths[index];
                               return Padding(
-                                padding: EdgeInsets.only(right: index < imagePaths.length - 1 ? 8.0 : 0),
+                                padding: EdgeInsets.only(right: index < mediaPaths.length - 1 ? 8.0 : 0),
                                 child: AspectRatio(
                                   aspectRatio: 1,
-                                  child: FutureBuilder<String>(
-                                    future: _getProfilePictureUrl(imagePath),
-                                    builder: (context, urlSnapshot) {
-                                      if (urlSnapshot.connectionState == ConnectionState.waiting) {
-                                        return Container(
-                                          color: Colors.grey[700],
-                                          child: const Center(child: CircularProgressIndicator(color: Colors.amber)),
-                                        );
-                                      }
-
-                                      final hasUrl = urlSnapshot.hasData && (urlSnapshot.data?.isNotEmpty ?? false);
-                                      if (!hasUrl || urlSnapshot.hasError) {
-                                        return Container(
-                                          color: Colors.grey[700],
-                                          child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
-                                        );
-                                      }
-
-                                      return ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          urlSnapshot.data!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) => Container(
-                                            color: Colors.grey[700],
-                                            child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                  child: isVideoUrl(mediaPath)
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                            color: Colors.black,
+                                            child: const Center(
+                                              child: Icon(Icons.videocam, color: Colors.white70, size: 40),
+                                            ),
                                           ),
+                                        )
+                                      : FutureBuilder<String>(
+                                          future: _getProfilePictureUrl(mediaPath),
+                                          builder: (context, urlSnapshot) {
+                                            if (urlSnapshot.connectionState == ConnectionState.waiting) {
+                                              return Container(
+                                                color: Colors.grey[700],
+                                                child: const Center(child: CircularProgressIndicator(color: Colors.amber)),
+                                              );
+                                            }
+
+                                            final hasUrl = urlSnapshot.hasData && (urlSnapshot.data?.isNotEmpty ?? false);
+                                            if (!hasUrl || urlSnapshot.hasError) {
+                                              return Container(
+                                                color: Colors.grey[700],
+                                                child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                              );
+                                            }
+
+                                            return ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: CachedNetworkImage(
+                                                imageUrl: urlSnapshot.data!,
+                                                cacheKey: mediaPath,
+                                                fit: BoxFit.cover,
+                                                width: double.infinity,
+                                                height: double.infinity,
+                                                placeholder: (context, url) => Container(
+                                                  color: Colors.grey[700],
+                                                  child: const Center(
+                                                    child: CircularProgressIndicator(
+                                                      color: Colors.amber,
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                errorWidget: (context, url, error) => Container(
+                                                  color: Colors.grey[700],
+                                                  child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         ),
-                                      );
-                                    },
-                                  ),
                                 ),
                               );
                             },

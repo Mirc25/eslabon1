@@ -95,7 +95,7 @@ Future<void> main() async {
         notificationServiceProvider.overrideWithValue(notificationService),
       ],
       child: EasyLocalization(
-        supportedLocales: const [Locale('es'), Locale('en')],
+        supportedLocales: const [Locale('es'), Locale('es','AR'), Locale('en')],
         path: 'assets/translations',
         fallbackLocale: const Locale('es'),
         child: const MyApp(),
